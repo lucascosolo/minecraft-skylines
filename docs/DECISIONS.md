@@ -81,3 +81,14 @@ and uninstalling must return them to normal play with little friction.
   truly needs it.
 - **Uninstall test** joins the exit criteria of every milestone that changes a city (M4-M7): save
   with the mod, disable it, reload in vanilla: it loads cleanly and only documented changes remain.
+
+## 2026-10-05: Minecraft is started with its own JDK from the home folder
+
+Steam runs Cities: Skylines inside its Linux runtime container, where the host's `/usr` (and
+with it `/usr/bin/java` and `/usr/lib/jvm`) is not visible, while the home folder is (owner's
+runs: "no java on PATH", then "JAVA_HOME is set to an invalid directory"). Chosen: a self-contained
+Eclipse Temurin 25 JDK under `~/.cache/minecraft-skylines/jdk/` (`tools/fetch-jdk.sh`, SHA-256
+checked; needs only glibc 2.17). Rejected: reaching the host's Java through the container's
+`/run/host` (host-glibc binaries inside an older runtime), or asking Steam to escape the
+container (not available by default). This mirrors what a player release needs anyway (SkyCraft's
+bundled launcher brings its own Java).

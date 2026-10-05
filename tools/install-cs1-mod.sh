@@ -32,18 +32,29 @@ done
 # Written only when absent: a user-edited launch.cfg is never overwritten.
 CFG="${DEST:?}/launch.cfg"
 
-# Steam starts the game with a PATH that has no java on it (owner's run, 2026-10-05: "JAVA_HOME is
-# not set and no 'java' command could be found"), so the launch config names Java explicitly.
-JAVA_BIN="$(command -v java || true)"
-if [ -n "${JAVA_BIN}" ]; then
-  JAVA_HOME_DETECTED="$(dirname "$(dirname "$(readlink -f "${JAVA_BIN}")")")"
-else
-  JAVA_HOME_DETECTED="/usr/lib/jvm/default-java"
+# Steam runs the game inside its Linux runtime container: the host's /usr (and so /usr/lib/jvm and
+# /usr/bin/java) is not visible there, but the home folder is (owner's runs, 2026-10-05: "no java on
+# PATH", then "JAVA_HOME is set to an invalid directory: /usr/lib/jvm/java-25-openjdk-amd64").
+# So Minecraft is started with a self-contained JDK under the home folder: Temurin 25, fetched by
+# tools/fetch-jdk.sh into ~/.cache/minecraft-skylines/jdk/.
+JAVA_HOME_DETECTED="$(ls -d "${HOME:?}"/.cache/minecraft-skylines/jdk/jdk-25*/ 2>/dev/null | sort | tail -1 || true)"
+JAVA_HOME_DETECTED="${JAVA_HOME_DETECTED%/}"
+if [ -z "${JAVA_HOME_DETECTED}" ] || [ ! -x "${JAVA_HOME_DETECTED}/bin/java" ]; then
+  echo "ERROR: no JDK under ~/.cache/minecraft-skylines/jdk/. Run: bash ${ROOT}/tools/fetch-jdk.sh"
+  exit 1
 fi
-[ -x "${JAVA_HOME_DETECTED}/bin/java" ] || echo "WARNING: no java found at ${JAVA_HOME_DETECTED}/bin/java; set env.JAVA_HOME in ${CFG} by hand"
 LAUNCH_PATH="${JAVA_HOME_DETECTED}/bin:/usr/local/bin:/usr/bin:/bin"
 if [ -e "${CFG:?}" ]; then
-  # Add only keys that are missing; existing lines (the user's edits) are left as they are.
+  # Add only keys that are missing; existing lines (the user's edits) are left as they are, with one
+  # exception: a JAVA_HOME outside the home folder (written by an earlier version of this script) is
+  # invisible inside Steam's container, so those two lines are replaced after a dated backup copy.
+  CUR_JH="$(sed -n 's/^[[:space:]]*env\.JAVA_HOME[[:space:]]*=[[:space:]]*//p' "${CFG:?}" | tail -1)"
+  if [ -n "${CUR_JH}" ] && [ "${CUR_JH#${HOME}/}" = "${CUR_JH}" ]; then
+    BACKUP="${CFG:?}.backup-$(date +%Y%m%d-%H%M%S)"
+    cp -p "${CFG:?}" "${BACKUP:?}"
+    grep -vE '^[[:space:]]*env\.(JAVA_HOME|PATH)[[:space:]]*=' "${BACKUP:?}" > "${CFG:?}"
+    echo "replaced env.JAVA_HOME ${CUR_JH} (not visible inside Steam's container); old file kept as ${BACKUP}"
+  fi
   if ! grep -q '^[[:space:]]*env\.JAVA_HOME[[:space:]]*=' "${CFG:?}"; then
     printf 'env.JAVA_HOME = %s\n' "${JAVA_HOME_DETECTED}" >> "${CFG:?}"
     echo "added env.JAVA_HOME = ${JAVA_HOME_DETECTED} to ${CFG}"
