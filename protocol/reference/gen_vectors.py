@@ -64,6 +64,41 @@ def frames() -> list[dict]:
     add("guest_status_unpaired", sb.GUEST_STATUS, {"flags": 3, "worldName": "skylines-test",
         "pairedSaveId": str(uuid.UUID(int=0))}, gs.encode())
 
+    # ---- 1.1 (milestone 2). f32 values are chosen to be exactly representable.
+    e = sb.EnterPlayerMode(3, 120.5, 64.0, -2048.25, -90.0, 12.5, 7)
+    add("enter_player_mode", sb.ENTER_PLAYER_MODE, {"teleportSeq": 3, "x": 120.5, "y": 64.0,
+        "z": -2048.25, "yaw": -90.0, "pitch": 12.5, "collisionEpoch": 7}, e.encode())
+
+    add("exit_player_mode", sb.EXIT_PLAYER_MODE, {"reason": "player pressed Esc"},
+        sb.ExitPlayerMode("player pressed Esc").encode())
+
+    inp = sb.Input(179.5, -45.25, [sb.InputEvent(sb.IN_KEY, 1, 87), sb.InputEvent(sb.IN_BUTTON, 0, 1),
+                                   sb.InputEvent(sb.IN_SCROLL, 0, -240), sb.InputEvent(sb.IN_TEXT, 0, 0x00E9),
+                                   sb.InputEvent(sb.IN_RELEASE_ALL, 0, 0)])
+    add("input", sb.INPUT, {"yaw": 179.5, "pitch": -45.25, "events": [
+        {"kind": 1, "action": 1, "code": 87}, {"kind": 2, "action": 0, "code": 1},
+        {"kind": 3, "action": 0, "code": -240}, {"kind": 4, "action": 0, "code": 233},
+        {"kind": 5, "action": 0, "code": 0}]}, inp.encode())
+
+    add("input_empty", sb.INPUT, {"yaw": 0.0, "pitch": 0.0, "events": []}, sb.Input(0.0, 0.0, []).encode())
+
+    tris = [([0.0, 40.0, 0.0, 0.0, 40.0, 2.0, 2.0, 40.5, 0.0], 0x0001),
+            ([-16.0, 61.25, -32.0, -14.0, 61.25, -32.0, -16.0, 61.25, -30.0], 0x0006)]
+    add("collision_region", sb.COLLISION_REGION, {"epoch": 7, "regionX": -1, "regionZ": -2,
+        "tris": [{"v": t[0], "flags": t[1]} for t in tris]}, sb.CollisionRegion(7, -1, -2, tris).encode())
+
+    add("collision_region_empty", sb.COLLISION_REGION, {"epoch": 7, "regionX": 539, "regionZ": -540,
+        "tris": []}, sb.CollisionRegion(7, 539, -540, []).encode())
+
+    add("collision_reset", sb.COLLISION_RESET, {"epoch": 8}, sb.CollisionReset(8).encode())
+
+    ps = {"flags": 0b10000011, "teleportAck": 3, "x": 120.5, "y": 64.0, "z": -2048.25,
+          "eyeX": 120.5, "eyeY": 65.62, "eyeZ": -2048.25, "yaw": -90.0, "pitch": 12.5, "fovDeg": 70.0,
+          "tickSeq": 123456, "prevX": 120.25, "prevY": 64.0, "prevZ": -2048.0,
+          "curX": 120.75, "curY": 64.0, "curZ": -2048.5, "prevEyeHeight": 1.5, "curEyeHeight": 1.625,
+          "partialTick": 0.5, "tickMs": 50.0}
+    add("player_state", sb.PLAYER_STATE, ps, sb.PlayerState(ps).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")

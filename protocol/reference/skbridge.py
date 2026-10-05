@@ -227,6 +227,137 @@ class GuestStatus:
         return GuestStatus(flags=r.u32(), world_name=r.string(), paired_save_id=r.uuid())
 
 
+# ---- minecraft-skylines app protocol 1.1: milestone 2 -----------------------------------------
+ENTER_PLAYER_MODE, EXIT_PLAYER_MODE, INPUT, COLLISION_REGION, COLLISION_RESET = 0x0110, 0x0111, 0x0112, 0x0113, 0x0114
+PLAYER_STATE = 0x0120
+IN_KEY, IN_BUTTON, IN_SCROLL, IN_TEXT, IN_RELEASE_ALL = 1, 2, 3, 4, 5
+
+
+@dataclass
+class EnterPlayerMode:
+    teleport_seq: int
+    x: float
+    y: float
+    z: float
+    yaw: float
+    pitch: float
+    collision_epoch: int
+
+    def encode(self) -> bytes:
+        return (Writer().u32(self.teleport_seq).f64(self.x).f64(self.y).f64(self.z)
+                .f32(self.yaw).f32(self.pitch).u32(self.collision_epoch).bytes())
+
+    @staticmethod
+    def decode(p: bytes) -> "EnterPlayerMode":
+        r = Reader(p)
+        return EnterPlayerMode(r.u32(), r.f64(), r.f64(), r.f64(), r.f32(), r.f32(), r.u32())
+
+
+@dataclass
+class ExitPlayerMode:
+    reason: str
+
+    def encode(self) -> bytes:
+        return Writer().string(self.reason).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "ExitPlayerMode":
+        return ExitPlayerMode(Reader(p).string())
+
+
+@dataclass
+class InputEvent:
+    kind: int
+    action: int
+    code: int
+
+
+@dataclass
+class Input:
+    yaw: float
+    pitch: float
+    events: list
+
+    def encode(self) -> bytes:
+        w = Writer().f32(self.yaw).f32(self.pitch).u16(len(self.events))
+        for e in self.events:
+            w.u8(e.kind).u8(e.action).i32(e.code)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "Input":
+        r = Reader(p)
+        yaw, pitch, n = r.f32(), r.f32(), r.u16()
+        return Input(yaw, pitch, [InputEvent(r.u8(), r.u8(), r.i32()) for _ in range(n)])
+
+
+@dataclass
+class CollisionRegion:
+    epoch: int
+    region_x: int
+    region_z: int
+    tris: list  # each: (9 floats, flags)
+
+    def encode(self) -> bytes:
+        w = Writer().u32(self.epoch).i32(self.region_x).i32(self.region_z).u32(len(self.tris))
+        for verts, flags in self.tris:
+            for v in verts:
+                w.f32(v)
+            w.u16(flags)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CollisionRegion":
+        r = Reader(p)
+        epoch, rx, rz, n = r.u32(), r.i32(), r.i32(), r.u32()
+        tris = []
+        for _ in range(n):
+            verts = [r.f32() for _ in range(9)]
+            tris.append((verts, r.u16()))
+        return CollisionRegion(epoch, rx, rz, tris)
+
+
+@dataclass
+class CollisionReset:
+    epoch: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.epoch).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CollisionReset":
+        return CollisionReset(Reader(p).u32())
+
+
+PLAYER_STATE_FIELDS = [
+    ("flags", "u32"), ("teleportAck", "u32"),
+    ("x", "f64"), ("y", "f64"), ("z", "f64"),
+    ("eyeX", "f64"), ("eyeY", "f64"), ("eyeZ", "f64"),
+    ("yaw", "f32"), ("pitch", "f32"), ("fovDeg", "f32"),
+    ("tickSeq", "u32"),
+    ("prevX", "f64"), ("prevY", "f64"), ("prevZ", "f64"),
+    ("curX", "f64"), ("curY", "f64"), ("curZ", "f64"),
+    ("prevEyeHeight", "f32"), ("curEyeHeight", "f32"),
+    ("partialTick", "f32"), ("tickMs", "f32"),
+]
+
+
+@dataclass
+class PlayerState:
+    values: dict  # keyed by PLAYER_STATE_FIELDS names
+
+    def encode(self) -> bytes:
+        w = Writer()
+        for name, kind in PLAYER_STATE_FIELDS:
+            getattr(w, kind)(self.values[name])
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "PlayerState":
+        r = Reader(p)
+        return PlayerState({name: getattr(r, kind)() for name, kind in PLAYER_STATE_FIELDS})
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

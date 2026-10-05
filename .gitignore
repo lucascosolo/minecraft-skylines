@@ -19,3 +19,4 @@ _quarantine/*
 # test reports
 reports/
 __pycache__/
+.agent/ledger-*.md
