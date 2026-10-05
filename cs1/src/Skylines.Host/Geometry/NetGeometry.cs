@@ -40,7 +40,16 @@ namespace Skylines.Host.Geometry
         private const int GridSize = 270;         // NetManager.NODEGRID_RESOLUTION
         private const float GridMargin = 256f;    // segments are filed under their midpoint; searched with slack, then bounds-tested
 
-        private enum Kind { Skip, Ground, Bridge }
+        /// <summary>How a segment is exported: not at all, as a ground slab, or as a bridge deck.</summary>
+        public enum Kind
+        {
+            /// <summary>Not exported (power lines, pipes, underground).</summary>
+            Skip,
+            /// <summary>A ground slab.</summary>
+            Ground,
+            /// <summary>A bridge or elevated deck.</summary>
+            Bridge,
+        }
 
         private readonly HashSet<ushort> _nodes = new HashSet<ushort>();
         private readonly float[] _ring = new float[3 * 16];
@@ -82,7 +91,8 @@ namespace Skylines.Host.Geometry
             return Mathf.Clamp((int)(v / GridCell + 135f), 0, GridSize - 1);
         }
 
-        private static Kind Classify(NetInfo info)
+        /// <summary>How segments of <paramref name="info"/> are exported.</summary>
+        public static Kind Classify(NetInfo info)
         {
             NetAI ai = info == null ? null : info.m_netAI;
             if (ai == null) return Kind.Skip;
@@ -177,6 +187,41 @@ namespace Skylines.Host.Geometry
             }
             if (x1 < minX || x0 > maxX || z1 < minZ || z0 > maxZ) return;
             Disc.Polygon(p.x, y, p.z, _ring, count, thickness, flags, into);
+        }
+
+        /// <summary>
+        /// Exported (ground or bridge) segment ids whose centre-curve midpoint lies within <paramref name="radius"/> of
+        /// <paramref name="pos"/> in xz, nearest first.
+        /// </summary>
+        public List<ushort> FindSegments(Vector3 pos, float radius)
+        {
+            NetManager nm = Singleton<NetManager>.instance;
+            NetSegment[] segs = nm.m_segments.m_buffer;
+            ushort[] grid = nm.m_segmentGrid;
+            var found = new List<KeyValuePair<float, ushort>>();
+            for (int cz = Cell(pos.z - radius - GridMargin); cz <= Cell(pos.z + radius + GridMargin); cz++)
+            {
+                for (int cx = Cell(pos.x - radius - GridMargin); cx <= Cell(pos.x + radius + GridMargin); cx++)
+                {
+                    ushort id = grid[cz * GridSize + cx];
+                    int guard = 0;
+                    while (id != 0 && guard++ < NetManager.MAX_SEGMENT_COUNT)
+                    {
+                        if ((segs[id].m_flags & NetSegment.Flags.Created) != 0 && (segs[id].m_flags & NetSegment.Flags.Deleted) == 0
+                            && Classify(segs[id].Info) != Kind.Skip)
+                        {
+                            Vector3 m = segs[id].GenerateBezier(id, segs[id].m_startNode).Position(0.5f);
+                            float d = new Vector2(m.x - pos.x, m.z - pos.z).magnitude;
+                            if (d <= radius) found.Add(new KeyValuePair<float, ushort>(d, id));
+                        }
+                        id = segs[id].m_nextGridSegment;
+                    }
+                }
+            }
+            found.Sort((a, b) => a.Key.CompareTo(b.Key));
+            var ids = new List<ushort>(found.Count);
+            foreach (KeyValuePair<float, ushort> kv in found) ids.Add(kv.Value);
+            return ids;
         }
 
         /// <summary>

@@ -6,6 +6,7 @@ using System.Text;
 using ColossalFramework.IO;
 using ICities;
 using MinecraftSkylines.Mod.Diagnostics;
+using MinecraftSkylines.Mod.SelfTest;
 using MinecraftSkylines.Protocol;
 using Skylines.Bridge;
 using Skylines.Host;
@@ -31,6 +32,7 @@ namespace MinecraftSkylines.Mod
         private static StatusOverlay s_overlay;
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
+        private static SelfTestController s_selfTest;
         private static MinecraftLauncher s_launcher;
         private static BridgeHost s_host;
         private static string s_startError;
@@ -64,6 +66,7 @@ namespace MinecraftSkylines.Mod
             s_launcher = new MinecraftLauncher(s_log, Path.Combine(Path.Combine(DataLocation.localApplicationData, "ModLogs"), "MinecraftSkylines-companion.log"),
                 UnityEngine.Application.platform == UnityEngine.RuntimePlatform.LinuxPlayer);
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
+            s_selfTest = new SelfTestController(s_log, s_player, s_launcher, ModVersion);
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
             s_pump.Gui += s_player.OnGui;
             s_pump.Updated += s_player.Viewer.Update;
@@ -100,6 +103,7 @@ namespace MinecraftSkylines.Mod
                 return;
             }
             s_log.Info("stopping: " + why + PerfSummary());
+            s_selfTest.Abort(why);
             s_player.Exit(why, s_host, true);
             s_player.Viewer.Dispose();
             s_probe.RestoreAll(why, true);
@@ -109,6 +113,7 @@ namespace MinecraftSkylines.Mod
             s_pump = null;
             s_overlay = null;
             s_player = null;
+            s_selfTest = null;
             s_launcher = null;
             s_guest = null;
             s_log.Close();
@@ -120,6 +125,7 @@ namespace MinecraftSkylines.Mod
             // Milestone 1 never assigns an id: a city is only paired (and backed up first) when the
             // player switches it to Minecraft mode, so a city merely loaded with the mod enabled is
             // saved exactly as without it. See docs/DECISIONS.md, "player safety".
+            if (s_selfTest != null) s_selfTest.OnLevelLoaded();
             Log("level loaded (" + mode + "); save id " + (s_saveId.LoadedFromSave ? s_saveId.Id.ToString() : "none (city not paired)"));
             s_statusDirty = true;
         }
@@ -128,6 +134,7 @@ namespace MinecraftSkylines.Mod
         {
             CityState.SetInCity(false);
             s_saveId.Clear();
+            if (s_selfTest != null) s_selfTest.OnLevelUnloading(s_host);
             if (s_player != null) s_player.Exit("city unloading", s_host, true);
             if (s_probe != null) s_probe.RestoreAll("level unloading", false);
             Log("level unloading");
@@ -196,6 +203,7 @@ namespace MinecraftSkylines.Mod
             Guid saveId = s_saveId.Id;
             s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
             s_player.Update(s_host, city.InCity && !city.Loading);
+            s_selfTest.Update(s_host, city.InCity && !city.Loading);
             if (!city.Equals(s_lastCity) || saveId != s_lastSentSaveId)
             {
                 s_lastCity = city;
@@ -322,6 +330,7 @@ namespace MinecraftSkylines.Mod
                 sb.Append(saveId == Guid.Empty ? "  (not paired)" : "  save id " + saveId.ToString().Substring(0, 8));
             }
             sb.Append('\n').Append(s_player.OverlayText());
+            if (s_selfTest.OverlayText.Length > 0) sb.Append('\n').Append(s_selfTest.OverlayText);
             if (s_probe.Status.Length > 0)
             {
                 sb.Append('\n').Append(s_probe.Status);

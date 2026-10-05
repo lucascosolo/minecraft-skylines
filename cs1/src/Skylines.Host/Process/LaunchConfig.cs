@@ -18,11 +18,21 @@ namespace Skylines.Host
         Off,
     }
 
+    /// <summary>When the in-game self-test runs by itself (launch.cfg <c>selftest</c>).</summary>
+    public enum SelfTestMode
+    {
+        /// <summary>Only on Ctrl+Shift+T (<c>off</c>, the default).</summary>
+        Off,
+
+        /// <summary>Once after each city load (<c>city_load</c>).</summary>
+        CityLoad,
+    }
+
     /// <summary>
     /// Parsed <c>launch.cfg</c>: a plain <c>key = value</c> file (<c>#</c> starts a comment line).
     /// Keys: <c>command</c>, <c>args</c> (space separated, double quotes group, backslash escapes a quote
     /// or backslash inside quotes), <c>working_dir</c>, <c>env.NAME</c> (repeatable) and
-    /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>). Pure logic: no Unity, no process start.
+    /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>), <c>selftest</c> (<c>off</c> default, <c>city_load</c>). Pure logic: no Unity, no process start.
     /// </summary>
     public sealed class LaunchConfig
     {
@@ -46,6 +56,9 @@ namespace Skylines.Host
 
         /// <summary>When to start the companion before the shortcut is pressed.</summary>
         public PrewarmMode Prewarm = PrewarmMode.GameStart;
+
+        /// <summary>When the self-test starts by itself.</summary>
+        public SelfTestMode SelfTest = SelfTestMode.Off;
 
         /// <summary>Problems found while parsing (unknown keys, bad numbers, missing command).</summary>
         public readonly List<string> Problems = new List<string>();
@@ -148,6 +161,14 @@ namespace Skylines.Host
                         case "city_load": Prewarm = PrewarmMode.CityLoad; break;
                         case "off": Prewarm = PrewarmMode.Off; break;
                         default: Problems.Add("line " + lineNo + ": prewarm must be game_start, city_load or off"); break;
+                    }
+                    break;
+                case "selftest":
+                    switch (value.ToLowerInvariant())
+                    {
+                        case "off": SelfTest = SelfTestMode.Off; break;
+                        case "city_load": SelfTest = SelfTestMode.CityLoad; break;
+                        default: Problems.Add("line " + lineNo + ": selftest must be off or city_load"); break;
                     }
                     break;
                 default:

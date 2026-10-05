@@ -63,6 +63,13 @@ namespace MinecraftSkylines.Mod
         private double _frameTotalMs;
         private long _frames;
 
+        // Self-test only: synthetic held keys replace the keyboard and mouse while non-null.
+        private int[] _synthetic;
+        private readonly List<int> _syntheticSent = new List<int>();
+        private Vector3 _stateFeet;
+        private uint _stateFlags;
+        private double _stateAtMs = -1;
+
         public PlayerMode(HostLog log, Action changed, MinecraftLauncher launcher)
         {
             _log = log;
@@ -72,6 +79,44 @@ namespace MinecraftSkylines.Mod
         }
 
         public bool IsOn { get { return _state != State.Off; } }
+
+        /// <summary>True once Minecraft acknowledged the teleport and the player is under control.</summary>
+        public bool IsActive { get { return _state == State.Active; } }
+
+        /// <summary>True while the shortcut blocker's modal panel is still up.</summary>
+        public bool BlockerUp { get { return _blocker.Blocking; } }
+
+        /// <summary>Feet (CS1) and flags of the latest PLAYER_STATE, and its age; false before any.</summary>
+        public bool TryLatestState(out Vector3 feet, out uint flags, out double ageMs)
+        {
+            feet = _stateFeet;
+            flags = _stateFlags;
+            ageMs = _stateAtMs < 0 ? double.PositiveInfinity : NowMs() - _stateAtMs;
+            return _stateAtMs >= 0;
+        }
+
+        /// <summary>
+        /// Self-test: enters at <paramref name="feet"/> (CS1) facing <paramref name="yawDeg"/> (Unity heading).
+        /// Returns null or why it refused. The human path (Ctrl+Shift+M) is unchanged.
+        /// </summary>
+        public string EnterAt(BridgeHost host, bool cityReady, Vector3 feet, float yawDeg)
+        {
+            if (_state != State.Off) return "player mode is already on";
+            TryEnter(host, cityReady, feet, yawDeg);
+            return _state == State.Off ? (_note.Length > 0 ? _note : "could not enter") : null;
+        }
+
+        /// <summary>Self-test: these Unity key codes are held instead of the real keyboard; null gives input back to the player.</summary>
+        public void SetSyntheticKeys(int[] unityKeyCodes)
+        {
+            _synthetic = unityKeyCodes;
+        }
+
+        /// <summary>Self-test: sets the look direction (Unity heading and pitch, degrees).</summary>
+        public void SetLook(double yawDeg, double pitchDeg)
+        {
+            _look = new PlayerLook(yawDeg, pitchDeg);
+        }
 
         /// <summary>The Ctrl+Shift+G collision wireframe.</summary>
         public Diagnostics.CollisionViewer Viewer { get { return _streamer.Viewer; } }
@@ -106,7 +151,7 @@ namespace MinecraftSkylines.Mod
                 }
                 float dx, dy;
                 _input.ReadMouse(out dx, out dy);
-                _look.Apply(dx, dy, _sensitivity);
+                if (_synthetic == null) _look.Apply(dx, dy, _sensitivity);
                 _streamer.Tick(_state == State.Active ? _feet : _spawnFeet, host, StreamBudgetMs);
                 if (_state == State.Active)
                 {
@@ -166,6 +211,10 @@ namespace MinecraftSkylines.Mod
         {
             _lastAck = s.TeleportAck;
             _lastHeld = (s.Flags & PlayerStateFlags.Held) != 0;
+            McVec frame = PlayerPose.McToCs(new McVec(s.X, s.Y, s.Z));
+            _stateFeet = new Vector3((float)frame.X, (float)frame.Y, (float)frame.Z);
+            _stateFlags = s.Flags;
+            _stateAtMs = NowMs();
             if (_state == State.Off || s.TeleportAck != _teleportSeq)
             {
                 return;
@@ -229,6 +278,7 @@ namespace MinecraftSkylines.Mod
             });
             Guard("reset interpolator", () => _interp.Reset());
             _haveTick = false;
+            _syntheticSent.Clear();
             _note = "left: " + reason;
             _log.Info("player mode off (" + was + "): " + reason + FrameSummary());
             Guard("status", () => _changed());
@@ -281,7 +331,7 @@ namespace MinecraftSkylines.Mod
                 else if (connected)
                 {
                     _launcher.Cancel();
-                    TryEnter(host, cityReady);
+                    TryEnter(host, cityReady, null, null);
                 }
                 else
                 {
@@ -298,10 +348,10 @@ namespace MinecraftSkylines.Mod
                 _note = "";
                 return;
             }
-            TryEnter(host, cityReady);
+            TryEnter(host, cityReady, null, null);
         }
 
-        private void TryEnter(BridgeHost host, bool cityReady)
+        private void TryEnter(BridgeHost host, bool cityReady, Vector3? feet, float? yawDeg)
         {
             string refusal = null;
             if (!cityReady || !TerrainManager.exists) refusal = "no city loaded";
@@ -323,12 +373,14 @@ namespace MinecraftSkylines.Mod
 
                 Vector3 target = _camera.CityTarget;
                 target.y = TerrainManager.instance.SampleDetailHeightSmooth(target);
+                if (feet.HasValue) target = feet.Value;
                 _spawnFeet = target;
                 try { _log.Info("player mode: " + _streamer.DescribeNearestGround(target)); }
                 catch (Exception e) { _log.Error("nearest road diagnostics", e); }
                 _eye = SpawnEyeHeight;
                 _fov = 0f;
-                _look = new PlayerLook(_camera.CityRotation.eulerAngles.y, 0);
+                _look = new PlayerLook(yawDeg.HasValue ? yawDeg.Value : _camera.CityRotation.eulerAngles.y, 0);
+                _syntheticSent.Clear();
                 _interp.Reset();
                 _haveTick = false;
                 _frames = 0; _frameTotalMs = 0; _frameMaxMs = 0;
@@ -365,6 +417,8 @@ namespace MinecraftSkylines.Mod
             _captured.Clear();
             _events.Clear();
             _input.Poll(_captured);
+            if (_synthetic != null) _captured.Clear();
+            if (_synthetic != null || _syntheticSent.Count > 0) SyntheticTransitions();
             foreach (CapturedEvent c in _captured)
             {
                 switch (c.Kind)
@@ -388,6 +442,29 @@ namespace MinecraftSkylines.Mod
             McLook look = _look.ToMc();
             var msg = new InputMsg { Yaw = (float)look.Yaw, Pitch = (float)look.Pitch, Events = _events.ToArray() };
             host.Send(AppProtocol.InputType, msg.Encode());
+        }
+
+        // Turns the difference between the requested and the last sent synthetic key set into key events
+        // (null releases every synthetic key still down).
+        private void SyntheticTransitions()
+        {
+            int[] wanted = _synthetic ?? new int[0];
+            for (int i = _syntheticSent.Count - 1; i >= 0; i--)
+            {
+                if (Array.IndexOf(wanted, _syntheticSent[i]) < 0)
+                {
+                    _captured.Add(new CapturedEvent(CapturedKind.KeyUp, _syntheticSent[i], 0f));
+                    _syntheticSent.RemoveAt(i);
+                }
+            }
+            foreach (int code in wanted)
+            {
+                if (!_syntheticSent.Contains(code))
+                {
+                    _captured.Add(new CapturedEvent(CapturedKind.KeyDown, code, 0f));
+                    _syntheticSent.Add(code);
+                }
+            }
         }
 
         private static bool EnterKeyPressed()

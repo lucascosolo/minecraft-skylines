@@ -48,6 +48,12 @@ namespace MinecraftSkylines.Mod
         /// <summary>True while waiting for the link after a start (or a re-arm); the caller then auto-enters.</summary>
         public bool Pending { get; private set; }
 
+        /// <summary>launch.cfg <c>selftest</c>; Off without a usable launch.cfg.</summary>
+        public SelfTestMode SelfTest
+        {
+            get { Load(); return _config == null ? SelfTestMode.Off : _config.SelfTest; }
+        }
+
         /// <summary>True when a usable launch.cfg was found.</summary>
         public bool Enabled
         {

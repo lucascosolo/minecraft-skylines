@@ -144,3 +144,32 @@ Minecraft now starts by itself: no Gradle terminal needed.
    `mkdir -p ~/.cache/minecraft-skylines/evidence/m2r2 && cp ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines*.log ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log ~/.cache/minecraft-skylines/evidence/m2r2/`
    plus screenshots. (`MinecraftSkylines*.log` includes the new `MinecraftSkylines-companion.log`
    with Minecraft's own output.)
+
+## Automated in-game self-test (milestone 2)
+
+The mod can run the milestone 2 acceptance checks by itself; the owner only starts the game and
+loads a test city. It reads the city and drives Minecraft mode; it never edits the city or its save.
+
+- **Enable:** add `selftest = city_load` to `launch.cfg` in the mod folder (the install script
+  prints where; default `off`). It then runs once after each city load. In a loaded city,
+  **Ctrl+Shift+T** starts it by hand (also at most once per city load). **Esc** aborts; the report
+  then says `"aborted": true`.
+- **What it does:** waits up to 240 s for Minecraft (connected, app minor >= 1, in its world, not in
+  a teleport hold); without it, only S1 runs and the rest report `skip` "no Minecraft". Then, one at
+  a time, each with a timeout: S1 road surface vs collision top (20 ground segments within 400 m of
+  the city camera's target, 5 points each, tolerance 0.05 m, plus the curb step 1 m outside each
+  edge); S2 walk from terrain 3 m beside a ground road onto it (W held until the feet reach the
+  centre line, at most 2.5 s; feet within 0.15 m of the road top, on the strip); S7 screenshots (in
+  Minecraft mode at the end of S2 and from a city camera 15 m from that road, collision wireframe
+  on); S3 walk 3 s at a bridge railing (must stay on the deck); S4 walk 1 s on terrain under a deck
+  at least 4 m up (feet within 0.3 m of terrain); S5 2 s up and 2 s down a 10-30 degree slope
+  within 300 m (feet within 0.25 m of terrain, never airborne > 0.5 s); S6 the city camera and
+  controller equal to before the first entry (1e-3) with no modal left up. S3-S5 skip when the city
+  has no suitable bridge or slope; build one near the camera's view first.
+- **Report:** `~/.local/share/Colossal Order/Cities_Skylines/ModLogs/selftest/<yyyyMMddTHHmmssZ>/report.json`
+  (keys `run_started_utc`, `game_version`, `mod_version`, `city_name`, `minecraft_peer`,
+  `aborted`, `abort_reason`, `scenarios[{id, name, status, reason, duration_ms, measurements}]`,
+  `summary{pass, fail, skip, error}`) and the two PNGs beside it. The mod log and the status box
+  show `Self-test: N pass, N fail, N skip, N error — report at …`.
+- **Bring it back:**
+  `mkdir -p ~/.cache/minecraft-skylines/evidence/selftest && cp -r ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/selftest/. ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines*.log ~/.cache/minecraft-skylines/evidence/selftest/`

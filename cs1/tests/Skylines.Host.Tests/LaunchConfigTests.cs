@@ -74,6 +74,35 @@ namespace Skylines.Host.Tests
             Assert.Equal(PrewarmMode.GameStart, c.Prewarm);
         }
 
+        [Fact]
+        public void SelfTestDefaultsToOff()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\n");
+            Assert.Equal(SelfTestMode.Off, c.SelfTest);
+            Assert.Empty(c.Problems);
+        }
+
+        [Theory]
+        [InlineData("off", SelfTestMode.Off)]
+        [InlineData("city_load", SelfTestMode.CityLoad)]
+        [InlineData("CITY_LOAD", SelfTestMode.CityLoad)]
+        [InlineData("  Off  ", SelfTestMode.Off)]
+        public void ParsesSelfTest(string value, SelfTestMode expected)
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nselftest = " + value + "\n");
+            Assert.Empty(c.Problems);
+            Assert.Equal(expected, c.SelfTest);
+        }
+
+        [Fact]
+        public void BadSelfTestIsOneProblemAndStaysOff()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nselftest = sometimes\n");
+            Assert.Single(c.Problems);
+            Assert.Contains(c.Problems, p => p.Contains("selftest"));
+            Assert.Equal(SelfTestMode.Off, c.SelfTest);
+        }
+
         [Theory]
         [InlineData("a b  c", new[] { "a", "b", "c" })]
         [InlineData("a \"b c\" d", new[] { "a", "b c", "d" })]

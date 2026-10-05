@@ -78,6 +78,13 @@ namespace MinecraftSkylines.Mod.Diagnostics
             _log.Info("collision viewer " + (_on ? "on" : "off") + ", " + _regions.Count + " regions kept");
         }
 
+        /// <summary>Whether the wireframe is drawn (the self-test turns it on for its screenshots).</summary>
+        public bool On
+        {
+            get { return _on; }
+            set { SetOn(value); }
+        }
+
         /// <summary>Unsubscribes from the camera and releases the material (mod disable).</summary>
         public void Dispose()
         {

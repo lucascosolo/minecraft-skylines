@@ -102,6 +102,44 @@ namespace MinecraftSkylines.Mod
             get { return "collision: " + _regionsSent + " regions, " + _trianglesSent + " tris, last build " + _lastBuildMs.ToString("0.0") + " ms"; }
         }
 
+        /// <summary>The CS1 rectangle of Minecraft region (rx, rz): MC z in [16rz, 16rz + 16) is CS1 z in (-16rz - 16, -16rz].</summary>
+        public static void RegionRectCs(int rx, int rz, out float minX, out float minZ, out float maxX, out float maxZ)
+        {
+            minX = rx * RegionSize;
+            maxX = minX + RegionSize;
+            maxZ = -rz * RegionSize;
+            minZ = maxZ - RegionSize;
+        }
+
+        /// <summary>The Minecraft region containing CS1 point (x, z).</summary>
+        public static void RegionOfCs(float x, float z, out int rx, out int rz)
+        {
+            rx = (int)Math.Floor(x / RegionSize);
+            rz = (int)Math.Floor(-z / RegionSize);
+        }
+
+        /// <summary>
+        /// Builds one region's collision in CS1 coordinates into <paramref name="into"/>: terrain, then roads. If the
+        /// roads throw, the region keeps its terrain only and the exception is returned (else null). The streamer and
+        /// the self-test both build through here.
+        /// </summary>
+        public static Exception BuildCs(TerrainSampler terrain, NetGeometry net, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
+        {
+            into.Clear();
+            Heightfield.Triangulate(terrain.AsFunc(), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, into);
+            int terrainOnly = into.Count;
+            try
+            {
+                net.Emit(minX, minZ, maxX, maxZ, into);
+                return null;
+            }
+            catch (Exception e)
+            {
+                into.Truncate(terrainOnly);
+                return e;
+            }
+        }
+
         // Returns false when the region should be retried on a later frame (the frame could not be queued,
         // or the terrain failed to build and the region has not used up its attempts). Roads that fail to
         // build are dropped from that region only, so the player never loses ground collision for them.
@@ -112,20 +150,12 @@ namespace MinecraftSkylines.Mod
             try
             {
                 var clock = Stopwatch.StartNew();
-                // MC z in [16rz, 16rz + 16) is CS1 z in (-16rz - 16, -16rz].
-                float minX = rx * RegionSize, maxX = minX + RegionSize;
-                float maxZ = -rz * RegionSize, minZ = maxZ - RegionSize;
-                _buffer.Clear();
-                Heightfield.Triangulate(_terrain.AsFunc(), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, _buffer);
-                int terrainOnly = _buffer.Count;
-                try
+                float minX, minZ, maxX, maxZ;
+                RegionRectCs(rx, rz, out minX, out minZ, out maxX, out maxZ);
+                Exception roads = BuildCs(_terrain, _net, minX, minZ, maxX, maxZ, _buffer);
+                if (roads != null)
                 {
-                    _net.Emit(minX, minZ, maxX, maxZ, _buffer);
-                }
-                catch (Exception e)
-                {
-                    _log.Error("collision region (" + rx + "," + rz + "): roads failed to build, sending terrain only", e);
-                    _buffer.Truncate(terrainOnly);
+                    _log.Error("collision region (" + rx + "," + rz + "): roads failed to build, sending terrain only", roads);
                 }
                 Viewer.Store(key, minX, minZ, maxX, maxZ, _buffer, csFeet);
                 region = CollisionConversion.ToRegion(_buffer, _planner.Epoch, rx, rz);
