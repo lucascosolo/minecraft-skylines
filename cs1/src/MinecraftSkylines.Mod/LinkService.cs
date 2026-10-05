@@ -38,6 +38,7 @@ namespace MinecraftSkylines.Mod
         private static SelfTestController s_selfTest;
         private static MinecraftLauncher s_launcher;
         private static SaveAutoloader s_autoload;
+        private static FixtureBuilder s_fixture;
         private static UnattendedPolicy s_unattended;
         private static readonly Stopwatch s_clock = Stopwatch.StartNew();
         private static bool s_autoloadIssued;
@@ -81,6 +82,9 @@ namespace MinecraftSkylines.Mod
             s_pump.Updated += s_blocks.Update;
             s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, s_gui, () => s_guest, ModVersion);
             s_autoload = new SaveAutoloader(s_log, s_launcher.Autoload);
+            s_fixture = new FixtureBuilder(s_log);
+            s_selfTest.CurrentFixture = () => s_fixture.Fixture;
+            s_selfTest.HoldAutoStart = () => s_fixture.Busy;
             s_unattended = new UnattendedPolicy(s_launcher.SelfTestQuit);
             s_selfTest.ReportWritten = () =>
             {
@@ -147,6 +151,7 @@ namespace MinecraftSkylines.Mod
             s_gui = null;
             s_selfTest = null;
             s_autoload = null;
+            s_fixture = null;
             s_unattended = null;
             s_launcher = null;
             s_guest = null;
@@ -159,8 +164,14 @@ namespace MinecraftSkylines.Mod
             // Milestone 1 never assigns an id: a city is only paired (and backed up first) when the
             // player switches it to Minecraft mode, so a city merely loaded with the mod enabled is
             // saved exactly as without it. See docs/DECISIONS.md, "player safety".
+            if (s_fixture != null) s_fixture.OnLevelLoaded();
             if (s_selfTest != null) s_selfTest.OnLevelLoaded();
             if (s_autoloadIssued && s_unattended != null) s_unattended.AutoloadLevelLoaded(Now());
+            if (s_autoloadIssued && s_launcher != null && s_launcher.SelfTestQuit)
+            {
+                try { SaveAutoloader.PauseAutosave(); Log("unattended: game autosave paused for this level (not persisted)"); }
+                catch (Exception e) { LogError("pause autosave", e); }
+            }
             Log("level loaded (" + mode + "); save id " + (s_saveId.LoadedFromSave ? s_saveId.Id.ToString() : "none (city not paired)"));
             s_statusDirty = true;
         }
@@ -170,6 +181,7 @@ namespace MinecraftSkylines.Mod
             CityState.SetInCity(false);
             s_saveId.Clear();
             if (s_selfTest != null) s_selfTest.OnLevelUnloading(s_host);
+            if (s_fixture != null) s_fixture.OnLevelUnloading();
             if (s_player != null) s_player.Exit("city unloading", s_host, true);
             if (s_probe != null) s_probe.RestoreAll("level unloading", false);
             Log("level unloading");
@@ -240,6 +252,7 @@ namespace MinecraftSkylines.Mod
             s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
             s_player.Update(s_host, city.InCity && !city.Loading);
             s_gui.Tick(s_host, s_player.IsOn);
+            s_fixture.Update(city.InCity && !city.Loading);
             s_selfTest.Update(s_host, city.InCity && !city.Loading);
             Unattended();
             if (!city.Equals(s_lastCity) || saveId != s_lastSentSaveId)

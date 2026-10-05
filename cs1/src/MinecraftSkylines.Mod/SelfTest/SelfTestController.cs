@@ -100,6 +100,12 @@ namespace MinecraftSkylines.Mod.SelfTest
         /// <summary>Called after every run's report was written (finished, aborted or failed).</summary>
         public Action ReportWritten;
 
+        /// <summary>The roads built for this run (new game started by autoload), or null: scenarios then search near the camera.</summary>
+        public Func<Fixture> CurrentFixture;
+
+        /// <summary>True while the automatic start must wait (the fixture is still being built).</summary>
+        public Func<bool> HoldAutoStart;
+
         public void OnLevelLoaded()
         {
             _ranThisLoad = false;
@@ -124,6 +130,7 @@ namespace MinecraftSkylines.Mod.SelfTest
                 if (_phase == Phase.Idle)
                 {
                     if (!cityReady || _ranThisLoad) return;
+                    if (_autoPending && HoldAutoStart != null && HoldAutoStart()) return;
                     if (_autoPending || TriggerPressed()) Begin(_autoPending ? "launch.cfg selftest = city_load" : "Ctrl+Shift+T");
                     return;
                 }
@@ -300,8 +307,10 @@ namespace MinecraftSkylines.Mod.SelfTest
         private IEnumerator S1RoadSurface(ScenarioResult r)
         {
             _regions.Clear();
-            Vector3 target = CityTarget();
-            List<ushort> ids = Segments(target, 400f, NetGeometry.Kind.Ground, 20);
+            Fixture fx = Fx();
+            Vector3 target = fx != null ? fx.Centre : CityTarget();
+            List<ushort> ids = fx != null ? fx.Ground : Segments(target, 400f, NetGeometry.Kind.Ground, 20);
+            r.Measurements.Set("fixture", fx != null);
             r.Measurements.Set("search_centre_m", Vec(target));
             r.Measurements.Set("segments_tested", ids.Count);
             if (ids.Count == 0) { r.Skip("no ground road segment within 400 m of the city camera's target"); yield break; }
@@ -365,7 +374,9 @@ namespace MinecraftSkylines.Mod.SelfTest
             ushort chosen = 0;
             Vector3 spawn = Vector3.zero, centre = Vector3.zero, inward = Vector3.zero;
             float half = 0;
-            foreach (ushort id in Segments(CityTarget(), 400f, NetGeometry.Kind.Ground, 40))
+            Fixture fx = Fx();
+            r.Measurements.Set("fixture", fx != null);
+            foreach (ushort id in fx != null ? fx.Ground : Segments(CityTarget(), 400f, NetGeometry.Kind.Ground, 40))
             {
                 Bezier3 left, right;
                 Bezier3 c = segs[id].GenerateBezier(id, segs[id].m_startNode, out left, out right);
@@ -694,7 +705,9 @@ namespace MinecraftSkylines.Mod.SelfTest
             ushort chosen = 0;
             Vector3 spawn = Vector3.zero, outward = Vector3.zero;
             float half = 0;
-            foreach (ushort id in Segments(CityTarget(), 600f, NetGeometry.Kind.Bridge, 20))
+            Fixture fx = Fx();
+            r.Measurements.Set("fixture", fx != null);
+            foreach (ushort id in fx != null ? fx.Raised : Segments(CityTarget(), 600f, NetGeometry.Kind.Bridge, 20))
             {
                 Bezier3 left, right;
                 Bezier3 c = segs[id].GenerateBezier(id, segs[id].m_startNode, out left, out right);
@@ -749,7 +762,9 @@ namespace MinecraftSkylines.Mod.SelfTest
             Vector3 spawn = Vector3.zero, dir = Vector3.zero;
             double clearance = 0;
             int chosen = 0;
-            foreach (ushort id in Segments(CityTarget(), 600f, NetGeometry.Kind.Bridge, 30))
+            Fixture fx = Fx();
+            r.Measurements.Set("fixture", fx != null);
+            foreach (ushort id in fx != null ? fx.Raised : Segments(CityTarget(), 600f, NetGeometry.Kind.Bridge, 30))
             {
                 Bezier3 left, right;
                 Bezier3 c = segs[id].GenerateBezier(id, segs[id].m_startNode, out left, out right);
@@ -810,6 +825,16 @@ namespace MinecraftSkylines.Mod.SelfTest
             double slope = 0;
             bool found = false;
             int checkedPaths = 0;
+            Fixture fx = Fx();
+            r.Measurements.Set("fixture", fx != null);
+            if (fx != null && fx.HasSlope)
+            {
+                found = true;
+                slope = fx.Slope.Degrees;
+                up = new Vector3((float)fx.Slope.UpX, 0f, (float)fx.Slope.UpZ);
+                start = new Vector3((float)fx.Slope.X, 0f, (float)fx.Slope.Z) - up * 4.5f;
+                start.y = _terrain.Height(start.x, start.z);
+            }
             for (int ring = 0; ring <= 18 && !found && checkedPaths < 12; ring++)
             {
                 for (int gx = -ring; gx <= ring && !found && checkedPaths < 12; gx++)
@@ -998,6 +1023,11 @@ namespace MinecraftSkylines.Mod.SelfTest
             uint flags;
             double age;
             return _player.TryLatestState(out feet, out flags, out age) && (flags & PlayerStateFlags.OnGround) != 0;
+        }
+
+        private Fixture Fx()
+        {
+            return CurrentFixture == null ? null : CurrentFixture();
         }
 
         private static Vector3 CityTarget()

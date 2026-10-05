@@ -3,13 +3,14 @@
 # terminal (the agent's sandbox cannot write there):
 #
 #     bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh [--selftest] [--selftest-quit]
-#         [--autoload "<save name>"] [build-output-dir]
+#         [--autoload "<save name>" | --autoload "new:<map>"] [build-output-dir]
 #     bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh --normal
 #
 # --selftest (any position): also ensures launch.cfg has "selftest = city_load" and that the args
 # line carries -PmcskylinesDebugCommands (dated backup copy before any edit of an existing line).
 # --selftest-quit: "selftest_quit = true" (quit the game after the self-test report). --autoload NAME:
-# "autoload = NAME" (load that save from the main menu once per game start). --normal: copies nothing and
+# "autoload = NAME" (load that save from the main menu once per game start; "new:<map>" starts a new game on
+# that map instead; the value is written verbatim). --normal: copies nothing and
 # only sets "autoload =", "selftest = off", "selftest_quit = false" (back to normal play). A changed key
 # gets its old file kept as one dated backup per run; a missing key is appended.
 # Without an argument it installs the repo's current Release build. With one, it installs that
@@ -32,7 +33,7 @@ while [ $# -gt 0 ]; do
     --selftest-quit) SELFTEST_QUIT=1 ;;
     --normal) NORMAL=1 ;;
     --autoload)
-      [ $# -ge 2 ] || { echo "--autoload needs a save name"; exit 2; }
+      [ $# -ge 2 ] || { echo "--autoload needs a save name or new:<map>"; exit 2; }
       AUTOLOAD="$2"; AUTOLOAD_SET=1; shift ;;
     *) SRC_ARG="$1" ;;
   esac

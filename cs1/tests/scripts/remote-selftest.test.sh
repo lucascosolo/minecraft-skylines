@@ -82,7 +82,7 @@ mk_env; inst --normal; rc=$?
 # 5. remote usage
 mk_env
 rrun() { envrun timeout 60 bash "${REMOTE:?}" "$@" >"${S:?}/rout.txt" 2>"${S:?}/rerr.txt"; }
-rrun; rc=$?; [ "$rc" = 4 ]; check "5a no args exit 4" $? "rc=$rc"
+# 5a (no args = new game on default map) is an end-to-end check, see section 11
 rrun ""; rc=$?; [ "$rc" = 4 ]; check "5b empty name exit 4" $? "rc=$rc"
 rrun "   "; rc=$?; [ "$rc" = 4 ]; check "5c blank name exit 4" $? "rc=$rc"
 rrun --bogus; rc=$?; [ "$rc" = 4 ]; check "5d unknown option exit 4" $? "rc=$rc"
@@ -164,6 +164,98 @@ remote_e2e MCSK_STEAM_CMD="${S:?}/steam.sh" MCSK_GAME_PROCESS="${GN:?}" MCSK_STA
 [ -s "${S:?}/game.pid" ] && kill "$(cat "${S:?}/game.pid")" 2>/dev/null
 [ "$rc" = 3 ]; check "10a exit 3 on timeout" $? "rc=$rc"
 cfg_reset; check "10b launch.cfg reset" $?
+
+# 11. new-game options, --list-maps, default map
+rrun4() { # usage errors must never launch anything: fake steam, no game, short timeouts
+  envrun MCSK_STEAM_CMD=true MCSK_GAME_PROCESS="mcsk-nogame-$$" MCSK_START_SECONDS=1 MCSK_TIMEOUT_SECONDS=2 MCSK_POLL_SECONDS=1 MCSK_MOD_SRC="${BUILD:?}" MCSK_CS1_INSTALL="${S:?}/cs1" \
+    timeout 30 bash "${REMOTE:?}" "$@" >"${S:?}/rout.txt" 2>"${S:?}/rerr.txt"
+}
+lrun() { # list-maps with extra env pairs first, then args
+  envrun "$@" timeout 30 bash "${REMOTE:?}" --list-maps >"${S:?}/rout.txt" 2>"${S:?}/rerr.txt"
+}
+e2e_args() { # script args via ARGS array; maps under ${S}/cs1/Files/Maps prepared by the caller
+  RUN="${LOGS:?}/20260101T000000Z"
+  cat > "${S:?}/steam.sh" <<SH
+#!/bin/sh
+cp "${CFG:?}" "${S:?}/cfg-at-launch.txt"
+sleep 1
+mkdir -p "${RUN:?}"
+echo '{"summary":{"pass":3,"fail":1,"skip":2,"error":0}}' > "${RUN:?}/report.json"
+SH
+  chmod +x "${S:?}/steam.sh"
+  envrun MCSK_MOD_SRC="${BUILD:?}" MCSK_POLL_SECONDS=1 MCSK_CS1_INSTALL="${S:?}/cs1" MCSK_STEAM_CMD="${S:?}/steam.sh" MCSK_GAME_PROCESS="mcsk-nogame-$$" MCSK_START_SECONDS=20 MCSK_TIMEOUT_SECONDS=20 \
+    timeout 60 bash "${REMOTE:?}" "${ARGS[@]}" >"${S:?}/rout.txt" 2>"${S:?}/rerr.txt"
+}
+mkmaps() { mkdir -p "${S:?}/cs1/Files/Maps"; local f; for f in "$@"; do mkdir -p "$(dirname "${S:?}/cs1/Files/Maps/$f")"; : > "${S:?}/cs1/Files/Maps/$f"; done; }
+
+# 11a. exit-4 cases
+mk_env
+rrun4 --new-game; rc=$?; [ "$rc" = 4 ]; check "11a --new-game without value exit 4" $? "rc=$rc"
+rrun4 --new-game ""; rc=$?; [ "$rc" = 4 ]; check "11b --new-game empty exit 4" $? "rc=$rc"
+rrun4 --new-game "   "; rc=$?; [ "$rc" = 4 ]; check "11c --new-game blank exit 4" $? "rc=$rc"
+rrun4 "My City" --new-game X; rc=$?; [ "$rc" = 4 ]; check "11d save then --new-game exit 4" $? "rc=$rc"
+rrun4 --new-game X "My City"; rc=$?; [ "$rc" = 4 ]; check "11e --new-game then save exit 4" $? "rc=$rc"
+rrun4 --new-game X --new-game Y; rc=$?; [ "$rc" = 4 ]; check "11f --new-game twice exit 4" $? "rc=$rc"
+rrun4 --new-game X --bogus; rc=$?; [ "$rc" = 4 ]; check "11g --new-game with unknown option exit 4" $? "rc=$rc"
+rrun4 --help; rc=$?; [ "$rc" = 0 ] && grep -q -- '--new-game' "${S:?}/rout.txt" "${S:?}/rerr.txt"
+check "11h --help exit 0 and mentions --new-game" $? "rc=$rc"
+
+# 12. --list-maps
+mk_env
+mkmaps "Zeta.crp" "alpha.crp" "Sub/Deep/Mid Map.crp" "dup/Zeta.crp" "readme.txt" "Sub/notes.txt" "fake.crp.bak"
+lrun MCSK_CS1_INSTALL="${S:?}/cs1"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "${S:?}/rout.txt")" = "$(printf 'Mid Map\nZeta\nalpha')" ]
+check "12a list-maps via MCSK_CS1_INSTALL: sorted (C), recursive, deduped, .crp only" $? "rc=$rc got: $(tr '\n' '|' < "${S:?}/rout.txt")"
+
+mk_env
+mkmaps "Bravo.crp" "Alpha.crp"
+mkdir -p "${H:?}/.cache/minecraft-skylines/refs"
+printf 'other: x\ncs1_install: %s\n' "${S:?}/cs1" > "${H:?}/.cache/minecraft-skylines/refs/environment.txt"
+lrun; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "${S:?}/rout.txt")" = "$(printf 'Alpha\nBravo')" ]
+check "12b list-maps via refs/environment.txt cs1_install" $? "rc=$rc got: $(tr '\n' '|' < "${S:?}/rout.txt")"
+
+mk_env
+mkmaps "Env One.crp"
+mkdir -p "${S:?}/other/Files/Maps"; : > "${S:?}/other/Files/Maps/Other.crp"
+mkdir -p "${H:?}/.cache/minecraft-skylines/refs"
+printf 'cs1_install: %s\n' "${S:?}/other" > "${H:?}/.cache/minecraft-skylines/refs/environment.txt"
+lrun MCSK_CS1_INSTALL="${S:?}/cs1"; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "${S:?}/rout.txt")" = "Env One" ]
+check "12c MCSK_CS1_INSTALL wins over environment.txt" $? "rc=$rc got: $(tr '\n' '|' < "${S:?}/rout.txt")"
+
+mk_env
+lrun MCSK_CS1_INSTALL="${S:?}/cs1"; rc=$?
+[ "$rc" = 0 ] && [ ! -s "${S:?}/rout.txt" ] && grep -qF "${S:?}/cs1/Files/Maps" "${S:?}/rerr.txt" && grep -qF 'Green Plains' "${S:?}/rerr.txt"
+check "12d missing Maps folder: empty stdout, stderr has path and Green Plains, exit 0" $? "rc=$rc err: $(head -c 300 "${S:?}/rerr.txt")"
+
+# 13. end to end new game
+mk_env; write_cfg; mkmaps "Alpha.crp"
+ARGS=(--new-game "Two Rivers"); e2e_args; rc=$?
+check "13a --new-game exit 0" "$rc" "rc=$rc; $(head -c 300 "${S:?}/rerr.txt")"
+grep -qxF 'autoload = new:Two Rivers' "${S:?}/cfg-at-launch.txt" && grep -qxF 'selftest = city_load' "${S:?}/cfg-at-launch.txt" && grep -qxF 'selftest_quit = true' "${S:?}/cfg-at-launch.txt"
+check "13b launch.cfg at launch has autoload = new:Two Rivers" $?
+cfg_reset; check "13c launch.cfg reset afterwards" $?
+grep -qxF 'Self-test: 3 pass, 1 fail, 2 skip, 0 error' "${S:?}/rout.txt"; check "13d summary line" $?
+
+# 5a / 14. no args = new game on default map
+mk_env; write_cfg; mkmaps "Alpha.crp" "sub/Green Plains.crp"
+ARGS=(); e2e_args; rc=$?
+check "5a no args: new game, exit 0" "$rc" "rc=$rc; $(head -c 300 "${S:?}/rerr.txt")"
+grep -qxF 'autoload = new:Green Plains' "${S:?}/cfg-at-launch.txt"; check "14a default map is Green Plains (subfolder)" $?
+cfg_reset; check "14b launch.cfg reset afterwards" $?
+
+mk_env; write_cfg; mkmaps "green plains.crp" "Alpha.crp"
+ARGS=(); e2e_args; rc=$?
+grep -qxF 'autoload = new:green plains' "${S:?}/cfg-at-launch.txt"; check "14c default matches case-insensitively, listed spelling used" $? "rc=$rc"
+
+mk_env; write_cfg; mkmaps "Beta.crp" "Alpha.crp"
+ARGS=(); e2e_args; rc=$?
+grep -qxF 'autoload = new:Alpha' "${S:?}/cfg-at-launch.txt"; check "14d no Green Plains: first listed map" $? "rc=$rc"
+
+mk_env; write_cfg; mkdir -p "${S:?}/cs1"
+ARGS=(); e2e_args; rc=$?
+grep -qxF 'autoload = new:Green Plains' "${S:?}/cfg-at-launch.txt"; check "14e no Maps folder: Green Plains" $? "rc=$rc"
 
 echo "failures: $FAILS"
 [ "$FAILS" = 0 ]

@@ -33,7 +33,7 @@ namespace Skylines.Host
     /// Keys: <c>command</c>, <c>args</c> (space separated, double quotes group, backslash escapes a quote
     /// or backslash inside quotes), <c>working_dir</c>, <c>env.NAME</c> (repeatable) and
     /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>), <c>selftest</c> (<c>off</c> default, <c>city_load</c>),
-    /// <c>autoload</c> (a save name to load from the main menu once per game start; empty default = off) and
+    /// <c>autoload</c> (a save name to load from the main menu once per game start, or <c>new:&lt;map&gt;</c> to start a new game on that map; empty default = off) and
     /// <c>selftest_quit</c> (<c>false</c> default, <c>true</c>: quit the game after the self-test report). Pure logic: no Unity, no process start.
     /// </summary>
     public sealed class LaunchConfig
@@ -62,7 +62,7 @@ namespace Skylines.Host
         /// <summary>When the self-test starts by itself.</summary>
         public SelfTestMode SelfTest = SelfTestMode.Off;
 
-        /// <summary>Save to load from the main menu once per game start; empty means off.</summary>
+        /// <summary>Save to load, or <c>new:&lt;map&gt;</c>, from the main menu once per game start; empty means off.</summary>
         public string Autoload = "";
 
         /// <summary>Quit the game after the self-test writes its report (unattended runs).</summary>
@@ -182,7 +182,10 @@ namespace Skylines.Host
                         default: Problems.Add("line " + lineNo + ": selftest must be off or city_load"); break;
                     }
                     break;
-                case "autoload": Autoload = value; break;
+                case "autoload":
+                    Autoload = value;
+                    if (AutoloadTarget.NewGameMap(value) == "") Problems.Add("line " + lineNo + ": autoload new: needs a map name");
+                    break;
                 case "selftest_quit":
                     switch (value.ToLowerInvariant())
                     {

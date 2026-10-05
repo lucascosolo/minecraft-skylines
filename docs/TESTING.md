@@ -223,18 +223,32 @@ For the owner away from the PC with only SSH: the game runs on the home display,
 Steam must already be running and logged in on the desktop session; the screen may be locked
 (unverified, see below).
 
-1. `bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh --list-saves` prints the local save
-   names (newest first). Pick the test city.
-2. `bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh "<save name>"`. It refuses if
-   `Cities.x64` already runs (it never kills anything), installs the mod with launch.cfg
-   `selftest = city_load`, `selftest_quit = true`, `autoload = <save name>` (one dated
-   `launch.cfg.backup-*` when a line changes), runs `steam -applaunch 255710`, and every 10 s prints
-   whether the game is up, whether the mod log shows the link connected, and the latest
-   self-test/autoload line. The mod loads the save from the main menu exactly as the Load button would,
-   runs S1-S9, writes the report, waits 3 s and quits the game itself (no save). The script then waits up
-   to 2 minutes for the game to exit, copies `ModLogs/` (with `selftest/`), `Player.log` and Minecraft's
-   `latest.log` into `~/.cache/minecraft-skylines/evidence/selftest-<UTC>/`, and prints the
-   `Self-test: N pass, …` line and `Evidence: <dir>`.
+1. `bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh` is the default way: a **new game** on a
+   built-in map (Green Plains if installed, else the first name `--list-maps` prints), so no save is read
+   or written and every run starts from the same terrain. `--new-game "<map>"` picks another map (file,
+   asset or display name, case-insensitive); `--list-maps` prints the `.crp` names under
+   `<game>/Files/Maps` (the game folder comes from `MCSK_CS1_INSTALL`, else `cs1_install` in
+   `~/.cache/minecraft-skylines/refs/environment.txt`). The older form `remote-selftest.sh "<save name>"`
+   (names from `--list-saves`) still loads a save instead.
+2. The script refuses if `Cities.x64` already runs (it never kills anything), installs the mod with
+   launch.cfg `selftest = city_load`, `selftest_quit = true`, `autoload = new:<map>` (or
+   `autoload = <save name>`; one dated `launch.cfg.backup-*` when a line changes), runs
+   `steam -applaunch 255710`, and every 10 s prints whether the game is up, whether the mod log shows the
+   link connected, and the latest self-test/autoload line. For a new game the mod starts city
+   "MCSK Self-Test" from the main menu as the New Game panel's Start button would, pauses the game's
+   autosave for that level (in memory only), and, once the level has loaded, builds the fixture: in the
+   flattest dry 300 m square of the starting tile, a straight 200 m Basic Road (5 nodes, 60 m south of the
+   square's centre) and, 60 m north, a 200 m road that ramps from the ground to +8 m over 80 m and stays at
+   +8 m for 120 m (the game's own elevated variant, a bridge deck to the self-test); it records the steepest
+   clear 10-30 degree slope within 300 m and points the city camera at the square. The log line
+   `fixture: segments ...` lists the segment ids and prefab names. The self-test waits for the fixture,
+   then S1-S5 use its segments and slope (report field `"fixture": true`) instead of searching near the
+   camera; S7-S9 follow S2's spawn on the fixture road. It writes the report, waits 3 s and quits the game
+   (no save). For a save, the mod loads it as the Load button would and S1-S5 search near the camera as
+   before. The script then waits up to 2 minutes for the game to exit, copies `ModLogs/` (with
+   `selftest/`), `Player.log` and Minecraft's `latest.log` into
+   `~/.cache/minecraft-skylines/evidence/selftest-<UTC>/`, and prints the `Self-test: N pass, ...` line
+   and `Evidence: <dir>`.
 3. On every exit after the install (success, timeout, no start) it runs
    `install-cs1-mod.sh --normal`, which sets `autoload =`, `selftest = off`, `selftest_quit = false` and
    copies nothing, so the next manual start is normal play.
@@ -244,8 +258,10 @@ start within 180 s (or Steam is not running); 3 no report within 20 minutes, or 
 one; 4 bad usage.
 
 Safety nets in the mod (launch.cfg, all default off): `autoload` loads only once per game start and
-never saves; if the name matches no save, the mod logs every available save (package, asset and city
-name) and loads nothing, and with `selftest_quit = true` quits 3 s later. With `autoload` and
+never saves; if the name matches no save (or, for `new:`, no map), the mod logs every available save
+(package, asset and city name) or map (package, asset, map name, built-in) and loads nothing, and with
+`selftest_quit = true` quits 3 s later. The fixture is built only in the city whose game instance id is
+the one the mod generated for its own new game, never in a loaded save. With `autoload` and
 `selftest_quit`, a self-test still unfinished 15 minutes after the level load is aborted (partial
 report) and the game quits. Matching: package (file) name first, then the Load panel's asset name, then
 the city name, case-insensitive; the newest save wins a tie.
@@ -253,7 +269,11 @@ the city name, case-insensitive; the newest save wins a tie.
 Only a real run can settle: whether `steam -applaunch` from an SSH shell reaches the desktop Steam
 client (it talks to the running client over its pipe; no DISPLAY is needed in principle); whether
 the game renders, and so takes screenshots, while the screen is locked or blanked; whether a modal
-dialog at the main menu (news, a Paradox login, a mod warning) blocks the load; and whether the
-game's own autosave fires during the run (it writes a separate autosave, never the loaded city).
+dialog at the main menu (news, a Paradox login, a mod warning) blocks the load; whether the built-in
+map file names match the default (Green Plains) on the owner's install (`--list-maps` on that PC
+shows them; a miss is logged with every available map and the game quits); whether the fixture's
+roads render and pass S1-S5 (the screenshots show them); and whether the paused autosave stays quiet
+(it is off by default; when on it fires every `autoSaveInterval` minutes, 10 by default, and writes
+`AutoSave.crp`, a separate file, never an existing city).
 
 Script tests (scratch HOME, fake Steam and game): `bash cs1/tests/scripts/remote-selftest.test.sh`.

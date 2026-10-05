@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Unattended in-game self-test, for running over SSH while nobody is at the PC:
 #
+#     bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh                       # new game, default map
+#     bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh --new-game "<map>"
 #     bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh "<save name>"
-#     bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh --list-saves
+#     bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh --list-maps | --list-saves
 #
-# Installs the mod with launch.cfg "selftest = city_load", "selftest_quit = true", "autoload = <save name>",
+# A new game (the default) touches no save: the mod starts "MCSK Self-Test" on a built-in map, builds its own
+# test roads and quits without saving. Default map: Green Plains if installed, else the first --list-maps name.
+# Installs the mod with launch.cfg "selftest = city_load", "selftest_quit = true", "autoload = new:<map>" (or
+# "autoload = <save name>"),
 # starts Cities: Skylines through the already running Steam (steam -applaunch 255710), waits for the
 # self-test report (the mod quits the game itself, without saving), copies the evidence to
 # ~/.cache/minecraft-skylines/evidence/selftest-<UTC>/ and finally sets launch.cfg back to normal play
@@ -13,7 +18,8 @@
 # Exit codes: 0 report found; 1 refused (game already running) or install failed; 2 game did not start;
 # 3 timeout (no report in time, or the game exited without one); 4 bad usage.
 # Test overrides: MCSK_STEAM_CMD, MCSK_POLL_SECONDS (10), MCSK_TIMEOUT_SECONDS (1200), MCSK_START_SECONDS (180),
-# MCSK_EXIT_WAIT_SECONDS (120), MCSK_GAME_PROCESS (Cities.x64), MCSK_MOD_SRC (build output to install).
+# MCSK_EXIT_WAIT_SECONDS (120), MCSK_GAME_PROCESS (Cities.x64), MCSK_MOD_SRC (build output to install),
+# MCSK_CS1_INSTALL (game folder; default: cs1_install in ~/.cache/minecraft-skylines/refs/environment.txt).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,9 +35,44 @@ TIMEOUT="${MCSK_TIMEOUT_SECONDS:-1200}"
 START_WINDOW="${MCSK_START_SECONDS:-180}"
 EXIT_WAIT="${MCSK_EXIT_WAIT_SECONDS:-120}"
 
+DEFAULT_MAP="Green Plains"
+
 usage() {
-  echo "usage: $(basename "$0") \"<save name>\" | --list-saves | --help"
-  echo "  <save name>: as the Load panel lists it (see --list-saves); Steam must already be running on the desktop."
+  echo "usage: $(basename "$0") [--new-game \"<map>\" | \"<save name>\"] | --list-maps | --list-saves | --help"
+  echo "  no argument: --new-game on the default map (${DEFAULT_MAP} if installed, else the first --list-maps name)."
+  echo "  --new-game <map>: a new city on that map (file, asset or display name); no save is read or written."
+  echo "  <save name>: as the Load panel lists it (see --list-saves). Steam must already be running on the desktop."
+}
+
+maps_dir() {
+  local install="${MCSK_CS1_INSTALL:-}" envfile="${HOME:?}/.cache/minecraft-skylines/refs/environment.txt"
+  if [ -z "${install}" ] && [ -f "${envfile}" ]; then install="$(sed -n 's/^cs1_install:[[:space:]]*//p' "${envfile}" | head -1)"; fi
+  [ -n "${install}" ] || install="${HOME:?}/.steam/debian-installation/steamapps/common/Cities_Skylines"
+  echo "${install}/Files/Maps"
+}
+
+# Built-in maps: every .crp under <game>/Files/Maps, subfolders included (PackageManager.LoadPackages recurses).
+installed_maps() {
+  local dir; dir="$(maps_dir)"
+  [ -d "${dir}" ] || return 0
+  find "${dir}" -type f -name '*.crp' -printf '%f\n' | sed 's/\.crp$//' | LC_ALL=C sort -u
+}
+
+list_maps() {
+  local dir; dir="$(maps_dir)"
+  if [ ! -d "${dir}" ]; then
+    echo "no built-in maps folder at ${dir}; the default map is \"${DEFAULT_MAP}\". If a name does not match, the mod log lists every map it can see (grep 'autoload: no map' in ModLogs/MinecraftSkylines.log)." >&2
+    return 0
+  fi
+  installed_maps
+}
+
+default_map() {
+  local maps pick
+  maps="$(installed_maps)"
+  pick="$(printf '%s\n' "${maps}" | awk -v w="${DEFAULT_MAP}" 'tolower($0) == tolower(w) { print; exit }')"
+  [ -n "${pick}" ] || pick="$(printf '%s\n' "${maps}" | sed -n '1p')"
+  echo "${pick:-${DEFAULT_MAP}}"
 }
 
 list_saves() {
@@ -42,15 +83,30 @@ list_saves() {
 
 NAME=""
 NAMES=0
-for a in "$@"; do
-  case "$a" in
+MAP=""
+MAPS=0
+while [ $# -gt 0 ]; do
+  case "$1" in
     --help|-h) usage; exit 0 ;;
     --list-saves) list_saves; exit 0 ;;
-    -*) echo "unknown option: $a" >&2; usage >&2; exit 4 ;;
-    *) NAME="$a"; NAMES=$((NAMES + 1)) ;;
+    --list-maps) list_maps; exit 0 ;;
+    --new-game)
+      [ $# -ge 2 ] || { echo "--new-game needs a map name" >&2; usage >&2; exit 4; }
+      MAP="$2"; MAPS=$((MAPS + 1)); shift ;;
+    -*) echo "unknown option: $1" >&2; usage >&2; exit 4 ;;
+    *) NAME="$1"; NAMES=$((NAMES + 1)) ;;
   esac
+  shift
 done
-if [ "${NAMES}" -ne 1 ] || [ -z "${NAME//[[:space:]]/}" ]; then usage >&2; exit 4; fi
+if [ "${MAPS}" -gt 1 ] || [ "${NAMES}" -gt 1 ] || [ $((MAPS + NAMES)) -gt 1 ]; then usage >&2; exit 4; fi
+if [ "${MAPS}" = 1 ] && [ -z "${MAP//[[:space:]]/}" ]; then echo "--new-game needs a map name" >&2; exit 4; fi
+if [ "${NAMES}" = 1 ] && [ -z "${NAME//[[:space:]]/}" ]; then usage >&2; exit 4; fi
+if [ "${NAMES}" = 0 ]; then
+  [ "${MAPS}" = 1 ] || MAP="$(default_map)"
+  AUTOLOAD="new:${MAP}"
+else
+  AUTOLOAD="${NAME}"
+fi
 
 if pgrep -x "${GAME}" >/dev/null; then
   echo "Cities: Skylines (${GAME}) is already running; quit it first. Nothing was changed." >&2
@@ -75,8 +131,8 @@ fi
 
 SRC_ARGS=()
 [ -n "${MCSK_MOD_SRC:-}" ] && SRC_ARGS=("${MCSK_MOD_SRC}")
-echo "== installing the mod with selftest = city_load, selftest_quit = true, autoload = ${NAME}"
-bash "${INSTALL:?}" --selftest --selftest-quit --autoload "${NAME}" "${SRC_ARGS[@]}" || { echo "install failed" >&2; exit 1; }
+echo "== installing the mod with selftest = city_load, selftest_quit = true, autoload = ${AUTOLOAD}"
+bash "${INSTALL:?}" --selftest --selftest-quit --autoload "${AUTOLOAD}" "${SRC_ARGS[@]}" || { echo "install failed" >&2; exit 1; }
 
 restore() {
   local rc=$?
