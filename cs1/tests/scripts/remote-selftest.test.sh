@@ -2,6 +2,8 @@
 # Tests for tools/install-cs1-mod.sh (autoload/selftest-quit/normal) and tools/remote-selftest.sh.
 # Scratch dirs only (mktemp under $TMPDIR); nothing is deleted; the real HOME is never touched.
 set -u
+# These tests drive the steam-command path with a fake Steam; the direct path is exercised separately below.
+export MCSK_LAUNCH=steam
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${REPO:?}/tools/install-cs1-mod.sh"
 REMOTE="${REPO:?}/tools/remote-selftest.sh"

@@ -17,6 +17,8 @@
 #
 # Exit codes: 0 report found; 1 refused (game already running) or install failed; 2 game did not start;
 # 3 timeout (no report in time, or the game exited without one); 4 bad usage.
+# Launch: MCSK_LAUNCH=direct (default, starts the game binary) or steam (via steam -applaunch;
+# opens the Paradox Launcher, which needs a click). MCSK_GAME_DIR overrides the install path.
 # Test overrides: MCSK_STEAM_CMD, MCSK_POLL_SECONDS (10), MCSK_TIMEOUT_SECONDS (1200), MCSK_START_SECONDS (180),
 # MCSK_EXIT_WAIT_SECONDS (120), MCSK_GAME_PROCESS (Cities.x64), MCSK_MOD_SRC (build output to install),
 # MCSK_CS1_INSTALL (game folder; default: cs1_install in ~/.cache/minecraft-skylines/refs/environment.txt).
@@ -192,9 +194,30 @@ LOG_START=0
 [ -f "${MODLOG}" ] && LOG_START="$(stat -c %s "${MODLOG}")"
 START="$(date +%s)"
 borrow_session_env
-echo "== $(date -u +%FT%TZ) starting the game: ${STEAM[*]} -applaunch 255710 (Steam must already be running in the desktop session)"
-"${STEAM[@]}" -applaunch 255710 >/dev/null 2>&1 || { echo "steam command failed" >&2; write_diagnostics; exit 2; }
+# Launching through Steam opens the Paradox Launcher, which waits for a click on "Play" (owner's SSH
+# run, 2026-10-05). For unattended runs start the game binary directly instead; SteamAppId makes it
+# attach to the running Steam client without a restart through Steam. MCSK_LAUNCH=steam keeps the old way.
+LAUNCH="${MCSK_LAUNCH:-direct}"
 RETRIED=0
+if [ "${LAUNCH}" = direct ]; then
+  RETRIED=1
+  GAME_DIR="${MCSK_GAME_DIR:-$(sed -n 's/^cs1_install: //p' "${HOME:?}/.cache/minecraft-skylines/refs/environment.txt" 2>/dev/null | head -1)}"
+  GAME_DIR="${GAME_DIR:-${HOME:?}/.steam/debian-installation/steamapps/common/Cities_Skylines}"
+  if [ ! -x "${GAME_DIR:?}/${GAME}" ]; then
+    echo "game binary not found: ${GAME_DIR}/${GAME} (set MCSK_GAME_DIR)" >&2
+    write_diagnostics
+    exit 2
+  fi
+  GAME_OUT="${HOME:?}/.cache/minecraft-skylines/evidence/game-stdout-$(date -u +%Y%m%dT%H%M%SZ).log"
+  mkdir -p "$(dirname "${GAME_OUT:?}")"
+  echo "== $(date -u +%FT%TZ) starting the game directly: ${GAME_DIR}/${GAME} (no Paradox Launcher; output in ${GAME_OUT})"
+  # setsid: the game must survive this SSH session ending.
+  (cd "${GAME_DIR:?}" && SteamAppId=255710 SteamGameId=255710 setsid -f "./${GAME}" > "${GAME_OUT:?}" 2>&1 < /dev/null) \
+    || { echo "could not start ${GAME}" >&2; write_diagnostics; exit 2; }
+else
+  echo "== $(date -u +%FT%TZ) starting the game: ${STEAM[*]} -applaunch 255710 (Steam must already be running in the desktop session)"
+  "${STEAM[@]}" -applaunch 255710 >/dev/null 2>&1 || { echo "steam command failed" >&2; write_diagnostics; exit 2; }
+fi
 
 new_report() {
   [ -d "${MODLOGS:?}/selftest" ] || return 0
