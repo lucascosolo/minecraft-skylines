@@ -1,0 +1,62 @@
+using Skylines.Host;
+using Xunit;
+
+namespace Skylines.Host.Tests
+{
+    public class LaunchConfigTests
+    {
+        [Fact]
+        public void ParsesAllKeys()
+        {
+            LaunchConfig c = LaunchConfig.Parse(
+                "# comment\n\ncommand = /opt/gradlew\r\nargs = --no-daemon --console=plain :fabric:runClient\n"
+                + "working_dir = /home/x/minecraft\nenv.GRADLE_USER_HOME = /home/x/.cache/gradle-home\nenv.A=b=c\nconnect_timeout_seconds = 90\n");
+            Assert.True(c.IsUsable);
+            Assert.Empty(c.Problems);
+            Assert.Equal("/opt/gradlew", c.Command);
+            Assert.Equal(new[] { "--no-daemon", "--console=plain", ":fabric:runClient" }, c.Args.ToArray());
+            Assert.Equal("/home/x/minecraft", c.WorkingDir);
+            Assert.Equal("/home/x/.cache/gradle-home", c.Env["GRADLE_USER_HOME"]);
+            Assert.Equal("b=c", c.Env["A"]);
+            Assert.Equal(90, c.ConnectTimeoutSeconds);
+        }
+
+        [Fact]
+        public void DefaultsAndMissingCommand()
+        {
+            LaunchConfig c = LaunchConfig.Parse("working_dir = /x\n");
+            Assert.False(c.IsUsable);
+            Assert.Equal(180, c.ConnectTimeoutSeconds);
+            Assert.Contains(c.Problems, p => p.Contains("command"));
+        }
+
+        [Fact]
+        public void ReportsBadLinesWithoutThrowing()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nnonsense\nbogus = 1\nconnect_timeout_seconds = abc\nconnect_timeout_seconds = 0\n");
+            Assert.True(c.IsUsable);
+            Assert.Equal(4, c.Problems.Count);
+            Assert.Equal(180, c.ConnectTimeoutSeconds);
+        }
+
+        [Fact]
+        public void LoadOfMissingFileIsAProblemNotAnException()
+        {
+            LaunchConfig c = LaunchConfig.Load(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "no-such-dir-xyz", "launch.cfg"));
+            Assert.False(c.IsUsable);
+            Assert.NotEmpty(c.Problems);
+        }
+
+        [Theory]
+        [InlineData("a b  c", new[] { "a", "b", "c" })]
+        [InlineData("a \"b c\" d", new[] { "a", "b c", "d" })]
+        [InlineData("--x=\"a b\" y", new[] { "--x=a b", "y" })]
+        [InlineData("\"\" z", new[] { "", "z" })]
+        [InlineData("\"say \\\"hi\\\" \\\\\"", new[] { "say \"hi\" \\" })]
+        [InlineData("   ", new string[0])]
+        public void SplitsArguments(string line, string[] expected)
+        {
+            Assert.Equal(expected, LaunchConfig.SplitArgs(line).ToArray());
+        }
+    }
+}

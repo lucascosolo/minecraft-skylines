@@ -34,6 +34,7 @@ namespace MinecraftSkylines.Mod
 
         private readonly HostLog _log;
         private readonly Action _changed;
+        private readonly MinecraftLauncher _launcher;
         private readonly CameraTakeover _camera = new CameraTakeover();
         private readonly ShortcutBlocker _blocker = new ShortcutBlocker();
         private readonly InputCapture _input = new InputCapture(CapturedKeyCodes());
@@ -62,10 +63,11 @@ namespace MinecraftSkylines.Mod
         private double _frameTotalMs;
         private long _frames;
 
-        public PlayerMode(HostLog log, Action changed)
+        public PlayerMode(HostLog log, Action changed, MinecraftLauncher launcher)
         {
             _log = log;
             _changed = changed;
+            _launcher = launcher;
             _streamer = new CollisionStreamer(log);
         }
 
@@ -81,10 +83,7 @@ namespace MinecraftSkylines.Mod
                 _blocker.Tick();
                 if (_state == State.Off)
                 {
-                    if (EnterKeyPressed())
-                    {
-                        TryEnter(host, cityReady);
-                    }
+                    UpdateOff(host, cityReady);
                     return;
                 }
                 if (host == null || host.State != BridgeState.Connected)
@@ -235,13 +234,14 @@ namespace MinecraftSkylines.Mod
         /// <summary>From the pump's OnGUI: a centred notice while waiting for Minecraft.</summary>
         public void OnGui()
         {
-            if (_state != State.Waiting || Event.current == null || Event.current.type != EventType.Repaint)
+            bool starting = _state == State.Off && _launcher.Pending;
+            if ((_state != State.Waiting && !starting) || Event.current == null || Event.current.type != EventType.Repaint)
             {
                 return;
             }
-            const float w = 360f, h = 40f;
+            const float w = 460f, h = 40f;
             GUI.Box(new Rect((Screen.width - w) / 2f, (Screen.height - h) / 2f, w, h),
-                "Waiting for Minecraft…  (Esc returns to the city)");
+                starting ? _launcher.OverlayText() : "Waiting for Minecraft…  (Esc returns to the city)");
         }
 
         public string OverlayText()
@@ -255,10 +255,47 @@ namespace MinecraftSkylines.Mod
                 default: sb.Append("on  [Esc returns]  feet ").Append(Fmt(_feet)).Append("  yaw ").Append(_look.Yaw.ToString("0")).Append(" pitch ").Append(_look.Pitch.ToString("0")); break;
             }
             if (_note.Length > 0) sb.Append("  (").Append(_note).Append(')');
+            string launch = _launcher.OverlayText();
+            if (launch.Length > 0) sb.Append('\n').Append(launch);
             if (_state != State.Off) sb.Append("\nCollision: ").Append(_streamer.Stats);
             if (_frames > 0) sb.Append("\nPlayer mode frame: avg ").Append((_frameTotalMs / _frames).ToString("0.000"))
                 .Append(" ms, max ").Append(_frameMaxMs.ToString("0.000")).Append(" ms");
             return sb.ToString();
+        }
+
+        /// <summary>Off: Ctrl+Shift+M enters, or starts Minecraft and enters once it connects (see <see cref="MinecraftLauncher"/>).</summary>
+        private void UpdateOff(BridgeHost host, bool cityReady)
+        {
+            bool connected = host != null && host.State == BridgeState.Connected;
+            bool key = EnterKeyPressed();
+            if (_launcher.Pending)
+            {
+                if (key || UInput.GetKeyDown(KeyCode.Escape) || !cityReady)
+                {
+                    _launcher.Cancel();
+                    _note = "start cancelled (Minecraft keeps running)";
+                }
+                else if (connected)
+                {
+                    _launcher.Cancel();
+                    TryEnter(host, cityReady);
+                }
+                else
+                {
+                    _launcher.Tick();
+                }
+                return;
+            }
+            if (!key)
+            {
+                return;
+            }
+            if (!connected && cityReady && _launcher.Begin())
+            {
+                _note = "";
+                return;
+            }
+            TryEnter(host, cityReady);
         }
 
         private void TryEnter(BridgeHost host, bool cityReady)

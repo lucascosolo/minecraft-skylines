@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
+using ColossalFramework.IO;
 using ICities;
 using MinecraftSkylines.Mod.Diagnostics;
 using MinecraftSkylines.Protocol;
@@ -58,7 +60,8 @@ namespace MinecraftSkylines.Mod
             s_probe = new TerrainClipProbe(s_log);
             s_pump.Updated += s_probe.Update;
             s_pump.Gui += s_overlay.Draw;
-            s_player = new PlayerMode(s_log, () => s_statusDirty = true);
+            s_player = new PlayerMode(s_log, () => s_statusDirty = true,
+                new MinecraftLauncher(s_log, Path.Combine(Path.Combine(DataLocation.localApplicationData, "ModLogs"), "MinecraftSkylines-companion.log")));
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
             s_pump.Gui += s_player.OnGui;
             s_pump.Quitting += () => Stop("game exiting");

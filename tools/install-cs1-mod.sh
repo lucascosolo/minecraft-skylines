@@ -7,7 +7,7 @@
 # Without an argument it installs the repo's current Release build. With one, it installs that
 # folder instead (e.g. a pinned build of a specific commit).
 # Copies four DLLs into Addons/Mods/MinecraftSkylines/ (overwriting older copies of the same four
-# files). It deletes nothing and touches no save, game file or other mod. To uninstall, move that
+# files) and, if absent, writes launch.cfg beside them. It deletes nothing and touches no save, game file or other mod. To uninstall, move that
 # one folder away. Path logic follows ColossalFramework.IO.DataLocation on Linux.
 set -euo pipefail
 
@@ -27,5 +27,22 @@ for f in "${FILES[@]}"; do
   cp -f "${SRC:?}/$f" "${DEST:?}/$f"
   echo "installed $f  sha256=$(sha256sum "${DEST:?}/$f" | cut -d' ' -f1)"
 done
+
+# Developer auto-start config for Ctrl+Shift+M (see cs1/src/MinecraftSkylines.Mod/MinecraftLauncher.cs).
+# Written only when absent: a user-edited launch.cfg is never overwritten.
+CFG="${DEST:?}/launch.cfg"
+if [ -e "${CFG:?}" ]; then
+  echo "launch.cfg exists, left unchanged: ${CFG}"
+else
+  cat > "${CFG:?}" <<CFGEOF
+# Minecraft auto-start for Ctrl+Shift+M. One key = value per line; # starts a comment.
+command = ${ROOT:?}/minecraft/gradlew
+args = --no-daemon --console=plain :fabric:runClient -PmcskylinesHidden
+working_dir = ${ROOT:?}/minecraft
+env.GRADLE_USER_HOME = ${HOME:?}/.cache/gradle-home
+connect_timeout_seconds = 180
+CFGEOF
+  echo "wrote ${CFG}"
+fi
 echo "Mod folder: ${DEST}"
 echo "Now start Cities: Skylines, open Content Manager > Mods and enable 'Minecraft Skylines'."

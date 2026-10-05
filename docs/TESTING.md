@@ -118,15 +118,23 @@ the game's prop shader and a marker on the underground camera's layer.
 
 ### Milestone 2, round 2 (owner)
 
-1. `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew --stop`
-   (stops the daemon left from round 1), then `bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh`.
-2. Start Cities: Skylines and the client (`--no-daemon` command above); load the test city.
-3. **T1 test 2** (paused, city camera): point at grass, **Ctrl+Shift+C**. Three cubes: a red one
+Minecraft now starts by itself: no Gradle terminal needed.
+
+1. Once: `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew --stop`
+   (stops the daemon left from round 1). Close any Minecraft window still open.
+2. `bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh` (also writes `launch.cfg`, which
+   tells the mod how to start Minecraft; it prints where).
+3. Start Cities: Skylines, load the test city.
+4. **T1 test 2** (paused, city camera): point at grass, **Ctrl+Shift+C**. Three cubes: a red one
    beside the hole (control), and under the hole a red one (normal prop layer) and a yellow one
    (the underground camera's layer). Screenshot from a low angle into the hole, and one with the
    control cube between the camera and the hole. **Ctrl+Shift+I**, then **Ctrl+Shift+U**.
-4. **Ctrl+Shift+M**, walk from grass onto a ground road: you should now step up onto it instead of
-   walking through it. Esc.
-5. Quit Cities: Skylines to desktop and do nothing else: Minecraft should close by itself within
-   about 10 s, and the Gradle terminal should return to the prompt.
-6. Copy logs into `~/.cache/minecraft-skylines/evidence/m2r2/` (same command as above with `m2r2`).
+5. Point at open ground, **Ctrl+Shift+M**. Expected: "Starting Minecraft…" with a seconds counter
+   (first start can take a minute or two while Gradle builds), no Minecraft window, then Minecraft
+   mode starts by itself.
+6. Walk from grass onto a ground road: you should step up onto it instead of walking through it. Esc.
+7. Quit Cities: Skylines to desktop. Minecraft should end by itself within about 10 s.
+8. Copy evidence into `~/.cache/minecraft-skylines/evidence/m2r2/`:
+   `mkdir -p ~/.cache/minecraft-skylines/evidence/m2r2 && cp ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines*.log ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log ~/.cache/minecraft-skylines/evidence/m2r2/`
+   plus screenshots. (`MinecraftSkylines*.log` includes the new `MinecraftSkylines-companion.log`
+   with Minecraft's own output.)
