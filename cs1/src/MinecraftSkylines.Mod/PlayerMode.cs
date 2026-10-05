@@ -29,6 +29,7 @@ namespace MinecraftSkylines.Mod
         private const float NearClip = 0.1f;
         private const double StreamBudgetMs = 1.5;
         private const double DefaultDegreesPerMouseUnit = 1.5;
+        private const int GlfwEscape = 256;
 
         private enum State { Off, Waiting, Active }
 
@@ -45,6 +46,11 @@ namespace MinecraftSkylines.Mod
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private readonly Stopwatch _frameWatch = new Stopwatch();
         private readonly double _sensitivity = ConfiguredSensitivity();
+        private readonly EscapeRouter _esc = new EscapeRouter();
+        private readonly List<InputEvent> _escEvents = new List<InputEvent>();
+        private bool _guestScreenOpen;
+        private bool _screenMode;
+        private int _cursorX = -1, _cursorY = -1;
 
         private State _state;
         private uint _teleportSeq;
@@ -65,7 +71,10 @@ namespace MinecraftSkylines.Mod
 
         // Self-test only: synthetic held keys replace the keyboard and mouse while non-null.
         private int[] _synthetic;
+        private bool _exitAfterInput;
         private readonly List<int> _syntheticSent = new List<int>();
+        private bool _syntheticCursor;
+        private int _syntheticX, _syntheticY;
         private Vector3 _stateFeet;
         private uint _stateFlags;
         private double _stateAtMs = -1;
@@ -110,7 +119,25 @@ namespace MinecraftSkylines.Mod
         public void SetSyntheticKeys(int[] unityKeyCodes)
         {
             _synthetic = unityKeyCodes;
+            if (unityKeyCodes == null) _syntheticCursor = false;
         }
+
+        /// <summary>Self-test: while synthetic keys are on, the cursor sits at host pixel (x, y), origin top-left.</summary>
+        public void SetSyntheticCursor(int x, int y)
+        {
+            _syntheticCursor = true;
+            _syntheticX = x;
+            _syntheticY = y;
+        }
+
+        /// <summary>GUEST_STATUS flags (0 when the link is lost).</summary>
+        public void SetGuestFlags(uint flags)
+        {
+            _guestScreenOpen = (flags & GuestStatusFlags.ScreenOpen) != 0;
+        }
+
+        /// <summary>True while a Minecraft screen has input: cursor shown and routed to Minecraft, look frozen.</summary>
+        public bool ScreenMode { get { return _screenMode; } }
 
         /// <summary>Self-test: sets the look direction (Unity heading and pitch, degrees).</summary>
         public void SetLook(double yawDeg, double pitchDeg)
@@ -144,11 +171,14 @@ namespace MinecraftSkylines.Mod
                     Exit("city no longer loaded", host, true);
                     return;
                 }
-                if (UInput.GetKeyDown(KeyCode.Escape))
+                // Esc: see EscapeRouter. Leaves Minecraft mode unless a Minecraft screen is open; then it goes to Minecraft.
+                if (UInput.GetKeyDown(KeyCode.Escape) && EscapeDown())
                 {
                     Exit("player pressed Esc", host, false);
                     return;
                 }
+                if (UInput.GetKeyUp(KeyCode.Escape)) EscapeUp();
+                SetScreenMode(_state == State.Active && _guestScreenOpen);
                 float dx, dy;
                 _input.ReadMouse(out dx, out dy);
                 if (_synthetic == null) _look.Apply(dx, dy, _sensitivity);
@@ -156,6 +186,7 @@ namespace MinecraftSkylines.Mod
                 if (_state == State.Active)
                 {
                     SendInput(host);
+                    if (_exitAfterInput) Exit("player pressed Esc", host, false);
                 }
             }
             catch (Exception e)
@@ -266,6 +297,9 @@ namespace MinecraftSkylines.Mod
                 }
             });
             Guard("release input", () => _input.End());
+            _screenMode = false;
+            _esc.Reset();
+            _escEvents.Clear();
             Guard("restore camera", () =>
             {
                 string problems = _camera.Release();
@@ -416,11 +450,23 @@ namespace MinecraftSkylines.Mod
         {
             _captured.Clear();
             _events.Clear();
+            _exitAfterInput = false;
             _input.Poll(_captured);
             if (_synthetic != null) _captured.Clear();
             if (_synthetic != null || _syntheticSent.Count > 0) SyntheticTransitions();
+            _events.AddRange(_escEvents);
+            _escEvents.Clear();
             foreach (CapturedEvent c in _captured)
             {
+                if (c.Code == (int)KeyCode.Escape && (c.Kind == CapturedKind.KeyDown || c.Kind == CapturedKind.KeyUp))
+                {
+                    // Synthetic Esc (self-test) takes the same route as the real key.
+                    if (c.Kind == CapturedKind.KeyUp) EscapeUp();
+                    else if (EscapeDown()) { _exitAfterInput = true; break; }
+                    _events.AddRange(_escEvents);
+                    _escEvents.Clear();
+                    continue;
+                }
                 switch (c.Kind)
                 {
                     case CapturedKind.KeyDown:
@@ -439,9 +485,52 @@ namespace MinecraftSkylines.Mod
                         break;
                 }
             }
+            if (_screenMode) AddCursor();
             McLook look = _look.ToMc();
             var msg = new InputMsg { Yaw = (float)look.Yaw, Pitch = (float)look.Pitch, Events = _events.ToArray() };
             host.Send(AppProtocol.InputType, msg.Encode());
+        }
+
+        // True when the press leaves Minecraft mode; otherwise queues the press for Minecraft.
+        private bool EscapeDown()
+        {
+            if (_esc.Down(_screenMode) == EscapeRoute.ExitMode) return true;
+            _escEvents.Add(new InputEvent(InputKind.Key, 1, GlfwEscape));
+            return false;
+        }
+
+        private void EscapeUp()
+        {
+            if (_esc.Up()) _escEvents.Add(new InputEvent(InputKind.Key, 0, GlfwEscape));
+        }
+
+        private void SetScreenMode(bool on)
+        {
+            if (on == _screenMode) return;
+            _screenMode = on;
+            _input.CursorFree = on;
+            _cursorX = _cursorY = -1;
+            _log.Info("player mode: Minecraft screen " + (on ? "open, cursor to Minecraft" : "closed, mouse look"));
+        }
+
+        // Sends the cursor position (host pixels, origin top-left) when it changed.
+        private void AddCursor()
+        {
+            int x, y;
+            if (_synthetic != null && _syntheticCursor)
+            {
+                x = _syntheticX;
+                y = _syntheticY;
+            }
+            else
+            {
+                Vector3 m = UInput.mousePosition;
+                ScreenInput.ToHostPixels(m.x, m.y, Screen.width, Screen.height, out x, out y);
+            }
+            if (x == _cursorX && y == _cursorY) return;
+            _cursorX = x;
+            _cursorY = y;
+            _events.Add(InputEvent.Cursor(x, y));
         }
 
         // Turns the difference between the requested and the last sent synthetic key set into key events

@@ -14,6 +14,7 @@ using Skylines.Core.Geometry;
 using Skylines.Host;
 using Skylines.Host.Camera;
 using Skylines.Host.Geometry;
+using Skylines.Host.Overlay;
 using UnityEngine;
 using UInput = UnityEngine.Input;
 
@@ -34,6 +35,8 @@ namespace MinecraftSkylines.Mod.SelfTest
         private const ushort RoadMask = NetGeometry.RoadSurfaceFlag | NetGeometry.BridgeDeckFlag;
         private static readonly int[] HoldW = { (int)KeyCode.W };
         private static readonly int[] NoKeys = new int[0];
+        private static readonly int[] HoldE = { (int)KeyCode.E };
+        private static readonly int[] HoldEscape = { (int)KeyCode.Escape };
         private static readonly double[] CurbEdges = { 0, 0.1, 0.25, 0.5, 1, 2 };
 
         private enum Phase { Idle, Waiting, Running }
@@ -43,6 +46,7 @@ namespace MinecraftSkylines.Mod.SelfTest
         private readonly MinecraftLauncher _launcher;
         private readonly string _modVersion;
         private readonly BlockRenderer _blocks;
+        private readonly OverlayLink _gui;
         private readonly Func<GuestStatus> _guest;
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private readonly TerrainSampler _terrain = new TerrainSampler();
@@ -80,8 +84,9 @@ namespace MinecraftSkylines.Mod.SelfTest
         private BlockRowPlan _s8Plan;
         private int _s8VariantWas = -1;
 
-        public SelfTestController(HostLog log, PlayerMode player, MinecraftLauncher launcher, BlockRenderer blocks, Func<GuestStatus> guest, string modVersion)
+        public SelfTestController(HostLog log, PlayerMode player, MinecraftLauncher launcher, BlockRenderer blocks, OverlayLink gui, Func<GuestStatus> guest, string modVersion)
         {
+            _gui = gui;
             _blocks = blocks;
             _guest = guest;
             _log = log;
@@ -215,6 +220,7 @@ namespace MinecraftSkylines.Mod.SelfTest
                 Make("S1", "road surface accuracy", 60, S1RoadSurface, null),
                 Mc("S2", "walk onto a ground road", 45, S2WalkOntoRoad, noMinecraft),
                 Mc("S7", "screenshots", 20, S7Screenshots, noMinecraft),
+                Mc("S9", "GUI overlay and screen input", 60, S9Overlay, noMinecraft),
                 noMinecraft == null ? Make("S8", "block rendering", 45, S8BlockRendering, S8Cleanup) : Mc("S8", "block rendering", 45, null, noMinecraft),
                 Mc("S3", "bridge railing", 45, S3BridgeRailing, noMinecraft),
                 Mc("S4", "under a bridge", 45, S4UnderBridge, noMinecraft),
@@ -453,6 +459,95 @@ namespace MinecraftSkylines.Mod.SelfTest
             r.Measurements.Set("city_camera_png_exists", cityOk);
             if (mcOk && cityOk) r.Pass("");
             else r.Fail("screenshot missing: " + (mcOk ? "" : "minecraft_mode ") + (cityOk ? "" : "city_camera"));
+        }
+
+        // ---- S9 ----
+
+        private IEnumerator S9Overlay(ScenarioResult r)
+        {
+            if (_host.NegotiatedAppMinor < 3) { r.Skip("Minecraft app minor " + _host.NegotiatedAppMinor + " has no GUI overlay"); yield break; }
+            if (!_s2HaveSpawn) { r.Skip("S2 found no spawn point"); yield break; }
+            string error = null;
+            IEnumerator enter = EnterAndSettle(r, _s2Spawn, _s2Yaw, e => error = e);
+            while (enter.MoveNext()) yield return null;
+            if (error != null) { r.Fail(error); yield break; }
+            var steps = new Dictionary<string, object>();
+            r.Measurements.Set("steps", steps);
+
+            // 1. An offer is mapped and at least 10 new frames arrive within 10 s.
+            double start = Now(), t0 = -1;
+            long f0 = 0;
+            while (Now() - start < 10)
+            {
+                if (_gui.Mapped)
+                {
+                    if (t0 < 0) { t0 = Now(); f0 = _gui.FramesAcquired; }
+                    else if (_gui.FramesAcquired - f0 >= 10) break;
+                }
+                yield return null;
+            }
+            long frames = t0 < 0 ? 0 : _gui.FramesAcquired - f0;
+            OverlayPresenter p = _gui.Presenter;
+            r.Measurements.Set("offers", _gui.Offers);
+            r.Measurements.Set("frames_seen", frames);
+            r.Measurements.Set("frames_per_s", t0 < 0 ? 0 : SelfTestMath.PerSecond(frames, Now() - t0));
+            r.Measurements.Set("frame_width_px", p.Width);
+            r.Measurements.Set("frame_height_px", p.Height);
+            r.Measurements.Set("screen_px", new[] { Screen.width, Screen.height });
+            r.Measurements.Set("upload_avg_ms", p.Uploads == 0 ? 0 : p.TotalUploadMs / p.Uploads);
+            r.Measurements.Set("upload_max_ms", p.MaxUploadMs);
+            r.Measurements.Set("blend", p.BlendDescription);
+            steps["offer_and_10_frames"] = frames >= 10;
+            if (frames < 10) { r.Fail(_gui.Mapped ? "only " + frames + " overlay frames in 10 s" : "no OVERLAY_OFFER mapped within 10 s"); yield break; }
+
+            // 2. Screenshot with the HUD visible.
+            string hud = Path.Combine(_dir, "s9_hud.png");
+            Application.CaptureScreenshot(hud);
+            IEnumerator wait = Wait(0.5);
+            while (wait.MoveNext()) yield return null;
+
+            // 3. E opens the inventory: SCREEN_OPEN, cursor free.
+            _player.SetSyntheticKeys(HoldE);
+            wait = Wait(0.15);
+            while (wait.MoveNext()) yield return null;
+            _player.SetSyntheticKeys(NoKeys);
+            start = Now();
+            while (!_player.ScreenMode && Now() - start < 3) yield return null;
+            steps["inventory_screen_open"] = _player.ScreenMode;
+            r.Measurements.Set("screen_open_after_s", Now() - start);
+            if (!_player.ScreenMode) { r.Fail("SCREEN_OPEN not set within 3 s of pressing E"); yield break; }
+            steps["cursor_free"] = Cursor.visible && Cursor.lockState == CursorLockMode.None;
+
+            // 4. Cursor to the screen centre, screenshot.
+            _player.SetSyntheticCursor(Screen.width / 2, Screen.height / 2);
+            wait = Wait(0.5);
+            while (wait.MoveNext()) yield return null;
+            string inv = Path.Combine(_dir, "s9_inventory.png");
+            Application.CaptureScreenshot(inv);
+            wait = Wait(0.5);
+            while (wait.MoveNext()) yield return null;
+
+            // 5. Esc closes the screen and leaves Minecraft mode on.
+            _player.SetSyntheticKeys(HoldEscape);
+            wait = Wait(0.15);
+            while (wait.MoveNext()) yield return null;
+            _player.SetSyntheticKeys(NoKeys);
+            start = Now();
+            while (_player.ScreenMode && _player.IsOn && Now() - start < 3) yield return null;
+            wait = Wait(0.5);
+            while (wait.MoveNext()) yield return null;
+            steps["screen_closed_by_esc"] = !_player.ScreenMode;
+            steps["still_in_minecraft_mode"] = _player.IsOn;
+            steps["cursor_locked_again"] = !Cursor.visible && Cursor.lockState == CursorLockMode.Locked;
+            bool hudOk = File.Exists(hud), invOk = File.Exists(inv);
+            steps["screenshots_written"] = hudOk && invOk;
+            r.Measurements.Set("hud_png", hud);
+            r.Measurements.Set("inventory_png", inv);
+
+            var failed = new List<string>();
+            foreach (KeyValuePair<string, object> kv in steps) if (!(bool)kv.Value) failed.Add(kv.Key);
+            if (failed.Count == 0) r.Pass("");
+            else r.Fail("failed steps: " + string.Join(", ", failed.ToArray()));
         }
 
         // ---- S8 ----

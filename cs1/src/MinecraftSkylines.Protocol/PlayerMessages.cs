@@ -71,6 +71,8 @@ namespace MinecraftSkylines.Protocol
         public const byte Text = 4;
         /// <summary>Release every held key and button.</summary>
         public const byte ReleaseAll = 5;
+        /// <summary>Cursor position (minor 3); code is <see cref="InputEvent.CursorCode"/>.</summary>
+        public const byte Cursor = 6;
     }
 
     /// <summary>One input event of <see cref="Input"/>.</summary>
@@ -89,6 +91,30 @@ namespace MinecraftSkylines.Protocol
             Kind = kind;
             Action = action;
             Code = code;
+        }
+
+        /// <summary>A cursor event at host pixel (x, y), origin top-left.</summary>
+        public static InputEvent Cursor(int x, int y)
+        {
+            return new InputEvent(InputKind.Cursor, 0, CursorCode(x, y));
+        }
+
+        /// <summary>(x &lt;&lt; 16) | y, each masked to 16 bits, carried in an i32.</summary>
+        public static int CursorCode(int x, int y)
+        {
+            return unchecked((int)(((uint)(x & 0xFFFF) << 16) | (uint)(y & 0xFFFF)));
+        }
+
+        /// <summary>The x of a cursor code.</summary>
+        public static int CursorX(int code)
+        {
+            return (code >> 16) & 0xFFFF;
+        }
+
+        /// <summary>The y of a cursor code.</summary>
+        public static int CursorY(int code)
+        {
+            return code & 0xFFFF;
         }
     }
 

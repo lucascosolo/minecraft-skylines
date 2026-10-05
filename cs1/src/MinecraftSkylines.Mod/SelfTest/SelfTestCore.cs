@@ -395,6 +395,11 @@ namespace MinecraftSkylines.Mod.SelfTest
             return Math.Atan(Math.Sqrt(gx * gx + gz * gz)) * 180.0 / Math.PI;
         }
 
+        public static double PerSecond(long count, double seconds)
+        {
+            return seconds > 0 ? count / seconds : 0;
+        }
+
         public static bool Within(double? a, double? b, double tolerance)
         {
             return a.HasValue && b.HasValue && Math.Abs(a.Value - b.Value) <= tolerance;

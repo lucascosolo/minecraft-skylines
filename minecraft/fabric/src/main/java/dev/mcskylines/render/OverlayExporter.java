@@ -46,6 +46,7 @@ public final class OverlayExporter {
 	private OverlayWriter writer;
 	private boolean offered;
 	private long generation = System.currentTimeMillis();
+	private boolean useB = true; // first offer uses "-a"
 	private long nextFrameId = 1;
 	private long copyNanos;
 	private int copies;
@@ -138,11 +139,13 @@ public final class OverlayExporter {
 			if (writer != null) {
 				writer.close();
 			}
-			// One file per user, reused across sessions: /dev/shm is RAM and nothing here may delete
-			// files, so a per-session name would pile up until reboot. The generation (seeded from the
-			// clock, so a restarted Minecraft never repeats one) tells the host to remap.
-			writer = OverlayWriter.open(overlayDir().resolve("mcskylines-overlay-" + System.getProperty("user.name", "player")),
-				maxW, maxH, ++generation);
+			// Two files per user, alternating on every (re-)offer: /dev/shm is RAM and nothing here may
+			// delete files, so per-session names would pile up until reboot; and re-initialising the file
+			// the host may still have mapped would let its stale front-slot exchange corrupt the fresh
+			// header. The generation (seeded from the clock) also tells the host to remap.
+			useB = !useB;
+			writer = OverlayWriter.open(overlayDir().resolve("mcskylines-overlay-" + System.getProperty("user.name", "player")
+				+ (useB ? "-b" : "-a")), maxW, maxH, ++generation);
 		} catch (IOException | RuntimeException e) {
 			LOG.error(PREFIX + "overlay: cannot create the shared-memory file", e);
 			writer = null;

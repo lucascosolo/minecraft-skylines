@@ -5,6 +5,7 @@
     <RootNamespace>Skylines.Host</RootNamespace>
     <AssemblyName>Skylines.Host</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Skylines.Core\Skylines.Core.csproj" />

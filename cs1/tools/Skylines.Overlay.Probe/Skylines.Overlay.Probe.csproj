@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- probe <path> <seconds>: maps an overlay file with the host's reader and prints what it sees once per second. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Skylines.Overlay.Probe</RootNamespace>
+    <AssemblyName>probe</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\Skylines.Host\Overlay\SharedOverlayReader.cs" Link="SharedOverlayReader.cs" />
+  </ItemGroup>
+</Project>

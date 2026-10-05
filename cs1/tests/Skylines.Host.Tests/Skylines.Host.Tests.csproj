@@ -4,11 +4,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\Skylines.Host\Process\LaunchConfig.cs" Link="LaunchConfig.cs" />
     <Compile Include="..\..\src\Skylines.Host\Process\CompanionProcess.cs" Link="CompanionProcess.cs" />
     <Compile Include="..\..\src\Skylines.Host\Rendering\MeshSplit.cs" Link="MeshSplit.cs" />
+    <Compile Include="..\..\src\Skylines.Host\Overlay\SharedOverlayReader.cs" Link="SharedOverlayReader.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

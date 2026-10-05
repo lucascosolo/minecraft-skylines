@@ -180,12 +180,27 @@ loads a test city. It reads the city and drives Minecraft mode; it never edits t
   lighting, and depth against terrain. Measurements: atlas size, time to first mesh, sections and
   vertices received, mesh build ms, gap to the row before and after walking. Its cleanup fills the
   row with air. In normal play **Ctrl+Shift+B** cycles the variant live (`block_material = 0..3` in
-  `launch.cfg` sets the start); the status box shows it. S3-S5 skip when the city
+  `launch.cfg` sets the start); the status box shows it. S9 GUI overlay and screen input (milestone 3;
+  runs after S7, skips unless app minor >= 3): enters at the S2 spawn, waits up to 10 s for a mapped
+  `OVERLAY_OFFER` and 10 new frames (measures frames/s, frame and screen size, upload avg/max ms,
+  blend path), takes `s9_hud.png`, presses E with synthetic keys and waits up to 3 s for
+  `SCREEN_OPEN` (cursor must be shown and unlocked), moves the cursor to the screen centre with cursor
+  events, takes `s9_inventory.png`, presses Esc with synthetic keys and needs `SCREEN_OPEN` cleared
+  within 3 s with Minecraft mode still on and the cursor relocked; `measurements.steps` records
+  pass/fail per step. S3-S5 skip when the city
   has no suitable bridge or slope; build one near the camera's view first.
 - **Report:** `~/.local/share/Colossal Order/Cities_Skylines/ModLogs/selftest/<yyyyMMddTHHmmssZ>/report.json`
   (keys `run_started_utc`, `game_version`, `mod_version`, `city_name`, `minecraft_peer`,
   `aborted`, `abort_reason`, `scenarios[{id, name, status, reason, duration_ms, measurements}]`,
-  `summary{pass, fail, skip, error}`) and the PNGs beside it (two from S2/S7, four from S8). The mod log and the status box
+  `summary{pass, fail, skip, error}`) and the PNGs beside it (two from S2/S7, four from S8, two from S9). The mod log and the status box
   show `Self-test: N pass, N fail, N skip, N error — report at …`.
 - **Bring it back:**
   `mkdir -p ~/.cache/minecraft-skylines/evidence/selftest && cp -r ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/selftest/. ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines*.log ~/.cache/minecraft-skylines/evidence/selftest/`
+
+### Cross-language GUI overlay check (sandbox, 2026-10-05)
+
+`minecraft/bridge/build/install/bridge/bin/overlay-demo <file> 320 180 180` (Java OverlayWriter,
+~60 Hz) against `cs1/tools/Skylines.Overlay.Probe/bin/Release/net10.0/probe <file> 4` (C#
+SharedOverlayReader, separate process): 152 of 180 frames consumed (latest-frame-wins), 0 rejected,
+each frame's first pixel byte equal to its frame id. Proves the 1.3 layout, the triple-buffer
+atomics and pixel transfer agree across languages; says nothing about Minecraft's renderer or Unity.

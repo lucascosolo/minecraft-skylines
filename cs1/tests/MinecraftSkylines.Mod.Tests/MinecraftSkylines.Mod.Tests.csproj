@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\MinecraftSkylines.Protocol\MinecraftSkylines.Protocol.csproj" />
+    <Compile Include="..\..\src\MinecraftSkylines.Mod\ScreenInput.cs" Link="ScreenInput.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\PlayerLook.cs" Link="PlayerLook.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\SelfTestCore.cs" Link="SelfTestCore.cs" />
   </ItemGroup>

@@ -34,6 +34,7 @@ namespace MinecraftSkylines.Mod
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
         private static BlockRenderer s_blocks;
+        private static OverlayLink s_gui;
         private static SelfTestController s_selfTest;
         private static MinecraftLauncher s_launcher;
         private static BridgeHost s_host;
@@ -65,13 +66,16 @@ namespace MinecraftSkylines.Mod
             s_pump.Updated += Tick;
             s_probe = new TerrainClipProbe(s_log);
             s_pump.Updated += s_probe.Update;
+            // Minecraft's GUI is drawn over everything except the status box, so it registers first.
+            s_gui = new OverlayLink(s_log);
+            s_pump.Gui += s_gui.Draw;
             s_pump.Gui += s_overlay.Draw;
             s_launcher = new MinecraftLauncher(s_log, Path.Combine(Path.Combine(DataLocation.localApplicationData, "ModLogs"), "MinecraftSkylines-companion.log"),
                 UnityEngine.Application.platform == UnityEngine.RuntimePlatform.LinuxPlayer);
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;
-            s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, () => s_guest, ModVersion);
+            s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, s_gui, () => s_guest, ModVersion);
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
             // Graphics.DrawMesh queues for the coming render of every camera, so the pump's LateUpdate (after
             // the camera is placed) draws in city and Minecraft mode alike. Meshes are kept across city reloads (the
@@ -116,6 +120,7 @@ namespace MinecraftSkylines.Mod
             s_player.Exit(why, s_host, true);
             s_player.Viewer.Dispose();
             s_blocks.Dispose();
+            s_gui.Dispose();
             s_probe.RestoreAll(why, true);
             s_host.Shutdown(GoodbyeCodes.ShuttingDown, why);
             s_host = null;
@@ -124,6 +129,7 @@ namespace MinecraftSkylines.Mod
             s_overlay = null;
             s_player = null;
             s_blocks = null;
+            s_gui = null;
             s_selfTest = null;
             s_launcher = null;
             s_guest = null;
@@ -215,6 +221,7 @@ namespace MinecraftSkylines.Mod
             Guid saveId = s_saveId.Id;
             s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
             s_player.Update(s_host, city.InCity && !city.Loading);
+            s_gui.Tick(s_host, s_player.IsOn);
             s_selfTest.Update(s_host, city.InCity && !city.Loading);
             if (!city.Equals(s_lastCity) || saveId != s_lastSentSaveId)
             {
@@ -253,6 +260,8 @@ namespace MinecraftSkylines.Mod
                     s_lastDisconnect = e.CauseName + (e.Code >= 0 ? " code " + e.Code : "") + (string.IsNullOrEmpty(e.Reason) ? "" : ": " + e.Reason);
                     Log("disconnected: " + s_lastDisconnect);
                     s_guest = null;
+                    s_player.SetGuestFlags(0);
+                    s_gui.OnDisconnect();
                     s_player.Exit("link lost: " + s_lastDisconnect, s_host, false);
                     break;
                 case BridgeEventKind.Message:
@@ -266,6 +275,7 @@ namespace MinecraftSkylines.Mod
                                 Log("guest status: flags " + g.Flags + ", world '" + g.WorldName + "', paired save " + g.PairedSaveId);
                             }
                             s_guest = g;
+                            s_player.SetGuestFlags(g.Flags);
                         }
                         catch (ProtocolException ex)
                         {
@@ -282,6 +292,21 @@ namespace MinecraftSkylines.Mod
                         {
                             s_log.Warn("bad PLAYER_STATE ignored: " + ex.Message);
                         }
+                    }
+                    else if (e.MessageType == AppProtocol.OverlayOfferType)
+                    {
+                        try
+                        {
+                            s_gui.OnOffer(OverlayOffer.Decode(e.Payload));
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad OVERLAY_OFFER ignored: " + ex.Message);
+                        }
+                    }
+                    else if (e.MessageType == AppProtocol.OverlayStopType)
+                    {
+                        s_gui.OnStop();
                     }
                     else if (e.MessageType >= AppProtocol.BlockAtlasType && e.MessageType <= AppProtocol.SectionsClearType)
                     {
@@ -353,6 +378,8 @@ namespace MinecraftSkylines.Mod
                 sb.Append(saveId == Guid.Empty ? "  (not paired)" : "  save id " + saveId.ToString().Substring(0, 8));
             }
             sb.Append('\n').Append(s_player.OverlayText());
+            string gui = s_gui.OverlayText();
+            if (gui.Length > 0) sb.Append('\n').Append(gui);
             string blocks = s_blocks.OverlayText();
             if (blocks.Length > 0) sb.Append('\n').Append(blocks);
             if (s_selfTest.OverlayText.Length > 0) sb.Append('\n').Append(s_selfTest.OverlayText);

@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 2;
+        public const ushort Minor = 3;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -35,6 +35,12 @@ namespace MinecraftSkylines.Protocol
         public const ushort SectionsClearType = 0x0133;
         /// <summary>Message type of <see cref="DebugCommand"/> (host to guest, minor 2).</summary>
         public const ushort DebugCommandType = 0x01F0;
+        /// <summary>Message type of <see cref="Viewport"/> (host to guest, minor 3).</summary>
+        public const ushort ViewportType = 0x0140;
+        /// <summary>Message type of <see cref="OverlayOffer"/> (guest to host, minor 3).</summary>
+        public const ushort OverlayOfferType = 0x0141;
+        /// <summary>Message type of OVERLAY_STOP (guest to host, minor 3); empty payload.</summary>
+        public const ushort OverlayStopType = 0x0142;
     }
 
     /// <summary>Bits of <see cref="HostStatus.Flags"/>.</summary>

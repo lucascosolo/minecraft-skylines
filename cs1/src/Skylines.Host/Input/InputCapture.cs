@@ -47,6 +47,7 @@ namespace Skylines.Host.Input
         private readonly bool[] _held;
         private CursorLockMode _lockState;
         private bool _cursorVisible;
+        private bool _cursorFree;
 
         /// <summary>Watches <paramref name="unityKeyCodes"/>.</summary>
         public InputCapture(int[] unityKeyCodes)
@@ -57,6 +58,24 @@ namespace Skylines.Host.Input
 
         /// <summary>True between <see cref="Begin"/> and <see cref="End"/>.</summary>
         public bool Active { get; private set; }
+
+        /// <summary>
+        /// While true (and active) the cursor is shown and free and <see cref="ReadMouse"/> reports no
+        /// movement, so a guest screen can be driven with the pointer; keys, buttons, wheel and text are
+        /// still polled. Setting it back to false re-locks and hides the cursor.
+        /// </summary>
+        public bool CursorFree
+        {
+            get { return _cursorFree; }
+            set
+            {
+                if (_cursorFree == value) return;
+                _cursorFree = value;
+                if (!Active) return;
+                if (value) Free();
+                else Lock();
+            }
+        }
 
         /// <summary>Locks and hides the cursor (remembering its state). Keys already held count as held.</summary>
         public void Begin()
@@ -72,18 +91,20 @@ namespace Skylines.Host.Input
                 _held[i] = UnityEngine.Input.GetKey((KeyCode)_codes[i]);
             }
             Active = true;
-            Lock();
+            if (_cursorFree) Free();
+            else Lock();
         }
 
         /// <summary>Re-locks the cursor (focus may have come back) and returns this frame's raw mouse axis delta (Unity "Mouse X"/"Mouse Y" units; positive = right/up).</summary>
         public void ReadMouse(out float mouseDx, out float mouseDy)
         {
-            if (Active && Application.isFocused)
+            bool look = Active && !_cursorFree;
+            if (look && Application.isFocused)
             {
                 Lock();
             }
-            mouseDx = Active ? UnityEngine.Input.GetAxisRaw("Mouse X") : 0f;
-            mouseDy = Active ? UnityEngine.Input.GetAxisRaw("Mouse Y") : 0f;
+            mouseDx = look ? UnityEngine.Input.GetAxisRaw("Mouse X") : 0f;
+            mouseDy = look ? UnityEngine.Input.GetAxisRaw("Mouse Y") : 0f;
         }
 
         /// <summary>Appends the transitions since the previous call (or since <see cref="Begin"/>).</summary>
@@ -125,12 +146,19 @@ namespace Skylines.Host.Input
                 return;
             }
             Active = false;
+            _cursorFree = false;
             for (int i = 0; i < _held.Length; i++)
             {
                 _held[i] = false;
             }
             Cursor.lockState = _lockState;
             Cursor.visible = _cursorVisible;
+        }
+
+        private static void Free()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         private static void Lock()

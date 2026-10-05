@@ -107,6 +107,14 @@ namespace MinecraftSkylines.Protocol.Tests
                             Assert.Equal(e.GetProperty("kind").GetByte(), m.Events[i].Kind);
                             Assert.Equal(e.GetProperty("action").GetByte(), m.Events[i].Action);
                             Assert.Equal(e.GetProperty("code").GetInt32(), m.Events[i].Code);
+                            if (e.GetProperty("kind").GetByte() == InputKind.Cursor)
+                            {
+                                int cx = e.GetProperty("cursorX").GetInt32(), cy = e.GetProperty("cursorY").GetInt32();
+                                int code = e.GetProperty("code").GetInt32();
+                                Assert.Equal(code, InputEvent.CursorCode(cx, cy));
+                                Assert.Equal(cx & 0xFFFF, InputEvent.CursorX(code));
+                                Assert.Equal(cy & 0xFFFF, InputEvent.CursorY(code));
+                            }
                             i++;
                         }
                         return m.Encode();
@@ -185,6 +193,27 @@ namespace MinecraftSkylines.Protocol.Tests
                 case AppProtocol.SectionsClearType:
                     Assert.Empty(frame.Payload);
                     return new byte[0];
+                case AppProtocol.OverlayStopType:
+                    Assert.Empty(frame.Payload);
+                    return new byte[0];
+                case AppProtocol.ViewportType:
+                    {
+                        Viewport m = Viewport.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("width").GetUInt32(), m.Width);
+                        Assert.Equal(f.GetProperty("height").GetUInt32(), m.Height);
+                        Assert.Equal(f.GetProperty("uiScale").GetSingle(), m.UiScale);
+                        return m.Encode();
+                    }
+                case AppProtocol.OverlayOfferType:
+                    {
+                        OverlayOffer m = OverlayOffer.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("path").GetString(), m.Path);
+                        Assert.Equal(f.GetProperty("maxWidth").GetUInt32(), m.MaxWidth);
+                        Assert.Equal(f.GetProperty("maxHeight").GetUInt32(), m.MaxHeight);
+                        Assert.Equal(f.GetProperty("slotCount").GetUInt32(), m.SlotCount);
+                        Assert.Equal(ulong.Parse(f.GetProperty("generation").GetString()), m.Generation);
+                        return m.Encode();
+                    }
                 case AppProtocol.DebugCommandType:
                     {
                         DebugCommand m = DebugCommand.Decode(frame.Payload);
@@ -306,6 +335,28 @@ namespace MinecraftSkylines.Protocol.Tests
         }
 
         [Fact]
+        public void TruncatedOverlayAndViewportAreProtocolErrors()
+        {
+            Assert.Throws<ProtocolException>(() => OverlayOffer.Decode(new byte[] { 5, 0, 1 }));
+            Assert.Throws<ProtocolException>(() => OverlayOffer.Decode(Cat(new byte[] { 1, 0, (byte)'a' }, U32(1), U32(1), U32(1))));
+            Assert.Throws<ProtocolException>(() => Viewport.Decode(new byte[7]));
+        }
+
+        [Fact]
+        public void CursorCodePacksAndWraps()
+        {
+            Assert.Equal(125764663, InputEvent.CursorCode(1919, 1079));
+            Assert.Equal(-1673527291, InputEvent.CursorCode(40000, 5));
+            InputEvent e = InputEvent.Cursor(7, 9);
+            Assert.Equal(InputKind.Cursor, e.Kind);
+            Assert.Equal(0, e.Action);
+            Assert.Equal(InputEvent.CursorCode(7, 9), e.Code);
+            Assert.Equal(7, InputEvent.CursorX(e.Code));
+            Assert.Equal(9, InputEvent.CursorY(e.Code));
+            Assert.Equal(65535, InputEvent.CursorX(InputEvent.CursorCode(-1, 0)));
+        }
+
+        [Fact]
         public void TruncatedStatusIsProtocolError()
         {
             Assert.Throws<ProtocolException>(() => HostStatus.Decode(new byte[] { 1, 0, 0 }));
@@ -317,7 +368,11 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(2, AppProtocol.Minor);
+            Assert.Equal(3, AppProtocol.Minor);
+            Assert.Equal(0x0140, AppProtocol.ViewportType);
+            Assert.Equal(0x0141, AppProtocol.OverlayOfferType);
+            Assert.Equal(0x0142, AppProtocol.OverlayStopType);
+            Assert.Equal(6, InputKind.Cursor);
             Assert.Equal(0x0130, AppProtocol.BlockAtlasType);
             Assert.Equal(0x0131, AppProtocol.AtlasRegionType);
             Assert.Equal(0x0132, AppProtocol.SectionMeshType);

@@ -574,6 +574,21 @@ namespace MinecraftSkylines.Mod.Tests
 
     public class SelfTestMathTests
     {
+        [Fact]
+        public void PerSecondDividesCountBySeconds()
+        {
+            Assert.Equal(50.0, SelfTestMath.PerSecond(100, 2.0));
+            Assert.Equal(0.5, SelfTestMath.PerSecond(1, 2.0));
+        }
+
+        [Theory]
+        [InlineData(0.0)]
+        [InlineData(-3.0)]
+        public void PerSecondIsZeroForNonPositiveSeconds(double seconds)
+        {
+            Assert.Equal(0.0, SelfTestMath.PerSecond(100, seconds));
+        }
+
         private const double Tol = 1e-9;
 
         // up-facing triangle: normal y = +1 (see contract)
