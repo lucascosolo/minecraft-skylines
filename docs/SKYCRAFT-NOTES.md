@@ -1,0 +1,24 @@
+# SkyCraft study (chasmlol/SkyCraft @ bfcaf17, v0.1.2, MIT)
+
+Read from source on 2026-10-05; clone at `~/.cache/minecraft-skylines/ref/SkyCraft`. "Code" means
+confirmed in source with the cited file; "claim" means only stated in its README/DESIGN.md. None of
+it has been run here (Windows + Skyrim AE only).
+
+## What carries over to CS1, and what does not
+
+| SkyCraft piece | Code facts | Use here |
+|---|---|---|
+| Link (`skse/src/Link.cpp`, `fabric/.../link/SkyLink.java`) | Skyrim creates `Local\SkyCraft_v1`; MC retries opening it each second; magic + version check refuses to link on mismatch; heartbeats via `GetTickCount64`, MC declares Skyrim dead after 8 s, Skyrim declares MC dead after 3 s; MC freezes its player in place while unlinked and quits 5 s after Skyrim's process dies | **Pattern only.** Windows shared memory does not transfer (Linux, .NET 3.5). Replaced by SKBR over TCP with the same lifecycle ideas (freeze while unlinked, version refusal). |
+| Player sync (`SkyClient.java`, `Game.cpp`) | MC publishes partial-tick feet/eye/look/FOV/bob each frame **and** raw 20 Hz ticks with a timestamp; Skyrim renders 4-30 ms in the past, interpolating ticks, never extrapolating; look is integrated on the Skyrim side from mouse deltas; `teleportSeq`/`teleportAck` handshake with a hold until collision is loaded | **Adopt the design** for milestone 2 (tick history interpolation, teleport handshake, hold-until-collision). |
+| Collision (`SkyCollision.java`, `TriCollider.java`, `BlockCollisionsMixin`, `EntityCollideMixin`) | Skyrim streams 8×8×8 occupancy bitmasks and triangles per 8-block region (radius 5 regions, 2.5 ms/frame budget); MC ORs voxel shapes into `BlockCollisions.computeNext` and runs `TriCollider.resolve` after `Entity.collide` for the local player. `TriCollider`/`SkyTri` import no Minecraft or Skyrim code; walkable up to ~45° (`WALKABLE_NY = 0.7`), step-up via `maxUpStep()`, downhill sticking, ceilings | **Reuse `TriCollider`/`SkyTri` and the two mixins nearly verbatim** (MIT, attribution). CS1 supplies triangles: terrain heightfield (exact), road/bridge surfaces, building meshes. |
+| Native-world digging (`SkyDig.java`, `DigWalls.java`, `DigMesh.cpp`, `DigPhysics.cpp`) | Dug cells are a voxel set: a persistent, synced Fabric chunk attachment (`DugSection`: world id, section Y, `long[64]` bitset), stored in the MC world. Skyrim's meshes are cut: dug boxes subtracted from each triangle, a clone mesh built with new buffers, the original hidden. Exposed walls are MC-rendered faces of partly-inside cells. Collision for dug cells is cut from the triangles sent to MC; NPC contacts inside dug cells are dropped. Cells are classified inside/outside per cell (nearest-triangle normal, upward ray), so roofs are not forced open, but an intact-roof tunnel is not demonstrated anywhere in the code | **Adopt the representation and persistence** (voxel set in the MC world is the authority). The CS1 equivalent of "clone and cut the mesh" for terrain is the open question (spike T1). Tunnel-with-roof is unproven in SkyCraft too: our milestone 6 is new ground. |
+| Block rendering (`WorldExporter.java`, `WorldRender.cpp`, `SkyAtlas.java`) | Hybrid: MC meshes its blocks with its own renderer and exports vertex streams (pos, uv, colour, light, flags; 32 B/vertex) plus a stacked block+item atlas; Skyrim draws them with its own shader, sampling Skyrim's depth buffer for occlusion; block shadows go into Skyrim's sun shadow map | **Adopt.** In Unity the blocks are drawn as ordinary meshes in the scene, so depth is free. Material/shader choice in CS1 is open. |
+| GUI overlay (`FrameExporter.java`, `Overlay.cpp`) | MC's HUD/hand/screens rendered on a transparent background, read back with 3 async staging buffers into a triple-buffered pixel area; Skyrim alpha-blends at `Present` | **Adopt the MC half**; CS1 half draws a screen-space texture. Transport via a shared-memory file. |
+| Input (`InputBridge.java`, `Input.cpp`) | Skyrim forwards SDL-scancode key events, buttons, scroll, cursor, text through a ring; MC replays into `MouseHandler.onButton/onScroll/onMove` and a virtual key array; mixins fake focus (`Window.isFocused/isIconified`), suppress `grabMouse/releaseMouse`, make pause screens non-pausing, uncap frame rate | **Reuse the MC side**; CS1 side captures Unity input instead. |
+| Save identity | **None in code.** Dug state keyed by Skyrim worldspace/cell id only; one mirror world | We add a `saveId` pairing (ARCHITECTURE.md). |
+| Tests | JUnit for `TriCollider` (flat, ramps, steep, walls, landing) and `SkyRay`; Python fake Skyrim speaking the shared-memory protocol | Port the `TriCollider` tests with the code; our Python reference plays the same role. |
+
+## Claims not verified from code
+
+NPC combat damage pipeline details, Discord presence, multiplayer join flow, and the README's
+"interiors and caves are solid stone behind their walls": out of scope here.

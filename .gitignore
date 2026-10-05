@@ -1,0 +1,19 @@
+# build output
+bin/
+obj/
+build/
+.gradle/
+out/
+*.user
+# proprietary game files never enter git
+refs/
+*.crp
+# local agent state and the quarantine
+.agent/state.json
+.agent/log.jsonl
+.agent/handoff.md
+_quarantine/*
+!_quarantine/README.txt
+# test reports
+reports/
+__pycache__/

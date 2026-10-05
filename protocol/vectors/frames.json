@@ -1,0 +1,157 @@
+{
+  "valid": [
+    {
+      "name": "hello",
+      "type": 1,
+      "fields": {
+        "magic": 1380076371,
+        "bridgeVersion": 1,
+        "appProtocol": "minecraft-skylines",
+        "appMajor": 1,
+        "appMinor": 0,
+        "peerName": "Minecraft 26.3 (Fabric)",
+        "peerVersion": "0.1.0",
+        "sessionNonce": "81985529216486895"
+      },
+      "hex": "4600000001000000534b4252010012006d696e6563726166742d736b796c696e65730100000017004d696e6563726166742032362e332028466162726963290500302e312e30efcdab8967452301"
+    },
+    {
+      "name": "hello_unicode_maxnonce",
+      "type": 1,
+      "fields": {
+        "magic": 1380076371,
+        "bridgeVersion": 1,
+        "appProtocol": "minecraft-skylines",
+        "appMajor": 1,
+        "appMinor": 7,
+        "peerName": "Zé ✓ 名前",
+        "peerVersion": "",
+        "sessionNonce": "18446744073709551615"
+      },
+      "hex": "3800000001000000534b4252010012006d696e6563726166742d736b796c696e6573010007000e005ac3a920e29c9320e5908de5898d0000ffffffffffffffff"
+    },
+    {
+      "name": "welcome_accepted",
+      "type": 2,
+      "fields": {
+        "accepted": true,
+        "rejectCode": 0,
+        "rejectReason": "",
+        "bridgeVersion": 1,
+        "appProtocol": "minecraft-skylines",
+        "appMajor": 1,
+        "appMinor": 0,
+        "peerName": "Cities: Skylines 1.21.1-f5",
+        "peerVersion": "0.1.0",
+        "heartbeatIntervalMs": 1000,
+        "peerTimeoutMs": 5000,
+        "sessionId": "42"
+      },
+      "hex": "52000000020000000100000000010012006d696e6563726166742d736b796c696e6573010000001a004369746965733a20536b796c696e657320312e32312e312d66350500302e312e30e8030000881300002a00000000000000"
+    },
+    {
+      "name": "welcome_rejected",
+      "type": 2,
+      "fields": {
+        "accepted": false,
+        "rejectCode": 3,
+        "rejectReason": "app major 2 != 1",
+        "bridgeVersion": 1,
+        "appProtocol": "minecraft-skylines",
+        "appMajor": 1,
+        "appMinor": 3,
+        "peerName": "Cities: Skylines",
+        "peerVersion": "0.2.0",
+        "heartbeatIntervalMs": 1000,
+        "peerTimeoutMs": 5000,
+        "sessionId": "0"
+      },
+      "hex": "58000000020000000003001000617070206d616a6f72203220213d2031010012006d696e6563726166742d736b796c696e65730100030010004369746965733a20536b796c696e65730500302e322e30e8030000881300000000000000000000"
+    },
+    {
+      "name": "heartbeat",
+      "type": 3,
+      "fields": {
+        "seq": 7,
+        "senderUptimeMs": "123456789012"
+      },
+      "hex": "0c0000000300000007000000141a99be1c000000"
+    },
+    {
+      "name": "goodbye",
+      "type": 4,
+      "fields": {
+        "code": 1,
+        "reason": "game exiting"
+      },
+      "hex": "100000000400000001000c0067616d652065786974696e67"
+    },
+    {
+      "name": "host_status",
+      "type": 256,
+      "fields": {
+        "flags": 1,
+        "cityName": "New Tokyo",
+        "saveId": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+        "gameVersion": "1.21.1-f5"
+      },
+      "hex": "2a000000000100000100000009004e657720546f6b796f0f1e2d3c4b5a69788796a5b4c3d2e1f00900312e32312e312d6635"
+    },
+    {
+      "name": "guest_status_unpaired",
+      "type": 257,
+      "fields": {
+        "flags": 3,
+        "worldName": "skylines-test",
+        "pairedSaveId": "00000000-0000-0000-0000-000000000000"
+      },
+      "hex": "2300000001010000030000000d00736b796c696e65732d7465737400000000000000000000000000000000"
+    },
+    {
+      "name": "heartbeat_trailing_bytes",
+      "type": 3,
+      "fields": {
+        "seq": 1,
+        "senderUptimeMs": "0"
+      },
+      "hex": "0e00000003000000010000000000000000000000aabb"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "nonzero_flags",
+      "hex": "0c00000003000100010000000000000000000000",
+      "why": "flags must be 0"
+    },
+    {
+      "name": "oversize",
+      "hex": "0100000103000000",
+      "why": "payloadLength > 16 MiB"
+    },
+    {
+      "name": "truncated_heartbeat",
+      "hex": "0300000003000000010000",
+      "why": "payload ends before last field"
+    },
+    {
+      "name": "bool_out_of_range",
+      "hex": "220000000200000002000000000100010078010000000000000001000000010000000100000000000000",
+      "why": "bool must be 0 or 1"
+    },
+    {
+      "name": "string_overruns",
+      "hex": "07000000040000000000ff00616263",
+      "why": "string length past payload end"
+    },
+    {
+      "name": "invalid_utf8",
+      "hex": "060000000400000000000200c328",
+      "why": "string not UTF-8"
+    },
+    {
+      "name": "unknown_bridge_type",
+      "hex": "0000000042000000",
+      "why": "types below 0x0100 are reserved"
+    }
+  ]
+}
