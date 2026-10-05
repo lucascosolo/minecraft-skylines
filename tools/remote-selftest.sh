@@ -189,6 +189,19 @@ write_diagnostics() {
   echo "diagnostics written to ${dir}" >&2
 }
 
+# Copies of the logs the agent cannot read directly (they live outside its sandbox), refreshed every
+# poll so a run can be diagnosed while it is still going. Only our own copies are overwritten.
+LIVE="${HOME:?}/.cache/minecraft-skylines/evidence/live"
+mirror_live() {
+  mkdir -p "${LIVE:?}"
+  local f
+  for f in "${MODLOGS:?}/MinecraftSkylines.log" "${MODLOGS:?}/MinecraftSkylines-companion.log" \
+           "${HOME:?}/.config/unity3d/Colossal Order/Cities_ Skylines/Player.log"; do
+    [ -f "${f}" ] && tail -c 400000 "${f}" > "${LIVE:?}/$(basename "${f}")" 2>/dev/null || true
+  done
+  date -u +%FT%TZ > "${LIVE:?}/updated_utc.txt"
+}
+
 MODLOG="${MODLOGS:?}/MinecraftSkylines.log"
 LOG_START=0
 [ -f "${MODLOG}" ] && LOG_START="$(stat -c %s "${MODLOG}")"
@@ -237,6 +250,7 @@ while :; do
   LINK="$(new_log | grep -i 'link state connected\|connected to ' >/dev/null && echo connected || echo "not connected")"
   STATUS="$({ new_log | grep -i 'self-test:\|autoload:\|unattended:' || true; } | tail -1 | sed -E 's/^[0-9:.]+ [A-Z]+ +//')"
   echo "[${ELAPSED}s] game ${UP}; link ${LINK}; ${STATUS:-no self-test line yet}"
+  mirror_live
   if [ "${SEEN}" = 0 ] && [ "${RETRIED}" = 0 ] && [ "${ELAPSED}" -ge $(( START_WINDOW / 3 )) ]; then
     RETRIED=1
     echo "   no game yet; asking Steam again through steam://rungameid/255710"
