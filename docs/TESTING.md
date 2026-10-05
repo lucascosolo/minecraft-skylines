@@ -62,3 +62,44 @@ Return these files (the evidence of the 2026-10-05 M1 run is in `~/.cache/minecr
 Copy them into `~/.cache/minecraft-skylines/evidence/m1/` (the agent can read that folder):
 
     mkdir -p ~/.cache/minecraft-skylines/evidence/m1 && cp ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines.log ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log ~/.cache/minecraft-skylines/evidence/m1/
+
+## In game: milestone 2 procedure (owner)
+
+Build under test: `main` at the commit named in `.agent/ledger-m2.md`. About 20 minutes.
+
+**Setup**
+1. `bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh` (Cities: Skylines closed).
+2. Start Cities: Skylines, load the test city. Before testing, build a short **elevated road or
+   bridge** with a ramp up to it, ideally over a slope, so there is a deck to climb and walk under.
+3. Start the Minecraft dev client (window visible for this first test):
+   `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew :fabric:runClient`
+   Stay on the title screen: the mod opens its own void world `skylines-dev` when needed.
+   Wait until the Cities: Skylines box says `Link: connected`, then click back into Cities: Skylines.
+
+**A. Spike T1 marker check (city camera, game paused)**
+4. Point at grass and press **Ctrl+Shift+C**. Two red (or magenta) 2 m cubes appear: one on the
+   ground beside the hole, one 3 m under the hole. Screenshot from a low angle, looking into the hole.
+   - Both cubes visible → the hole is see-through (tunnels possible as planned).
+   - Only the side cube visible → the clip paints an opaque fill (route needs rethinking).
+   - Neither visible → our way of drawing objects is wrong (also useful to know).
+5. **Ctrl+Shift+U** removes the clip and both cubes.
+
+**B. Minecraft mode**
+6. Point the city camera at open ground and press **Ctrl+Shift+M**. Expected: the view drops to eye
+   height where the camera was looking, "waiting for Minecraft…", then you control the player.
+   The Minecraft window shows the `skylines-dev` world.
+7. Walk (WASD), look (mouse), jump (Space), sprint (Ctrl or double-tap W), sneak (Shift).
+   Check: walking on slopes without floating or sinking; walking onto roads; climbing the ramp onto
+   the elevated road/bridge; walking off its edge; walking underneath it; trying a steep cliff.
+8. Press Space, 1, 2, 3, F1-F4 while walking: the city must not pause, change speed or open tools.
+9. Press **Esc**: back to the normal city camera exactly where it was, cursor free, no pause menu.
+10. Ctrl+Shift+M again, then quit Minecraft: control must return to the city within a moment.
+11. Start Minecraft again, Ctrl+Shift+M, then Esc → Main menu in Cities: Skylines (via Esc twice):
+    clean exit, shortcuts work normally afterwards.
+
+**Notes worth writing down:** where you floated, sank or got stuck; lag or stutter of the camera;
+whether mouse look is too fast or slow; anything that pressed through to the city.
+
+Evidence: copy into `~/.cache/minecraft-skylines/evidence/m2/` with
+`mkdir -p ~/.cache/minecraft-skylines/evidence/m2 && cp ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines.log ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log ~/.cache/minecraft-skylines/evidence/m2/`
+plus screenshots.
