@@ -204,3 +204,15 @@ loads a test city. It reads the city and drives Minecraft mode; it never edits t
 SharedOverlayReader, separate process): 152 of 180 frames consumed (latest-frame-wins), 0 rejected,
 each frame's first pixel byte equal to its frame id. Proves the 1.3 layout, the triple-buffer
 atomics and pixel transfer agree across languages; says nothing about Minecraft's renderer or Unity.
+
+## Owner run: self-test for M2 + M3 (about 5 minutes, hands off)
+
+1. `bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh --selftest`
+   (installs the mod and turns on `selftest = city_load` plus debug commands in launch.cfg).
+2. Start Cities: Skylines and load the test city (it needs, near where the camera starts: a ground
+   road, an elevated road or bridge at least 4 m up, and a hillside). Do not touch anything: the mod
+   waits for Minecraft, then runs S1-S9 by itself (about 3-5 minutes; the status box shows progress).
+   Esc aborts.
+3. Afterwards copy the results:
+   `mkdir -p ~/.cache/minecraft-skylines/evidence/selftest && cp -r ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/. ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/.cache/minecraft-skylines/evidence/selftest/`
+4. To play normally again, set `selftest = off` in launch.cfg (the script prints its path).

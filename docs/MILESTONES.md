@@ -4,7 +4,7 @@ Status per milestone uses five separate columns, never merged: **implemented**, 
 **sandbox-tested** (automated, no game running), **verified in game**, **blocked / unverified**.
 A sandbox test is never evidence that engine integration works.
 
-## Current: M1, the bridge
+## M1, the bridge: done (verified in game 2026-10-05)
 
 | | Status (2026-10-05) |
 |---|---|
@@ -19,6 +19,18 @@ Minecraft client's handshake, shows both sides' versions, survives a city save/l
 continue through the loading stall), and returns to `listening` cleanly when Minecraft quits;
 Minecraft shows the same through `/skylines status`. Rejection on a version mismatch is shown on
 both sides.
+
+## Current: M2 (movement and collision) and M3 (blocks and GUI)
+
+| | M2 | M3 |
+|---|---|---|
+| Implemented | player mode, collision streaming (terrain, roads from the game's own edge curves, junctions, bridges with railings), auto-start + prewarm, collision viewer, automated self-test S1-S7 | block meshes + atlas (Minecraft → CS1), 4 material variants, GUI overlay through shared memory, screen input, self-test S8-S9 |
+| Built | yes | yes |
+| Sandbox-tested | yes (`tools/check.sh`; C# 504 tests, Java 140) | yes, incl. a cross-process Java→C# overlay check |
+| Verified in game | entering/leaving Minecraft mode, ramps, under bridges, auto-start (12 s to connect), T1 clip is a see-through hole | nothing yet |
+| Open | ground-road step-up and railings after the GenerateBezier fix; walk speed preference | which material looks right; overlay blending, cursor alignment; everything in game |
+
+Next owner run: `docs/TESTING.md`, "Owner run: self-test for M2 + M3".
 
 ## Backlog
 
