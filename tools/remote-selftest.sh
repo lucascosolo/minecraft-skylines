@@ -19,7 +19,7 @@
 # 3 timeout (no report in time, or the game exited without one); 4 bad usage.
 # Launch: MCSK_LAUNCH=direct (default, starts the game binary) or steam (via steam -applaunch;
 # opens the Paradox Launcher, which needs a click). MCSK_GAME_DIR overrides the install path.
-# Test overrides: MCSK_STEAM_CMD, MCSK_POLL_SECONDS (10), MCSK_TIMEOUT_SECONDS (1200), MCSK_START_SECONDS (180),
+# Test overrides: MCSK_STEAM_CMD, MCSK_POLL_SECONDS (10), MCSK_TIMEOUT_SECONDS (2400), MCSK_START_SECONDS (180),
 # MCSK_EXIT_WAIT_SECONDS (120), MCSK_GAME_PROCESS (Cities.x64), MCSK_MOD_SRC (build output to install),
 # MCSK_CS1_INSTALL (game folder; default: cs1_install in ~/.cache/minecraft-skylines/refs/environment.txt).
 set -euo pipefail
@@ -33,7 +33,7 @@ PLAYER_LOG="${XDG_CONFIG_HOME:-${HOME:?}/.config}/unity3d/Colossal Order/Cities_
 MC_LOG="${ROOT:?}/minecraft/fabric/run/logs/latest.log"
 GAME="${MCSK_GAME_PROCESS:-Cities.x64}"
 POLL="${MCSK_POLL_SECONDS:-10}"
-TIMEOUT="${MCSK_TIMEOUT_SECONDS:-1200}"
+TIMEOUT="${MCSK_TIMEOUT_SECONDS:-2400}"
 START_WINDOW="${MCSK_START_SECONDS:-90}"
 EXIT_WAIT="${MCSK_EXIT_WAIT_SECONDS:-120}"
 
@@ -222,6 +222,29 @@ LOG_START=0
 [ -f "${MODLOG}" ] && LOG_START="$(stat -c %s "${MODLOG}")"
 START="$(date +%s)"
 borrow_session_env
+# The game and Minecraft together need several GB of RAM and most of a 6 GB GPU; another heavy job
+# (e.g. a local image model) made the owner's remote run crawl at ~1 fps (2026-10-05). Warn, don't block.
+resources_check() {
+  local avail_kb gpu
+  avail_kb="$(sed -n 's/^MemAvailable:[[:space:]]*\([0-9]*\) kB/\1/p' /proc/meminfo 2>/dev/null || true)"
+  [ -n "${avail_kb}" ] && echo "   RAM available: $((avail_kb / 1024 / 1024)) GB"
+  if [ -n "${avail_kb}" ] && [ "${avail_kb}" -lt $((10 * 1024 * 1024)) ]; then
+    echo "WARNING: less than 10 GB RAM available; the game may crawl (close other heavy programs)" >&2
+  fi
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    gpu="$(nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv,noheader,nounits 2>/dev/null | head -1 || true)"
+    if [ -n "${gpu}" ]; then
+      echo "   GPU memory used/total (MiB), load (%): ${gpu}"
+      local used total
+      used="$(echo "${gpu}" | cut -d, -f1 | tr -d ' ')"; total="$(echo "${gpu}" | cut -d, -f2 | tr -d ' ')"
+      if [ -n "${used}" ] && [ -n "${total}" ] && [ "${total}" -gt 0 ] && [ $((used * 100 / total)) -ge 50 ]; then
+        echo "WARNING: the GPU is already ${used}/${total} MiB busy; the game may crawl (pause other GPU jobs)" >&2
+        nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader 2>/dev/null | head -5 | sed 's/^/   GPU user: /' >&2 || true
+      fi
+    fi
+  fi
+}
+resources_check
 # Launching through Steam opens the Paradox Launcher, which waits for a click on "Play" (owner's SSH
 # run, 2026-10-05). For unattended runs start the game binary directly instead; SteamAppId makes it
 # attach to the running Steam client without a restart through Steam. MCSK_LAUNCH=steam keeps the old way.

@@ -7,14 +7,14 @@ namespace MinecraftSkylines.Mod.SelfTest
     /// When to quit the game in an unattended run: 3 s after the self-test report (or after an autoload save was
     /// not found), or, 900 s after the autoloaded level finished loading without a report, abort the self-test
     /// (which writes a partial report) and quit 3 s later; or quit if an autoload was issued but no level finished
-    /// loading within 300 s (owner's run 2026-10-05: a failed load left the game waiting forever).
+    /// loading within 1200 s (owner's run 2026-10-05: a failed load left the game waiting forever).
     /// Does nothing when <c>selftest_quit</c> is off.
     /// </summary>
     internal sealed class UnattendedPolicy
     {
         public const double QuitDelaySeconds = 3;
         public const double SafetySeconds = 900;
-        public const double LoadTimeoutSeconds = 300;
+        public const double LoadTimeoutSeconds = 1200;
 
         private readonly bool _quitEnabled;
         private double? _quitDue;

@@ -122,8 +122,10 @@ namespace MinecraftSkylines.Mod.Tests
         {
             var p = new UnattendedPolicy(true);
             p.AutoloadIssued(10);
-            p.AutoloadLevelLoaded(100);
-            Assert.Equal(UnattendedAction.None, p.Tick(10 + UnattendedPolicy.LoadTimeoutSeconds + 50));
+            // Loaded just before the load timeout, then ticked past it but well inside the post-load safety window.
+            double loadedAt = 10 + UnattendedPolicy.LoadTimeoutSeconds - 1;
+            p.AutoloadLevelLoaded(loadedAt);
+            Assert.Equal(UnattendedAction.None, p.Tick(loadedAt + 60));
             Assert.Equal("", p.QuitReason);
         }
 }

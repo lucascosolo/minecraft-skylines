@@ -94,6 +94,13 @@ namespace MinecraftSkylines.Mod
             if (s_launcher.Autoload.Length > 0 || s_launcher.SelfTestQuit)
             {
                 s_log.Info("unattended: autoload '" + s_launcher.Autoload + "', selftest_quit " + s_launcher.SelfTestQuit);
+                // Nobody watches an unattended run: don't let a sleeping or locked display throttle frames
+                // through vsync (owner's remote run 2026-10-05 ran at ~1 fps and never finished loading).
+                // Runtime only, not saved in the game's settings. CS1 already runs in the background by default.
+                UnityEngine.QualitySettings.vSyncCount = 0;
+                UnityEngine.Application.targetFrameRate = 60;
+                s_unattendedFps = true;
+                s_log.Info("unattended: vsync off, target 60 fps for this session");
             }
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
             // Graphics.DrawMesh queues for the coming render of every camera, so the pump's LateUpdate (after
@@ -230,8 +237,28 @@ namespace MinecraftSkylines.Mod
             return BridgeConstants.DefaultPort;
         }
 
+        // Unattended runs log their frame rate every 30 s (a crawling run is otherwise invisible remotely).
+        private static bool s_unattendedFps;
+        private static int s_fpsFrames;
+        private static float s_fpsSince = -1f;
+
+        private static void LogFps()
+        {
+            if (!s_unattendedFps) return;
+            float now = UnityEngine.Time.realtimeSinceStartup;
+            if (s_fpsSince < 0f) { s_fpsSince = now; s_fpsFrames = 0; return; }
+            s_fpsFrames++;
+            if (now - s_fpsSince >= 30f)
+            {
+                s_log.Info(string.Format("unattended: {0:0.0} fps over the last {1:0} s", s_fpsFrames / (now - s_fpsSince), now - s_fpsSince));
+                s_fpsSince = now;
+                s_fpsFrames = 0;
+            }
+        }
+
         private static void Tick()
         {
+            LogFps();
             if (s_host == null)
             {
                 return;
