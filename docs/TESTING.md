@@ -53,12 +53,12 @@ gives a clean baseline `Player.log`).
 7. **Quit Cities: Skylines** with Minecraft running: Minecraft's chat/log shows the disconnect
    (`peer_goodbye`, code 1 shutting down), and it keeps retrying quietly.
 
-Return these files:
+Return these files (the evidence of the 2026-10-05 M1 run is in `~/.cache/minecraft-skylines/evidence/m1/`):
 - `~/.local/share/Colossal Order/Cities_Skylines/ModLogs/MinecraftSkylines.log`
-- `~/.config/unity3d/Colossal Order/Cities: Skylines/Player.log`
+- `~/.config/unity3d/Colossal Order/Cities_ Skylines/Player.log` (Unity replaces the colon with an underscore)
 - `~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log`
 - a screenshot of the CS1 box while connected in a city (optional).
 
 Copy them into `~/.cache/minecraft-skylines/evidence/m1/` (the agent can read that folder):
 
-    mkdir -p ~/.cache/minecraft-skylines/evidence/m1 && cp ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines.log ~/.config/unity3d/"Colossal Order"/"Cities: Skylines"/Player.log ~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log ~/.cache/minecraft-skylines/evidence/m1/
+    mkdir -p ~/.cache/minecraft-skylines/evidence/m1 && cp ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines.log ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log ~/.cache/minecraft-skylines/evidence/m1/

@@ -76,7 +76,7 @@ say "workshop_item_count: $(ls "${WORKSHOP:-/nonexistent}" 2>/dev/null | wc -l)"
 LOCALMODS="$HOME/.local/share/Colossal Order/Cities_Skylines/Addons/Mods"
 say "local_mods_dir: $([ -d "$LOCALMODS" ] && echo "$LOCALMODS" || echo absent)"
 [ -d "$LOCALMODS" ] && say "local_mods: $(ls "$LOCALMODS" | tr '\n' ' ')"
-for log in "$HOME/.config/unity3d/Colossal Order/Cities: Skylines/Player.log"; do
+for log in "$HOME/.config/unity3d/Colossal Order/Cities_ Skylines/Player.log"; do
   if [ -f "$log" ]; then
     cp --preserve=timestamps "$log" "${OUT:?}/cs1/Player.log"
     say "player_log: copied (last game run $(date -r "$log" -u +%Y-%m-%dT%H:%M:%SZ))"

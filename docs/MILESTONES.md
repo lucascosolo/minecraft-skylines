@@ -11,8 +11,8 @@ A sandbox test is never evidence that engine integration works.
 | Implemented | Protocol spec + Python reference + conformance suite; C# `Skylines.Bridge` (host+guest), `MinecraftSkylines.Protocol`, reusable `Skylines.Host` (log, main-thread pump, city state, save identity, status overlay) and the CS1 mod (`MinecraftSkylines.dll`: link status, `HOST_STATUS`, save id in the save); Java `bridge` (guest) and the Fabric client mod (`GUEST_STATUS`, `/skylines status`, chat notices) |
 | Built | yes: C# 0 warnings against the owner's CS1 assemblies (build 22724702); Fabric mod jar for MC 26.3 with the bridge nested |
 | Sandbox-tested | yes: all of `tools/check.sh` green (see `TESTING.md`) |
-| Verified in game | **no**: CS1 has not been started with the mod; the Fabric client has not been launched |
-| Blocked / unverified | owner run of the procedure in `TESTING.md`; Unity 5.6 Mono socket behaviour; plain `./gradlew` outside the agent sandbox |
+| Verified in game | **yes, 2026-10-05** (owner run, logs in `~/.cache/minecraft-skylines/evidence/m1/`): CS1 1.21.1-f9 loaded the 4 DLLs on Unity 5.6 Mono with no mod exceptions; the Fabric dev client connected; status flowed both ways; the link survived a 10 s level load; Minecraft quit → `peer_goodbye` → listening; Minecraft restart → reconnected; CS1 quit → goodbye seen by Minecraft, which kept retrying. Bridge tick avg 0.036 ms, max 33.9 ms (one spike, see below) over 23,055 frames |
+| Blocked / unverified | version-mismatch rejection in game (sandbox only); a city save is not visible in the logs (owner reports it worked; CS1 does not log city saves); the 33.9 ms one-frame spike is unexplained (profile in M2); MC's log shows its OpenGL backend failing with `EGL_BAD_DISPLAY` before continuing, which matters for M3's pixel readback |
 
 Exit criteria: CS1 loads the mod (Player.log shows it), shows link status in the city, accepts a
 Minecraft client's handshake, shows both sides' versions, survives a city save/load (heartbeats
