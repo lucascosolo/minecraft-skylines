@@ -10,7 +10,10 @@ import dev.mcskylines.bridge.DisconnectCause;
 import dev.mcskylines.bridge.Goodbye;
 import dev.mcskylines.bridge.ProtocolException;
 import dev.mcskylines.bridge.Welcome;
+import dev.mcskylines.collision.CollisionStore;
 import dev.mcskylines.protocol.AppProtocol;
+import dev.mcskylines.protocol.CollisionRegion;
+import dev.mcskylines.protocol.CollisionReset;
 import dev.mcskylines.protocol.GuestStatus;
 import dev.mcskylines.protocol.HostStatus;
 import java.util.List;
@@ -75,7 +78,17 @@ final class LinkController {
 					: "Disconnected from Cities: Skylines (" + lastDisconnect + ")");
 			}
 			case BridgeEvent.Message m -> {
-				if (m.type() == AppProtocol.HOST_STATUS) {
+				if (m.type() == AppProtocol.COLLISION_REGION || m.type() == AppProtocol.COLLISION_RESET) {
+					try {
+						if (m.type() == AppProtocol.COLLISION_REGION) {
+							CollisionStore.INSTANCE.accept(CollisionRegion.decode(m.payload()));
+						} else {
+							CollisionStore.INSTANCE.accept(CollisionReset.decode(m.payload()));
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed collision message: {}", e.getMessage());
+					}
+				} else if (m.type() == AppProtocol.HOST_STATUS) {
 					try {
 						HostStatus next = HostStatus.decode(m.payload());
 						if (!next.equals(hostStatus)) {

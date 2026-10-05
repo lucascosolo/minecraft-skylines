@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "dev.mcskylines.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "MinecraftServerFlightMixin",
+    "PlayerEdgeMixin"
+  ],
+  "client": [
+    "EntityCollideMixin"
+  ],
+  "injectors": { "defaultRequire": 1 }
+}
