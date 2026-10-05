@@ -31,8 +31,28 @@ done
 # Developer auto-start config for Ctrl+Shift+M (see cs1/src/MinecraftSkylines.Mod/MinecraftLauncher.cs).
 # Written only when absent: a user-edited launch.cfg is never overwritten.
 CFG="${DEST:?}/launch.cfg"
+
+# Steam starts the game with a PATH that has no java on it (owner's run, 2026-10-05: "JAVA_HOME is
+# not set and no 'java' command could be found"), so the launch config names Java explicitly.
+JAVA_BIN="$(command -v java || true)"
+if [ -n "${JAVA_BIN}" ]; then
+  JAVA_HOME_DETECTED="$(dirname "$(dirname "$(readlink -f "${JAVA_BIN}")")")"
+else
+  JAVA_HOME_DETECTED="/usr/lib/jvm/default-java"
+fi
+[ -x "${JAVA_HOME_DETECTED}/bin/java" ] || echo "WARNING: no java found at ${JAVA_HOME_DETECTED}/bin/java; set env.JAVA_HOME in ${CFG} by hand"
+LAUNCH_PATH="${JAVA_HOME_DETECTED}/bin:/usr/local/bin:/usr/bin:/bin"
 if [ -e "${CFG:?}" ]; then
-  echo "launch.cfg exists, left unchanged: ${CFG}"
+  # Add only keys that are missing; existing lines (the user's edits) are left as they are.
+  if ! grep -q '^[[:space:]]*env\.JAVA_HOME[[:space:]]*=' "${CFG:?}"; then
+    printf 'env.JAVA_HOME = %s\n' "${JAVA_HOME_DETECTED}" >> "${CFG:?}"
+    echo "added env.JAVA_HOME = ${JAVA_HOME_DETECTED} to ${CFG}"
+  fi
+  if ! grep -q '^[[:space:]]*env\.PATH[[:space:]]*=' "${CFG:?}"; then
+    printf 'env.PATH = %s\n' "${LAUNCH_PATH}" >> "${CFG:?}"
+    echo "added env.PATH to ${CFG}"
+  fi
+  echo "launch.cfg kept (missing keys added only): ${CFG}"
 else
   cat > "${CFG:?}" <<CFGEOF
 # Minecraft auto-start for Ctrl+Shift+M. One key = value per line; # starts a comment.
@@ -40,6 +60,8 @@ command = ${ROOT:?}/minecraft/gradlew
 args = --no-daemon --console=plain :fabric:runClient -PmcskylinesHidden
 working_dir = ${ROOT:?}/minecraft
 env.GRADLE_USER_HOME = ${HOME:?}/.cache/gradle-home
+env.JAVA_HOME = ${JAVA_HOME_DETECTED}
+env.PATH = ${LAUNCH_PATH}
 connect_timeout_seconds = 180
 # Start Minecraft hidden ahead of time: game_start (main menu), city_load, or off (only on Ctrl+Shift+M).
 prewarm = game_start
