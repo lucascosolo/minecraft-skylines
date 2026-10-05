@@ -1,0 +1,24 @@
+<Project>
+  <!--
+    Imported by projects that load inside Cities: Skylines. They compile against the game's own
+    assemblies, read from a local copy made by tools/collect-cs1-refs.sh. The copies are never
+    committed and never shipped with the mod (Private=false).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <CS1ManagedDir Condition="'$(CS1ManagedDir)' == ''">$(HOME)/.cache/minecraft-skylines/refs/cs1/Managed</CS1ManagedDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <Reference Include="ICities"><HintPath>$(CS1ManagedDir)/ICities.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="ColossalManaged"><HintPath>$(CS1ManagedDir)/ColossalManaged.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(CS1ManagedDir)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(CS1ManagedDir)/UnityEngine.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <Target Name="CheckCS1References" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(CS1ManagedDir)/ICities.dll')"
+           Text="Cities: Skylines assemblies not found in $(CS1ManagedDir). Run tools/collect-cs1-refs.sh (see docs/SETUP.md) or set CS1ManagedDir." />
+  </Target>
+</Project>

@@ -42,8 +42,8 @@ and look angles (degrees) as
     mc.pitch = wrap180(unity.eulerX)        (both: positive = looking down)
 
 so that Unity's forward vector `(sin y, ., cos y)` maps to Minecraft's look vector
-`(-sin yaw, ., cos yaw)` after the z flip. `Skylines.Core` (C#) and `dev.mcskylines.bridge`
-(Java) implement this and are tested against `protocol/vectors/coords.json`.
+`(-sin yaw, ., cos yaw)` after the z flip. `MinecraftSkylines.Protocol.MinecraftFrame` (C#) and
+`dev.mcskylines.protocol.MinecraftFrame` (Java, in the Fabric mod) implement this and are tested against `protocol/vectors/coords.json`.
 
 The playable CS1 map spans x, z in [-8640, 8640] m and terrain heights in [0, 1024] m. The guest's
 mirror dimension uses `min_y = -64` (digging below the city's zero) and `height = 1536`.

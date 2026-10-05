@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Reusable Cities: Skylines integration layer. Knows CS1 and Unity; knows nothing about Minecraft. -->
+  <Import Project="..\..\GameRefs.props" />
+  <PropertyGroup>
+    <RootNamespace>Skylines.Host</RootNamespace>
+    <AssemblyName>Skylines.Host</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,8 @@
+<Project>
+  <!--
+    Intentionally empty. MSBuild's IncrementalClean target deletes files from obj/ and bin/ that it
+    no longer considers build outputs. This override exists because the project owner forbids build
+    steps that delete files. Outputs are only ever overwritten.
+  -->
+  <Target Name="IncrementalClean" />
+</Project>

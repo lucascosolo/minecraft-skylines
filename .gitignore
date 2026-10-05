@@ -4,6 +4,8 @@ obj/
 build/
 .gradle/
 out/
+# Loom dev-client instance (worlds, options, logs)
+minecraft/fabric/run/
 *.user
 # proprietary game files never enter git
 refs/

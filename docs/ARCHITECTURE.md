@@ -29,7 +29,7 @@ lower layers unchanged. Dependencies only point downward.
 | Layer | Path | Depends on | Reusable for other games? |
 |---|---|---|---|
 | `Skylines.Bridge` | `cs1/src/Skylines.Bridge` | BCL only (net35 + net10.0) | Yes, any host/guest pair |
-| `Skylines.Core` | `cs1/src/Skylines.Core` | BCL only | Yes |
+| `Skylines.Core` | `cs1/src/Skylines.Core` (created in M2 with geometry export) | BCL only | Yes |
 | `Skylines.Host` | `cs1/src/Skylines.Host` | CS1 assemblies, Core | Yes, any CS1 integration |
 | `MinecraftSkylines.Mod` | `cs1/src/MinecraftSkylines.Mod` | all of the above | No |
 | `dev.mcskylines.bridge` | `minecraft/bridge` | JDK only | Yes, any Java guest |
@@ -78,17 +78,26 @@ and drawn as a screen-space overlay in CS1.
 2. Open pits in native terrain: CS1 terrain is a 2.5D heightfield; lowering it is supported by the
    game's own terrain tools.
 3. Volumetric tunnels with an intact roof: **a heightfield cannot represent this.** It needs CS1's
-   native terrain to be hidden inside dug cells and the cut surfaces drawn by us, the way SkyCraft
-   clones and cuts Skyrim meshes (`DigMesh.cpp`). The CS1 hook for suppressing terrain rendering in a
-   region is the project's highest-risk unknown (milestone 2 spike T1, before any polish).
+   the roof to stay native terrain while the cavity is drawn by us, and the terrain to be cut only
+   where the excavation breaks the surface. CS1 has a 4 m terrain clip mask that may do the cut
+   (see `MILESTONES.md`, spike T1); it is the project's highest-risk unknown and is tested in game
+   early in milestone 2, before any polish.
 4. Altering buildings and roads: CS1 objects, not terrain; removal/bulldoze APIs exist, but partial
    cuts are a rendering problem like (3).
 
 Lowering terrain is never presented as (3).
 
+## Player safety
+
+Owner's requirements: installable by ordinary players, never puts a city at risk, frictionless
+uninstall. Nothing is written to a city until the player switches it to Minecraft mode; the first
+switch makes and verifies a backup copy of the save (or, if impossible, requires explicit
+confirmation after a strong recommendation). What persists after uninstall: `DECISIONS.md`.
+
 ## Save identity and recovery
 
-- First enable in a city: CS1 generates a `saveId` (UUID) stored in the save's mod data.
+- First switch to Minecraft mode in a city: backup first, then a `saveId` (UUID) is generated and
+  stored in the save's mod data.
 - MC keeps one mirror world per `saveId` (`skylines-<saveId>`), created on first pairing.
 - On load, a CS1 save whose `saveId` has no world gets a new world; a world opened against the
   wrong `saveId` is refused and the user is told. Saving the city asks MC to flush first and

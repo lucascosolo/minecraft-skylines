@@ -228,8 +228,12 @@ def run_guest(a) -> None:
                 f = c.recv_until({sb.WELCOME, sb.GOODBYE}, 5)
             except (TimeoutError, sb.ProtocolError):
                 f = None
-            if f is None or f[0] == sb.GOODBYE:
-                event("disconnected cause=connection_lost code=-1 reason='no WELCOME'")
+            if f is not None and f[0] == sb.GOODBYE:
+                g = sb.Goodbye.decode(f[2])
+                event(f"disconnected cause=peer_goodbye code={g.code} reason={g.reason!r}")
+                c.close(); stop.wait(delay); continue
+            if f is None:
+                event("disconnected cause=timeout code=-1 reason='no WELCOME'")
                 c.close(); stop.wait(delay); continue
             w = sb.Welcome.decode(f[2])
             if not w.accepted:

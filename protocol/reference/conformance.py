@@ -464,9 +464,10 @@ def main() -> int:
     ap.add_argument("role", choices=["host", "guest"], help="the role the IUT plays")
     ap.add_argument("--junit")
     ap.add_argument("--only")
-    ap.add_argument("cmd", nargs=argparse.REMAINDER)
-    a = ap.parse_args()
-    cmd = a.cmd[1:] if a.cmd and a.cmd[0] == "--" else a.cmd
+    argv = sys.argv[1:]
+    # Split at "--" ourselves: argparse.REMAINDER would swallow options given after the role.
+    cmd = argv[argv.index("--") + 1:] if "--" in argv else []
+    a = ap.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
     if not cmd:
         ap.error("missing IUT command after --")
     results = run(a.role, cmd, a.only)

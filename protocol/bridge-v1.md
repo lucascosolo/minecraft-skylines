@@ -12,7 +12,7 @@ Implementations, all of which must pass `protocol/vectors/` and `protocol/refere
 |---|---|---|
 | Python | `protocol/reference/skbridge.py` | Reference codec and scriptable fake peer. The spec wins over it. |
 | C# (.NET 3.5 + .NET 10) | `cs1/src/Skylines.Bridge/` | Host side, loaded by the CS1 mod |
-| Java 25 | `minecraft/src/main/java/dev/mcskylines/bridge/` | Guest side, no Minecraft imports |
+| Java 21+ | `minecraft/bridge/src/main/java/dev/mcskylines/bridge/` | Guest side, no Minecraft imports |
 
 ## Transport
 
@@ -148,3 +148,8 @@ GOODBYE before the handshake completes is valid in both directions.
 `connecting` (guest), `handshaking`, `connected`, `rejected`, `closing`; `Message(type, payload)`;
 `Disconnected(cause, code, reason)` where `cause` is one of `peer_goodbye`, `local_goodbye`,
 `timeout`, `protocol_error`, `connection_lost`, `rejected`, `backpressure`.
+
+A GOODBYE received during the handshake is reported as `peer_goodbye`; a guest that gets no
+WELCOME within 5 s reports `timeout`. A host that rejects or
+drops a *second* connection (BUSY, bad magic, bad HELLO) does not report `Disconnected`: its
+active session is unaffected; it only logs the rejection.

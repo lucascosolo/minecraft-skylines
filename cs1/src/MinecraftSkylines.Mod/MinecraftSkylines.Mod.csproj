@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Cities: Skylines mod itself: the Minecraft-specific layer over Skylines.Host and Skylines.Bridge. -->
+  <Import Project="..\..\GameRefs.props" />
+  <PropertyGroup>
+    <RootNamespace>MinecraftSkylines.Mod</RootNamespace>
+    <AssemblyName>MinecraftSkylines</AssemblyName>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Skylines.Bridge\Skylines.Bridge.csproj" />
+    <ProjectReference Include="..\Skylines.Host\Skylines.Host.csproj" />
+    <ProjectReference Include="..\MinecraftSkylines.Protocol\MinecraftSkylines.Protocol.csproj" />
+  </ItemGroup>
+</Project>

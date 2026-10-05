@@ -8,11 +8,11 @@ A sandbox test is never evidence that engine integration works.
 
 | | Status (2026-10-05) |
 |---|---|
-| Implemented | Protocol spec, Python reference + conformance suite; C# bridge (host + guest) and app protocol; Java bridge (guest) and Fabric client mod skeleton. The CS1 mod entry is **not** written: it needs the CS1 assemblies |
-| Built | see `TESTING.md` for the latest run |
-| Sandbox-tested | see `TESTING.md` |
-| Verified in game | nothing yet |
-| Blocked | CS1 assemblies (`tools/collect-cs1-refs.sh`); a test city save; the owner running Minecraft with the mod |
+| Implemented | Protocol spec + Python reference + conformance suite; C# `Skylines.Bridge` (host+guest), `MinecraftSkylines.Protocol`, reusable `Skylines.Host` (log, main-thread pump, city state, save identity, status overlay) and the CS1 mod (`MinecraftSkylines.dll`: link status, `HOST_STATUS`, save id in the save); Java `bridge` (guest) and the Fabric client mod (`GUEST_STATUS`, `/skylines status`, chat notices) |
+| Built | yes: C# 0 warnings against the owner's CS1 assemblies (build 22724702); Fabric mod jar for MC 26.3 with the bridge nested |
+| Sandbox-tested | yes: all of `tools/check.sh` green (see `TESTING.md`) |
+| Verified in game | **no**: CS1 has not been started with the mod; the Fabric client has not been launched |
+| Blocked / unverified | owner run of the procedure in `TESTING.md`; Unity 5.6 Mono socket behaviour; plain `./gradlew` outside the agent sandbox |
 
 Exit criteria: CS1 loads the mod (Player.log shows it), shows link status in the city, accepts a
 Minecraft client's handshake, shows both sides' versions, survives a city save/load (heartbeats
@@ -32,15 +32,26 @@ both sides.
 | M6 | **Decisive volumetric test**: short tunnel with intact roof | 1×2×8 tunnel into a hillside: roof terrain still rendered above, interior faces visible, collision correct inside and on the roof, survives reload | Depends entirely on T1's answer |
 | M7 | Broader interactions guided by M1-M6: buildings and roads (bulldoze/cut), citizens and vehicles as entities, simulation reactions | defined after M6 | |
 
-## Spike T1: can CS1's terrain be suppressed in a region? (planned for M2)
+## Spike T1: can CS1's terrain be cut in a region?
 
-Question: with only public API plus Harmony, can we stop native terrain from rendering inside a set
-of dug cells while the rest renders normally, and draw replacement geometry with the terrain's own
-material so it matches? Candidate routes, to be checked in the assemblies first, then in game:
+**Desk result (2026-10-05, from the decompiled assemblies; not yet tried in game).** CS1 terrain has
+no per-patch CPU mesh: `TerrainManager.EndRenderingImpl` draws shared flat meshes per patch and LOD
+with `Graphics.DrawMesh(..., m_terrainMaterial, ..., m_materialBlock1, ...)`, displaced by a height
+texture in the shader. So SkyCraft's clone-and-cut route does not apply. But the game already has a
+per-cell **clip mask** (`SurfaceCell.m_clipped`, 4 m cells, uploaded in `_SurfaceTexA`), set through
+`TerrainModify`'s surface `Clip` and used for quays and tunnel-style cuts.
 
-1. Replace the terrain patch meshes (CS1 terrain is drawn per patch) with our own cut meshes,
-   SkyCraft-style (clone, cut, hide original).
-2. A shader-side clip: give the terrain material a property/texture that discards fragments inside
-   dug cells (needs a custom shader built for Unity 5.6, loaded from an AssetBundle).
-3. Fallback if both fail: tunnels exist only for collision and MC-rendered walls; the terrain stays
-   drawn over the entrance (fails M6; would be documented as the blocker, not hidden).
+Resulting plan for M6 (tunnel with intact roof): leave the terrain above the tunnel untouched (the
+roof is native terrain), draw the cavity's interior faces ourselves (an `IRenderableManager`), and
+clip only the 4 m surface cells where the excavation breaks the surface, redrawing the undug part
+of those cells ourselves. MC's collision comes from our own voxel-aware triangles, not CS1's.
+
+Open, to be settled by an in-game experiment early in M2 (a debug key that clips one 4 m cell):
+1. Does the terrain shader actually discard clipped cells (and what is drawn in their place)?
+2. Can our replacement surface match the terrain's look (same material on our own mesh, or MC-style
+   blocks as SkyCraft does for partly dug cells)?
+3. CS1's own raycasts and simulation still see the original heights (`m_finalHeights`); acceptable
+   for the player, revisited in M7 for citizens and vehicles.
+
+Fallback if clipping does not hide terrain: Harmony-patch `TerrainPatch.Render` to skip patches and
+redraw them ourselves (heavy), or a custom terrain shader from an AssetBundle (needs Unity 5.6.7f1).

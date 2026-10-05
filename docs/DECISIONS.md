@@ -53,3 +53,31 @@ expectations come from a third implementation, not from the code under test.
 
 Owner's rule: no `rm`, no deletion through other means. Unwanted files go to `_quarantine/`.
 MSBuild's `IncrementalClean` (which deletes stale outputs) is overridden to do nothing.
+
+## 2026-10-05: player safety, layman install, frictionless uninstall (owner's requirements)
+
+The mod must be installable by ordinary CS1/Minecraft players, must never put their cities at risk,
+and uninstalling must return them to normal play with little friction.
+
+- **Nothing changes a city until the player switches it to Minecraft mode.** A city merely loaded
+  with the mod enabled is saved exactly as it would be without the mod (milestone 1 writes no data
+  into saves at all).
+- **First switch per city: automatic backup, then pairing.** The mod copies the city's save file to a
+  new backup file (never overwriting anything), verifies the copy, and only then assigns the
+  `saveId` and allows terrain changes. Where an automatic copy is impossible (e.g. a cloud-only save
+  whose file cannot be located), the player gets a strong recommendation to back up and must
+  confirm explicitly; until then digging stays off. The owner chose persisted terrain edits plus a
+  backup over runtime-only changes, because persisted edits are far simpler.
+- **What persists after uninstall, read in the decompiled save code:** mod data entries
+  (`SimulationManager.m_serializableDataStorage`) are kept and ignored by the vanilla game (17 bytes
+  for the `saveId`); terrain **heights** persist (`TerrainManager.Data` saves `rawHeights` and
+  `blockHeights`), so pits stay dug, which is what the backup is for; the 4 m terrain **clip mask**
+  is not saved (rebuilt on load), so tunnel entrances close up harmlessly without the mod.
+- **Every mod callback is exception-guarded** so a bug in the mod cannot abort a game load or save.
+- **Distribution (later milestone; publishing needs the owner's explicit yes):** CS1 side as a Steam
+  Workshop item; Minecraft side as a ready-made instance the CS1 mod starts (SkyCraft bundles Prism
+  Launcher this way; the player's Microsoft sign-in stays in the launcher). Must work on Windows and
+  macOS as well as Linux, which the TCP bridge already allows. Avoid requiring Harmony unless a hook
+  truly needs it.
+- **Uninstall test** joins the exit criteria of every milestone that changes a city (M4-M7): save
+  with the mod, disable it, reload in vanilla: it loads cleanly and only documented changes remain.
