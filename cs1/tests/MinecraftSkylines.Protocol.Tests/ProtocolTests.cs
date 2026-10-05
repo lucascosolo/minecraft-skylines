@@ -138,6 +138,59 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("epoch").GetUInt32(), m.Epoch);
                         return m.Encode();
                     }
+                case AppProtocol.BlockAtlasType:
+                    {
+                        BlockAtlas m = BlockAtlas.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("width").GetUInt32(), m.Width);
+                        Assert.Equal(f.GetProperty("height").GetUInt32(), m.Height);
+                        Assert.Equal(f.GetProperty("format").GetByte(), m.Format);
+                        Assert.Equal(BlockAtlas.FormatPng, m.Format);
+                        Assert.Equal(Hex(f.GetProperty("dataHex").GetString()), m.Data);
+                        return m.Encode();
+                    }
+                case AppProtocol.AtlasRegionType:
+                    {
+                        AtlasRegion m = AtlasRegion.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("x").GetUInt32(), m.X);
+                        Assert.Equal(f.GetProperty("y").GetUInt32(), m.Y);
+                        Assert.Equal(f.GetProperty("width").GetUInt32(), m.Width);
+                        Assert.Equal(f.GetProperty("height").GetUInt32(), m.Height);
+                        Assert.Equal(Hex(f.GetProperty("rgbaHex").GetString()), m.Rgba);
+                        return m.Encode();
+                    }
+                case AppProtocol.SectionMeshType:
+                    {
+                        SectionMesh m = SectionMesh.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("sx").GetInt32(), m.Sx);
+                        Assert.Equal(f.GetProperty("sy").GetInt32(), m.Sy);
+                        Assert.Equal(f.GetProperty("sz").GetInt32(), m.Sz);
+                        JsonElement verts = f.GetProperty("vertices");
+                        Assert.Equal(verts.GetArrayLength(), m.VertexCount);
+                        Assert.Equal(SectionMesh.BytesPerVertex * m.VertexCount, m.VertexData.Length);
+                        int i = 0;
+                        foreach (JsonElement v in verts.EnumerateArray())
+                        {
+                            Assert.Equal(v.GetProperty("x").GetSingle(), m.X(i));
+                            Assert.Equal(v.GetProperty("y").GetSingle(), m.Y(i));
+                            Assert.Equal(v.GetProperty("z").GetSingle(), m.Z(i));
+                            Assert.Equal(v.GetProperty("u").GetSingle(), m.U(i));
+                            Assert.Equal(v.GetProperty("v").GetSingle(), m.V(i));
+                            Assert.Equal(v.GetProperty("color").GetUInt32(), m.Color(i));
+                            Assert.Equal(v.GetProperty("light").GetUInt32(), m.Light(i));
+                            Assert.Equal(v.GetProperty("flags").GetUInt32(), m.Flags(i));
+                            i++;
+                        }
+                        return m.Encode();
+                    }
+                case AppProtocol.SectionsClearType:
+                    Assert.Empty(frame.Payload);
+                    return new byte[0];
+                case AppProtocol.DebugCommandType:
+                    {
+                        DebugCommand m = DebugCommand.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("command").GetString(), m.Command);
+                        return m.Encode();
+                    }
                 default:
                     {
                         Assert.Equal(AppProtocol.PlayerStateType, frame.Type);
@@ -179,6 +232,79 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Throws<ProtocolException>(() => CollisionRegion.Decode(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255 }));
         }
 
+        private static byte[] U32(uint v) { return BitConverter.GetBytes(v); }
+
+        private static byte[] Cat(params byte[][] parts)
+        {
+            var l = new List<byte>();
+            foreach (byte[] p in parts) l.AddRange(p);
+            return l.ToArray();
+        }
+
+        [Fact]
+        public void TruncatedBlockMessagesAreProtocolErrors()
+        {
+            Assert.Throws<ProtocolException>(() => BlockAtlas.Decode(new byte[5]));
+            // byteLength past the end of the payload
+            Assert.Throws<ProtocolException>(() => BlockAtlas.Decode(Cat(U32(1), U32(1), new byte[] { 1 }, U32(100), new byte[3])));
+            Assert.Throws<ProtocolException>(() => BlockAtlas.Decode(Cat(U32(1), U32(1), new byte[] { 1 }, U32(0xFFFFFFFF))));
+            Assert.Throws<ProtocolException>(() => AtlasRegion.Decode(new byte[10]));
+            // 2x1 region needs 8 bytes of pixels, only 4 given
+            Assert.Throws<ProtocolException>(() => AtlasRegion.Decode(Cat(U32(0), U32(0), U32(2), U32(1), new byte[4])));
+            Assert.Throws<ProtocolException>(() => SectionMesh.Decode(new byte[7]));
+            // header only, count says 3 vertices
+            Assert.Throws<ProtocolException>(() => SectionMesh.Decode(Cat(U32(0), U32(0), U32(0), U32(3))));
+            // 3 vertices claimed, 2 present
+            Assert.Throws<ProtocolException>(() => SectionMesh.Decode(Cat(U32(0), U32(0), U32(0), U32(3), new byte[64])));
+            Assert.Throws<ProtocolException>(() => DebugCommand.Decode(new byte[] { 5, 0, 1 }));
+        }
+
+        [Fact]
+        public void HugeCountsFailWithoutAllocating()
+        {
+            Assert.Throws<ProtocolException>(() => SectionMesh.Decode(Cat(U32(0), U32(0), U32(0), U32(0xFFFFFFFF))));
+            // count % 3 == 0 yet far beyond the data: 0xFFFFFFFF is divisible by 3
+            Assert.Throws<ProtocolException>(() => SectionMesh.Decode(Cat(U32(0), U32(0), U32(0), U32(0xFFFFFFFD))));
+            // width*height*4 overflows 32 bits
+            Assert.Throws<ProtocolException>(() => AtlasRegion.Decode(Cat(U32(0), U32(0), U32(0xFFFFFFFF), U32(0xFFFFFFFF))));
+            Assert.Throws<ProtocolException>(() => AtlasRegion.Decode(Cat(U32(0), U32(0), U32(0x40000000), U32(1))));
+        }
+
+        [Fact]
+        public void SectionMeshVertexCountMustBeMultipleOfThree()
+        {
+            Assert.Throws<ProtocolException>(() => SectionMesh.Decode(Cat(U32(0), U32(0), U32(0), U32(2), new byte[64])));
+            Assert.Throws<ProtocolException>(() => SectionMesh.Decode(Cat(U32(0), U32(0), U32(0), U32(4), new byte[128])));
+        }
+
+        [Fact]
+        public void EncodeRejectsInconsistentBuffers()
+        {
+            Assert.Throws<InvalidOperationException>(() => new AtlasRegion { Width = 2, Height = 1, Rgba = new byte[7] }.Encode());
+            Assert.Throws<InvalidOperationException>(() => new SectionMesh { VertexData = new byte[32] }.Encode());
+            Assert.Throws<InvalidOperationException>(() => new SectionMesh { VertexData = new byte[96 + 32] }.Encode());
+        }
+
+        [Fact]
+        public void WriteVertexRoundTripsThroughAccessors()
+        {
+            var data = new byte[2 * SectionMesh.BytesPerVertex];
+            SectionMesh.WriteVertex(data, 0, 1.5f, -2.25f, 3f, 0.125f, 0.875f, 0x44332211u, 0xF0u, 7u);
+            SectionMesh.WriteVertex(data, 1, -0.5f, 16f, 8f, 1f, 0f, 0xFFFFFFFFu, 0u, 1u);
+            var m = new SectionMesh { Sx = 1, Sy = -2, Sz = 3, VertexData = data };
+            Assert.Equal(2, m.VertexCount);
+            Assert.Equal(1.5f, m.X(0)); Assert.Equal(-2.25f, m.Y(0)); Assert.Equal(3f, m.Z(0));
+            Assert.Equal(0.125f, m.U(0)); Assert.Equal(0.875f, m.V(0));
+            Assert.Equal(0x44332211u, m.Color(0)); Assert.Equal(0xF0u, m.Light(0)); Assert.Equal(7u, m.Flags(0));
+            Assert.Equal(-0.5f, m.X(1)); Assert.Equal(16f, m.Y(1)); Assert.Equal(8f, m.Z(1));
+            Assert.Equal(1f, m.U(1)); Assert.Equal(0f, m.V(1));
+            Assert.Equal(0xFFFFFFFFu, m.Color(1)); Assert.Equal(0u, m.Light(1)); Assert.Equal(1u, m.Flags(1));
+            // little endian on the wire: x = 1.5f = 0x3FC00000
+            Assert.Equal(new byte[] { 0x00, 0x00, 0xC0, 0x3F }, new[] { data[0], data[1], data[2], data[3] });
+            // color at byte offset 20
+            Assert.Equal(new byte[] { 0x11, 0x22, 0x33, 0x44 }, new[] { data[20], data[21], data[22], data[23] });
+        }
+
         [Fact]
         public void TruncatedStatusIsProtocolError()
         {
@@ -191,7 +317,12 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(1, AppProtocol.Minor);
+            Assert.Equal(2, AppProtocol.Minor);
+            Assert.Equal(0x0130, AppProtocol.BlockAtlasType);
+            Assert.Equal(0x0131, AppProtocol.AtlasRegionType);
+            Assert.Equal(0x0132, AppProtocol.SectionMeshType);
+            Assert.Equal(0x0133, AppProtocol.SectionsClearType);
+            Assert.Equal(0x01F0, AppProtocol.DebugCommandType);
             Assert.Equal(8u, HostStatusFlags.PlayerMode);
             Assert.Equal(2u, GuestStatusFlags.ScreenOpen);
         }

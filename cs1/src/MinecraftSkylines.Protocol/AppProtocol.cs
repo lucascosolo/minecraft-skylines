@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 1;
+        public const ushort Minor = 2;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -25,6 +25,16 @@ namespace MinecraftSkylines.Protocol
         public const ushort CollisionResetType = 0x0114;
         /// <summary>Message type of <see cref="PlayerState"/> (guest to host).</summary>
         public const ushort PlayerStateType = 0x0120;
+        /// <summary>Message type of <see cref="BlockAtlas"/> (guest to host, minor 2).</summary>
+        public const ushort BlockAtlasType = 0x0130;
+        /// <summary>Message type of <see cref="AtlasRegion"/> (guest to host, minor 2).</summary>
+        public const ushort AtlasRegionType = 0x0131;
+        /// <summary>Message type of <see cref="SectionMesh"/> (guest to host, minor 2).</summary>
+        public const ushort SectionMeshType = 0x0132;
+        /// <summary>Message type of SECTIONS_CLEAR (guest to host, minor 2); empty payload.</summary>
+        public const ushort SectionsClearType = 0x0133;
+        /// <summary>Message type of <see cref="DebugCommand"/> (host to guest, minor 2).</summary>
+        public const ushort DebugCommandType = 0x01F0;
     }
 
     /// <summary>Bits of <see cref="HostStatus.Flags"/>.</summary>

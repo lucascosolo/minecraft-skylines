@@ -72,6 +72,13 @@ namespace Skylines.Bridge
             }
         }
 
+        /// <summary>Reads <paramref name="n"/> raw bytes; throws <see cref="ProtocolException"/> if fewer remain (checked before allocating).</summary>
+        public byte[] Bytes(int n)
+        {
+            if (n < 0) throw new ProtocolException("negative byte count");
+            return Take(n);
+        }
+
         /// <summary>Reads a uuid in RFC 4122 byte order.</summary>
         public Guid Uuid() { return Bridge.Uuid.FromBytes(Take(16)); }
 

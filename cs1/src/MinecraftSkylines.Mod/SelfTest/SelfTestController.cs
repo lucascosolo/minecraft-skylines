@@ -7,6 +7,7 @@ using ColossalFramework;
 using ColossalFramework.IO;
 using ColossalFramework.Math;
 using ColossalFramework.UI;
+using MinecraftSkylines.Mod.Blocks;
 using MinecraftSkylines.Protocol;
 using Skylines.Bridge;
 using Skylines.Core.Geometry;
@@ -41,6 +42,8 @@ namespace MinecraftSkylines.Mod.SelfTest
         private readonly PlayerMode _player;
         private readonly MinecraftLauncher _launcher;
         private readonly string _modVersion;
+        private readonly BlockRenderer _blocks;
+        private readonly Func<GuestStatus> _guest;
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private readonly TerrainSampler _terrain = new TerrainSampler();
         private readonly NetGeometry _net = new NetGeometry();
@@ -71,9 +74,16 @@ namespace MinecraftSkylines.Mod.SelfTest
         private bool _s2HaveSpawn;
         private Vector3 _s2Spawn, _s2RoadPoint;
         private string _s2McShot;
+        private float _s2Yaw;
 
-        public SelfTestController(HostLog log, PlayerMode player, MinecraftLauncher launcher, string modVersion)
+        // S8 state for its cleanup.
+        private BlockRowPlan _s8Plan;
+        private int _s8VariantWas = -1;
+
+        public SelfTestController(HostLog log, PlayerMode player, MinecraftLauncher launcher, BlockRenderer blocks, Func<GuestStatus> guest, string modVersion)
         {
+            _blocks = blocks;
+            _guest = guest;
             _log = log;
             _player = player;
             _launcher = launcher;
@@ -205,6 +215,7 @@ namespace MinecraftSkylines.Mod.SelfTest
                 Make("S1", "road surface accuracy", 60, S1RoadSurface, null),
                 Mc("S2", "walk onto a ground road", 45, S2WalkOntoRoad, noMinecraft),
                 Mc("S7", "screenshots", 20, S7Screenshots, noMinecraft),
+                noMinecraft == null ? Make("S8", "block rendering", 45, S8BlockRendering, S8Cleanup) : Mc("S8", "block rendering", 45, null, noMinecraft),
                 Mc("S3", "bridge railing", 45, S3BridgeRailing, noMinecraft),
                 Mc("S4", "under a bridge", 45, S4UnderBridge, noMinecraft),
                 Mc("S5", "slope following", 60, S5Slope, noMinecraft),
@@ -368,7 +379,7 @@ namespace MinecraftSkylines.Mod.SelfTest
             r.Measurements.Set("spawn_m", Vec(spawn));
             r.Measurements.Set("yaw_deg", (double)yaw);
             r.Measurements.Set("half_width_m", (double)half);
-            _s2HaveSpawn = true; _s2Spawn = spawn; _s2RoadPoint = centre;
+            _s2HaveSpawn = true; _s2Spawn = spawn; _s2RoadPoint = centre; _s2Yaw = yaw;
             _player.Viewer.On = true;
 
             string error = null;
@@ -442,6 +453,137 @@ namespace MinecraftSkylines.Mod.SelfTest
             r.Measurements.Set("city_camera_png_exists", cityOk);
             if (mcOk && cityOk) r.Pass("");
             else r.Fail("screenshot missing: " + (mcOk ? "" : "minecraft_mode ") + (cityOk ? "" : "city_camera"));
+        }
+
+        // ---- S8 ----
+
+        private const string DevWorldName = "skylines-dev";
+        private const string DebugCommandsArg = "-PmcskylinesDebugCommands";
+
+        private IEnumerator S8BlockRendering(ScenarioResult r)
+        {
+            if (_host.NegotiatedAppMinor < 2) { r.Skip("Minecraft app minor " + _host.NegotiatedAppMinor + " has no block meshes"); yield break; }
+            if (!_launcher.HasArg(DebugCommandsArg)) { r.Skip("launch.cfg args lack " + DebugCommandsArg + " (tools/install-cs1-mod.sh --selftest)"); yield break; }
+            GuestStatus g = _guest();
+            if (g == null || g.WorldName != DevWorldName) { r.Skip("Minecraft world is not " + DevWorldName); yield break; }
+            if (!_s2HaveSpawn) { r.Skip("S2 found no spawn point"); yield break; }
+
+            float yaw = (float)BlockRowPlan.SnapYaw(_s2Yaw);
+            string error = null;
+            IEnumerator enter = EnterAndSettle(r, _s2Spawn, yaw, e => error = e);
+            while (enter.MoveNext()) yield return null;
+            if (error != null) { r.Fail(error); yield break; }
+
+            Vector3 feet = Feet();
+            Vec3d mc = MinecraftFrame.CsToMc(new Vec3d(feet.x, feet.y, feet.z));
+            BlockRowPlan plan = BlockRowPlan.Create(mc.X, mc.Y, mc.Z, yaw, 3);
+            _s8Plan = plan;
+            int rowSections = 0, rowVertices = 0;
+            double firstMesh = -1, sent = Now();
+            Action<int, int, int, int> onSection = (sx, sy, sz, n) =>
+            {
+                if (!plan.Covers(sx, sy, sz) || n == 0) return;
+                rowSections++;
+                rowVertices += n;
+                if (firstMesh < 0) firstMesh = Now() - sent;
+            };
+            long sections0 = _blocks.SectionsReceived, vertices0 = _blocks.VerticesReceived;
+            double build0 = _blocks.Store.TotalBuildMs;
+            int errors0 = _blocks.Errors;
+            _blocks.SectionReceived += onSection;
+            try
+            {
+                foreach (string c in plan.BuildCommands()) SendCommand(c);
+                r.Measurements.Set("commands", plan.BuildCommands());
+                while (firstMesh < 0 && Now() - sent < 10) yield return null;
+                double settle = Now();
+                while (_blocks.Store.PendingCount > 0 && Now() - settle < 2) yield return null;
+            }
+            finally { _blocks.SectionReceived -= onSection; }
+
+            r.Measurements.Set("atlas_width_px", _blocks.AtlasWidth);
+            r.Measurements.Set("atlas_height_px", _blocks.AtlasHeight);
+            r.Measurements.Set("time_to_first_mesh_s", firstMesh < 0 ? (double?)null : firstMesh);
+            r.Measurements.Set("row_sections_received", rowSections);
+            r.Measurements.Set("row_vertices_received", rowVertices);
+            r.Measurements.Set("sections_received", _blocks.SectionsReceived - sections0);
+            r.Measurements.Set("vertices_received", _blocks.VerticesReceived - vertices0);
+            r.Measurements.Set("mesh_build_total_ms", _blocks.Store.TotalBuildMs - build0);
+            r.Measurements.Set("mesh_build_max_frame_ms", _blocks.Store.MaxFrameBuildMs);
+            r.Measurements.Set("meshes_drawn", _blocks.Store.Count);
+            if (firstMesh < 0) { r.Fail("no SECTION_MESH covering the row within 10 s (debug commands off in Minecraft?)"); yield break; }
+
+            // Blocks are solid in Minecraft: walking at the row must stop the player in front of it.
+            double start = Now();
+            _player.SetSyntheticKeys(HoldW);
+            while (Now() - start < 1.5) yield return null;
+            _player.SetSyntheticKeys(NoKeys);
+            IEnumerator wait = Wait(0.5);
+            while (wait.MoveNext()) yield return null;
+            Vector3 after = Feet();
+            Vec3d mcAfter = MinecraftFrame.CsToMc(new Vec3d(after.x, after.y, after.z));
+            double gapBefore = plan.GapToRow(mc.X, mc.Z), gap = plan.GapToRow(mcAfter.X, mcAfter.Z);
+            bool stopped = gap >= -0.05 && gap <= 0.15;
+            r.Measurements.Set("gap_before_walk_m", gapBefore);
+            r.Measurements.Set("gap_after_walk_m", gap);
+            r.Measurements.Set("stopped_in_front", stopped);
+            _player.Exit("self-test", _host, false);
+            wait = Wait(1.0);
+            while (wait.MoveNext()) yield return null;
+
+            // One screenshot per material variant from a fixed city-camera pose 6 m in front of the row.
+            Vector3 centre = new Vector3((plan.BlockX[2] + plan.BlockX[3]) * 0.5f + 0.5f, plan.FeetBlockY + 1f, -((plan.BlockZ[2] + plan.BlockZ[3]) * 0.5f + 0.5f));
+            Vector3 forward = new Vector3(plan.ForwardX, 0f, -plan.ForwardZ);
+            Vector3 eye = centre - forward * 6f + Vector3.up * 1.5f;
+            Quaternion look = Quaternion.LookRotation(centre - eye);
+            string refusal = _shotCamera.Acquire();
+            if (refusal != null) { r.Fail("could not take the city camera: " + refusal); yield break; }
+            UnityEngine.Camera cam = UnityEngine.Camera.main;
+            float fov = cam.fieldOfView, near = 0.1f;
+            _s8VariantWas = _blocks.Variant;
+            var shots = new List<string>();
+            for (int v = 0; v < BlockRenderer.VariantCount; v++)
+            {
+                _blocks.SetVariant(v);
+                for (int f = 0; f < 2; f++) { _shotCamera.Drive(eye, look, fov, near); yield return null; }
+                _shotCamera.Drive(eye, look, fov, near);
+                string path = Path.Combine(_dir, "s8_material_" + v + ".png");
+                Application.CaptureScreenshot(path);
+                shots.Add(path);
+                start = Now();
+                while (Now() - start < 0.3) { _shotCamera.Drive(eye, look, fov, near); yield return null; }
+            }
+            _blocks.SetVariant(_s8VariantWas);
+            _s8VariantWas = -1;
+            string problem = _shotCamera.Release();
+            if (problem != null) _log.Warn("self-test camera restore incomplete: " + problem);
+            wait = Wait(1.0);
+            while (wait.MoveNext()) yield return null;
+
+            int missing = 0;
+            foreach (string p in shots) if (!File.Exists(p)) missing++;
+            r.Measurements.Set("camera_m", Vec(eye));
+            r.Measurements.Set("screenshots", shots);
+            r.Measurements.Set("screenshots_missing", missing);
+            r.Measurements.Set("draw_errors", _blocks.Errors - errors0);
+            if (_blocks.Errors != errors0) r.Fail("block drawing threw " + (_blocks.Errors - errors0) + " times: " + _blocks.LastError);
+            else if (!stopped) r.Fail("walking at the row left the player " + gap.ToString("0.00") + " m from it (expected 0 to 0.15)");
+            else if (missing > 0) r.Fail(missing + " screenshots missing");
+            else r.Pass("");
+        }
+
+        private void S8Cleanup()
+        {
+            LeavePlayerMode();
+            if (_s8VariantWas >= 0) { _blocks.SetVariant(_s8VariantWas); _s8VariantWas = -1; }
+            if (_s8Plan != null) { SendCommand(_s8Plan.ClearCommand()); _s8Plan = null; }
+        }
+
+        private void SendCommand(string command)
+        {
+            if (_host == null || _host.State != BridgeState.Connected) return;
+            _host.Send(AppProtocol.DebugCommandType, new DebugCommand { Command = command }.Encode());
+            _log.Info("self-test: DEBUG_COMMAND " + command);
         }
 
         // ---- S3 ----

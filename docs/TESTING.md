@@ -145,13 +145,15 @@ Minecraft now starts by itself: no Gradle terminal needed.
    plus screenshots. (`MinecraftSkylines*.log` includes the new `MinecraftSkylines-companion.log`
    with Minecraft's own output.)
 
-## Automated in-game self-test (milestone 2)
+## Automated in-game self-test (milestones 2 and 3)
 
 The mod can run the milestone 2 acceptance checks by itself; the owner only starts the game and
 loads a test city. It reads the city and drives Minecraft mode; it never edits the city or its save.
 
-- **Enable:** add `selftest = city_load` to `launch.cfg` in the mod folder (the install script
-  prints where; default `off`). It then runs once after each city load. In a loaded city,
+- **Enable:** `bash tools/install-cs1-mod.sh --selftest` sets `selftest = city_load` and adds
+  `-PmcskylinesDebugCommands` to the `args` line of `launch.cfg` (a dated `launch.cfg.backup-*`
+  copy is kept when a line is changed; without the flag the script leaves both alone). By hand: add
+  `selftest = city_load` to `launch.cfg` in the mod folder (default `off`). It then runs once after each city load. In a loaded city,
   **Ctrl+Shift+T** starts it by hand (also at most once per city load). **Esc** aborts; the report
   then says `"aborted": true`.
 - **What it does:** waits up to 240 s for Minecraft (connected, app minor >= 1, in its world, not in
@@ -164,12 +166,26 @@ loads a test city. It reads the city and drives Minecraft mode; it never edits t
   on); S3 walk 3 s at a bridge railing (must stay on the deck); S4 walk 1 s on terrain under a deck
   at least 4 m up (feet within 0.3 m of terrain); S5 2 s up and 2 s down a 10-30 degree slope
   within 300 m (feet within 0.25 m of terrain, never airborne > 0.5 s); S6 the city camera and
-  controller equal to before the first entry (1e-3) with no modal left up. S3-S5 skip when the city
+  controller equal to before the first entry (1e-3) with no modal left up. S8 block rendering
+  (milestone 3; runs after S7, skips unless app minor >= 2, `launch.cfg` args carry
+  `-PmcskylinesDebugCommands` and Minecraft is in `skylines-dev`): enters at the S2 spawn facing
+  the nearest axis, sends `DEBUG_COMMAND fill`s for a 2-high row of stone, grass_block,
+  oak_planks, glass, oak_leaves, water 3 blocks ahead at feet level, waits up to 10 s for a
+  `SECTION_MESH` covering it, holds W 1.5 s (pass needs the player stopped 0 to 0.15 m in front of
+  the row: placed blocks are solid), leaves Minecraft mode and takes `s8_material_0..3.png` with
+  the city camera 6 m in front of the row, 1.5 m up, one per material variant (0 prop shader with
+  the atlas; 1 prop shader plus neutral `_XYSMap`/`_ACIMap`; 2 building shader plus the same maps;
+  3 Unity `Diffuse`). The screenshots are the material verdict: compare them for texture
+  orientation (grass side green on top), vertex tint (grass top and leaves green, not grey),
+  lighting, and depth against terrain. Measurements: atlas size, time to first mesh, sections and
+  vertices received, mesh build ms, gap to the row before and after walking. Its cleanup fills the
+  row with air. In normal play **Ctrl+Shift+B** cycles the variant live (`block_material = 0..3` in
+  `launch.cfg` sets the start); the status box shows it. S3-S5 skip when the city
   has no suitable bridge or slope; build one near the camera's view first.
 - **Report:** `~/.local/share/Colossal Order/Cities_Skylines/ModLogs/selftest/<yyyyMMddTHHmmssZ>/report.json`
   (keys `run_started_utc`, `game_version`, `mod_version`, `city_name`, `minecraft_peer`,
   `aborted`, `abort_reason`, `scenarios[{id, name, status, reason, duration_ms, measurements}]`,
-  `summary{pass, fail, skip, error}`) and the two PNGs beside it. The mod log and the status box
+  `summary{pass, fail, skip, error}`) and the PNGs beside it (two from S2/S7, four from S8). The mod log and the status box
   show `Self-test: N pass, N fail, N skip, N error — report at …`.
 - **Bring it back:**
   `mkdir -p ~/.cache/minecraft-skylines/evidence/selftest && cp -r ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/selftest/. ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines*.log ~/.cache/minecraft-skylines/evidence/selftest/`

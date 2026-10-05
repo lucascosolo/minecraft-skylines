@@ -415,4 +415,91 @@ namespace MinecraftSkylines.Mod.SelfTest
 
         public double LongestSeconds { get; private set; }
     }
+    /// <summary>S8: a row of test blocks a few metres in front of the player, axis-aligned, in Minecraft coordinates.</summary>
+    internal sealed class BlockRowPlan
+    {
+        public static readonly string[] Blocks =
+        {
+            "minecraft:stone", "minecraft:grass_block", "minecraft:oak_planks", "minecraft:glass",
+            "minecraft:oak_leaves[persistent=true]", "minecraft:water",
+        };
+
+        public int FeetBlockX, FeetBlockY, FeetBlockZ;
+        public int ForwardX, ForwardZ;
+        public int[] BlockX, BlockZ;
+
+        public static double SnapYaw(double unityYawDeg)
+        {
+            double s = Math.Round(unityYawDeg / 90.0) * 90.0 % 360.0;
+            return s < 0 ? s + 360.0 : s;
+        }
+
+        public static BlockRowPlan Create(double mcX, double mcY, double mcZ, double unityYawDeg, int distance)
+        {
+            int q = (int)(SnapYaw(unityYawDeg) / 90.0);
+            var p = new BlockRowPlan
+            {
+                FeetBlockX = (int)Math.Floor(mcX),
+                FeetBlockY = (int)Math.Floor(mcY + 0.001),
+                FeetBlockZ = (int)Math.Floor(mcZ),
+                ForwardX = new[] { 0, 1, 0, -1 }[q],
+                ForwardZ = new[] { -1, 0, 1, 0 }[q],
+                BlockX = new int[Blocks.Length],
+                BlockZ = new int[Blocks.Length],
+            };
+            int cx = p.FeetBlockX + distance * p.ForwardX, cz = p.FeetBlockZ + distance * p.ForwardZ;
+            int lx = -p.ForwardZ, lz = p.ForwardX;
+            for (int i = 0; i < Blocks.Length; i++)
+            {
+                p.BlockX[i] = cx + (i - 2) * lx;
+                p.BlockZ[i] = cz + (i - 2) * lz;
+            }
+            return p;
+        }
+
+        public string[] BuildCommands()
+        {
+            var c = new string[Blocks.Length];
+            for (int i = 0; i < Blocks.Length; i++)
+                c[i] = Fill(BlockX[i], BlockZ[i], BlockX[i], BlockZ[i], Blocks[i]);
+            return c;
+        }
+
+        public string ClearCommand()
+        {
+            int minX = int.MaxValue, minZ = int.MaxValue, maxX = int.MinValue, maxZ = int.MinValue;
+            for (int i = 0; i < Blocks.Length; i++)
+            {
+                minX = Math.Min(minX, BlockX[i]); maxX = Math.Max(maxX, BlockX[i]);
+                minZ = Math.Min(minZ, BlockZ[i]); maxZ = Math.Max(maxZ, BlockZ[i]);
+            }
+            return Fill(minX, minZ, maxX, maxZ, "minecraft:air");
+        }
+
+        public double GapToRow(double mcX, double mcZ)
+        {
+            bool alongX = ForwardX != 0;
+            int f = alongX ? ForwardX : ForwardZ;
+            int c = alongX ? BlockX[0] : BlockZ[0];
+            double p = alongX ? mcX : mcZ;
+            double nearFace = f > 0 ? c : c + 1;
+            return f * (nearFace - p) - 0.3;
+        }
+
+        public bool Covers(int sx, int sy, int sz)
+        {
+            for (int i = 0; i < Blocks.Length; i++)
+                for (int y = FeetBlockY; y <= FeetBlockY + 1; y++)
+                    if (Section(BlockX[i]) == sx && Section(y) == sy && Section(BlockZ[i]) == sz) return true;
+            return false;
+        }
+
+        private static int Section(int b) { return b >> 4; }
+
+        private string Fill(int x0, int z0, int x1, int z1, string block)
+        {
+            return string.Format(CultureInfo.InvariantCulture, "fill {0} {1} {2} {3} {4} {5} {6}",
+                x0, FeetBlockY, z0, x1, FeetBlockY + 1, z1, block);
+        }
+    }
 }

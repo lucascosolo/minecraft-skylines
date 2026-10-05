@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using ColossalFramework.IO;
 using ICities;
+using MinecraftSkylines.Mod.Blocks;
 using MinecraftSkylines.Mod.Diagnostics;
 using MinecraftSkylines.Mod.SelfTest;
 using MinecraftSkylines.Protocol;
@@ -32,6 +33,7 @@ namespace MinecraftSkylines.Mod
         private static StatusOverlay s_overlay;
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
+        private static BlockRenderer s_blocks;
         private static SelfTestController s_selfTest;
         private static MinecraftLauncher s_launcher;
         private static BridgeHost s_host;
@@ -40,6 +42,7 @@ namespace MinecraftSkylines.Mod
         private static CityState s_lastCity;
         private static Guid s_lastSentSaveId;
         private static bool s_statusDirty;
+        private static bool s_cityReady;
         private static GuestStatus s_guest;
         private static string s_lastDisconnect = "";
         private static double s_tickMaxMs;
@@ -66,8 +69,14 @@ namespace MinecraftSkylines.Mod
             s_launcher = new MinecraftLauncher(s_log, Path.Combine(Path.Combine(DataLocation.localApplicationData, "ModLogs"), "MinecraftSkylines-companion.log"),
                 UnityEngine.Application.platform == UnityEngine.RuntimePlatform.LinuxPlayer);
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
-            s_selfTest = new SelfTestController(s_log, s_player, s_launcher, ModVersion);
+            s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
+            s_pump.Updated += s_blocks.Update;
+            s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, () => s_guest, ModVersion);
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
+            // Graphics.DrawMesh queues for the coming render of every camera, so the pump's LateUpdate (after
+            // the camera is placed) draws in city and Minecraft mode alike. Meshes are kept across city reloads (the
+            // guest only resends changed sections) but drawn only while a city is loaded.
+            s_pump.LateUpdated += () => s_blocks.LateUpdate(s_cityReady);
             s_pump.Gui += s_player.OnGui;
             s_pump.Updated += s_player.Viewer.Update;
             s_pump.Quitting += () => Stop("game exiting");
@@ -106,6 +115,7 @@ namespace MinecraftSkylines.Mod
             s_selfTest.Abort(why);
             s_player.Exit(why, s_host, true);
             s_player.Viewer.Dispose();
+            s_blocks.Dispose();
             s_probe.RestoreAll(why, true);
             s_host.Shutdown(GoodbyeCodes.ShuttingDown, why);
             s_host = null;
@@ -113,6 +123,7 @@ namespace MinecraftSkylines.Mod
             s_pump = null;
             s_overlay = null;
             s_player = null;
+            s_blocks = null;
             s_selfTest = null;
             s_launcher = null;
             s_guest = null;
@@ -200,6 +211,7 @@ namespace MinecraftSkylines.Mod
             }
 
             CityState city = CityState.Capture();
+            s_cityReady = city.InCity && !city.Loading;
             Guid saveId = s_saveId.Id;
             s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
             s_player.Update(s_host, city.InCity && !city.Loading);
@@ -271,6 +283,17 @@ namespace MinecraftSkylines.Mod
                             s_log.Warn("bad PLAYER_STATE ignored: " + ex.Message);
                         }
                     }
+                    else if (e.MessageType >= AppProtocol.BlockAtlasType && e.MessageType <= AppProtocol.SectionsClearType)
+                    {
+                        try
+                        {
+                            s_blocks.Handle(e.MessageType, e.Payload);
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad block message 0x" + e.MessageType.ToString("x4") + " ignored: " + ex.Message);
+                        }
+                    }
                     // Other application types are ignored (forward compatibility within major 1).
                     break;
             }
@@ -330,6 +353,8 @@ namespace MinecraftSkylines.Mod
                 sb.Append(saveId == Guid.Empty ? "  (not paired)" : "  save id " + saveId.ToString().Substring(0, 8));
             }
             sb.Append('\n').Append(s_player.OverlayText());
+            string blocks = s_blocks.OverlayText();
+            if (blocks.Length > 0) sb.Append('\n').Append(blocks);
             if (s_selfTest.OverlayText.Length > 0) sb.Append('\n').Append(s_selfTest.OverlayText);
             if (s_probe.Status.Length > 0)
             {

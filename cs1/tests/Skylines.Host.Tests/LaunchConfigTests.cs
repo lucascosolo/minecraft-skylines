@@ -103,6 +103,40 @@ namespace Skylines.Host.Tests
             Assert.Equal(SelfTestMode.Off, c.SelfTest);
         }
 
+        [Fact]
+        public void BlockMaterialDefaultsToZero()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\n");
+            Assert.Equal(0, c.BlockMaterial);
+            Assert.Empty(c.Problems);
+        }
+
+        [Theory]
+        [InlineData("0", 0)]
+        [InlineData("1", 1)]
+        [InlineData("2", 2)]
+        [InlineData("3", 3)]
+        [InlineData("  2  ", 2)]
+        public void ParsesBlockMaterial(string value, int expected)
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nblock_material = " + value + "\n");
+            Assert.Empty(c.Problems);
+            Assert.Equal(expected, c.BlockMaterial);
+        }
+
+        [Theory]
+        [InlineData("4")]
+        [InlineData("x")]
+        [InlineData("-1")]
+        public void BadBlockMaterialIsOneProblemAndStaysZero(string value)
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nblock_material = " + value + "\n");
+            Assert.Single(c.Problems);
+            Assert.Contains(c.Problems, p => p.Contains("block_material"));
+            Assert.DoesNotContain(c.Problems, p => p.ToLowerInvariant().Contains("unknown"));
+            Assert.Equal(0, c.BlockMaterial);
+        }
+
         [Theory]
         [InlineData("a b  c", new[] { "a", "b", "c" })]
         [InlineData("a \"b c\" d", new[] { "a", "b c", "d" })]

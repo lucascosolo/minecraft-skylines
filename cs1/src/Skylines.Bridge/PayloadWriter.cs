@@ -55,6 +55,13 @@ namespace Skylines.Bridge
             return this;
         }
 
+        /// <summary>Appends raw bytes (no length prefix).</summary>
+        public PayloadWriter Bytes(byte[] b)
+        {
+            _ms.Write(b, 0, b.Length);
+            return this;
+        }
+
         /// <summary>Returns the bytes written so far.</summary>
         public byte[] ToArray() { return _ms.ToArray(); }
 

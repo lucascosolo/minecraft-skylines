@@ -54,6 +54,19 @@ namespace MinecraftSkylines.Mod
             get { Load(); return _config == null ? SelfTestMode.Off : _config.SelfTest; }
         }
 
+        /// <summary>launch.cfg <c>block_material</c>; 0 without a usable launch.cfg.</summary>
+        public int BlockMaterial
+        {
+            get { Load(); return _config == null ? 0 : _config.BlockMaterial; }
+        }
+
+        /// <summary>True when launch.cfg's args contain <paramref name="arg"/> (e.g. -PmcskylinesDebugCommands).</summary>
+        public bool HasArg(string arg)
+        {
+            Load();
+            return _config != null && _config.Args.Contains(arg);
+        }
+
         /// <summary>True when a usable launch.cfg was found.</summary>
         public bool Enabled
         {

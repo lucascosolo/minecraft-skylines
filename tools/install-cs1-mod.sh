@@ -2,8 +2,10 @@
 # Copy the built Cities: Skylines mod into the game's local mods folder. Run it yourself in a normal
 # terminal (the agent's sandbox cannot write there):
 #
-#     bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh [build-output-dir]
+#     bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh [--selftest] [build-output-dir]
 #
+# --selftest (any position): also ensures launch.cfg has "selftest = city_load" and that the args
+# line carries -PmcskylinesDebugCommands (dated backup copy before any edit of an existing line).
 # Without an argument it installs the repo's current Release build. With one, it installs that
 # folder instead (e.g. a pinned build of a specific commit).
 # Copies four DLLs into Addons/Mods/MinecraftSkylines/ (overwriting older copies of the same four
@@ -12,7 +14,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="${1:-${ROOT:?}/cs1/src/MinecraftSkylines.Mod/bin/Release/net35}"
+SELFTEST=0
+SRC_ARG=""
+for a in "$@"; do
+  if [ "$a" = "--selftest" ]; then SELFTEST=1; else SRC_ARG="$a"; fi
+done
+SRC="${SRC_ARG:-${ROOT:?}/cs1/src/MinecraftSkylines.Mod/bin/Release/net35}"
 DATA="${XDG_DATA_HOME:-${HOME:?}/.local/share}"
 DEST="${DATA:?}/Colossal Order/Cities_Skylines/Addons/Mods/MinecraftSkylines"
 
@@ -50,7 +57,7 @@ if [ -e "${CFG:?}" ]; then
   # invisible inside Steam's container, so those two lines are replaced after a dated backup copy.
   CUR_JH="$(sed -n 's/^[[:space:]]*env\.JAVA_HOME[[:space:]]*=[[:space:]]*//p' "${CFG:?}" | tail -1)"
   if [ -n "${CUR_JH}" ] && [ "${CUR_JH#${HOME}/}" = "${CUR_JH}" ]; then
-    BACKUP="${CFG:?}.backup-$(date +%Y%m%d-%H%M%S)"
+    BACKUP="${CFG:?}.backup-$(date +%Y%m%d-%H%M%S)-$$"
     cp -p "${CFG:?}" "${BACKUP:?}"
     grep -vE '^[[:space:]]*env\.(JAVA_HOME|PATH)[[:space:]]*=' "${BACKUP:?}" > "${CFG:?}"
     echo "replaced env.JAVA_HOME ${CUR_JH} (not visible inside Steam's container); old file kept as ${BACKUP}"
@@ -78,6 +85,39 @@ connect_timeout_seconds = 180
 prewarm = game_start
 CFGEOF
   echo "wrote ${CFG}"
+fi
+if [ "${SELFTEST}" = 1 ]; then
+  BACKUP="${BACKUP:-}"
+  backup_once() {
+    [ -n "${BACKUP}" ] && return 0
+    BACKUP="${CFG:?}.backup-$(date +%Y%m%d-%H%M%S)-$$"
+    cp -p "${CFG:?}" "${BACKUP:?}"
+  }
+  SELFTMP="$(mktemp)"
+  CUR_ST="$(sed -n 's/^[[:space:]]*selftest[[:space:]]*=[[:space:]]*//p' "${CFG:?}" | tail -1)"
+  if ! grep -q '^[[:space:]]*selftest[[:space:]]*=' "${CFG:?}"; then
+    printf 'selftest = city_load\n' >> "${CFG:?}"
+    echo "added selftest = city_load to ${CFG}"
+  elif [ "${CUR_ST}" != "city_load" ]; then
+    backup_once
+    sed 's/^[[:space:]]*selftest[[:space:]]*=.*/selftest = city_load/' "${CFG:?}" > "${SELFTMP:?}"
+    cat "${SELFTMP:?}" > "${CFG:?}"
+    echo "replaced selftest = ${CUR_ST} with city_load; old file kept as ${BACKUP}"
+  fi
+  if ! grep -q '^[[:space:]]*args[[:space:]]*=' "${CFG:?}"; then
+    echo "WARNING: no args line in ${CFG}; -PmcskylinesDebugCommands not added"
+  else
+    CUR_ARGS="$(sed -n 's/^[[:space:]]*args[[:space:]]*=//p' "${CFG:?}" | tail -1)"
+    case " ${CUR_ARGS} " in
+      *[[:space:]]-PmcskylinesDebugCommands[[:space:]]*) ;;
+      *)
+        backup_once
+        sed '/^[[:space:]]*args[[:space:]]*=/s/$/ -PmcskylinesDebugCommands/' "${CFG:?}" > "${SELFTMP:?}"
+        cat "${SELFTMP:?}" > "${CFG:?}"
+        echo "appended -PmcskylinesDebugCommands to args; backup ${BACKUP}"
+        ;;
+    esac
+  fi
 fi
 echo "Mod folder: ${DEST}"
 echo "Now start Cities: Skylines, open Content Manager > Mods and enable 'Minecraft Skylines'."

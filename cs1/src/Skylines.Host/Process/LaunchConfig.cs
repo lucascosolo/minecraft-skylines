@@ -60,6 +60,9 @@ namespace Skylines.Host
         /// <summary>When the self-test starts by itself.</summary>
         public SelfTestMode SelfTest = SelfTestMode.Off;
 
+        /// <summary>Material variant for drawn block meshes, 0-3 (an in-game experiment knob).</summary>
+        public int BlockMaterial;
+
         /// <summary>Problems found while parsing (unknown keys, bad numbers, missing command).</summary>
         public readonly List<string> Problems = new List<string>();
 
@@ -169,6 +172,13 @@ namespace Skylines.Host
                         case "off": SelfTest = SelfTestMode.Off; break;
                         case "city_load": SelfTest = SelfTestMode.CityLoad; break;
                         default: Problems.Add("line " + lineNo + ": selftest must be off or city_load"); break;
+                    }
+                    break;
+                case "block_material":
+                    {
+                        int m;
+                        if (int.TryParse(value, out m) && m >= 0 && m <= 3) BlockMaterial = m;
+                        else Problems.Add("line " + lineNo + ": block_material must be 0, 1, 2 or 3");
                     }
                     break;
                 default:
