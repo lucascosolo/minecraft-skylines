@@ -63,6 +63,18 @@ post-process (`OverlayEffect`), which ignores scene depth; the blue is probably 
 seen through the clipped terrain. If so, tunnel interiors drawn on the MetroTunnels layer should show
 through a clipped portal, the way the game's own tunnels do. Test 2 places one marker on each layer.
 
+**In-game result 3 (owner, 2026-10-05, evidence `~/.cache/minecraft-skylines/evidence/m2r2/`): the
+clip is a real, see-through hole.** With the game's own prop shader (`Custom/Props/Prop/Default`,
+Props layer 10), a cube 3 m below the clipped area is visible through it, and a cube beside the
+hole is drawn correctly in front of the blue background with its shadow. The first test's
+"blue over the cube" came from Unity's error shader on the marker, not from the clip. A cube on the
+MetroTunnels layer (14) is not drawn: the main camera's mask (0x73A59FFF) excludes it and the
+underground camera is disabled outside the underground view. **Consequence: the M6 route is viable
+in principle**: native terrain stays as the roof, the clip opens only the portal cells, and tunnel
+interiors are our own meshes drawn with the prop shader on the Props layer. Still to solve: matching
+the terrain's look on cut faces, the clip's 4 m granularity at portals, texturing meshes with the
+prop shader (the marker's untextured sides render dark).
+
 Open, to be settled by an in-game experiment early in M2 (a debug key that clips one 4 m cell):
 1. Does the terrain shader actually discard clipped cells (and what is drawn in their place)?
 2. Can our replacement surface match the terrain's look (same material on our own mesh, or MC-style
