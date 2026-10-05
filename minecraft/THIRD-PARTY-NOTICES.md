@@ -46,3 +46,8 @@ Each file carries an attribution header. All under `fabric/src/` and adapted (pa
 - `main/java/dev/mcskylines/mixin/MinecraftServerFlightMixin.java` from `dev/skycraft/mixin/MinecraftServerFlightMixin.java`.
 - `main/java/dev/mcskylines/mixin/PlayerEdgeMixin.java` from `dev/skycraft/mixin/PlayerEdgeMixin.java`.
 - `test/java/dev/mcskylines/collision/TriColliderTest.java` from `dev/skycraft/world/TriColliderTest.java`.
+- `main/java/dev/mcskylines/player/InputReplay.java` from `dev/skycraft/client/InputBridge.java` (protocol GLFW codes mapped to SDL3; cursor, hurt and menu events removed).
+- `main/java/dev/mcskylines/player/PlayerMode.java` from `dev/skycraft/client/SkyClient.java` (beginFrame look and hidden start, requestTeleport, holdUntilReady, freezeWhileUnlinked, afterRender/publishTick state; shared memory, pacing, overlay export and quit logic removed).
+- `main/java/dev/mcskylines/player/DevWorld.java` from `dev/skycraft/client/MirrorWorld.java` (world "skylines-dev" only; join/leave removed) and the game rules of `dev/skycraft/SkyCraft.java` `configureServer`.
+- `main/java/dev/mcskylines/client/mixin/{InputConstantsMixin,WindowMixin,MinecraftMixin,ScreenMixin,FramerateLimitTrackerMixin,WorldOpenFlowsMixin}.java` from the same-named files in `dev/skycraft/client/mixin/`.
+- `main/resources/data/mcskylines/dimension_type/void.json` and `worldgen/world_preset/void.json` from `data/skycraft/dimension_type/mirror.json` and `worldgen/world_preset/mirror.json` (heights per our protocol: `min_y` -64, `height` 1536).

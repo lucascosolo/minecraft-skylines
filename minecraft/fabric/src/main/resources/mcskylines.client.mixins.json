@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "dev.mcskylines.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "CameraAccessor",
+    "FramerateLimitTrackerMixin",
+    "InputConstantsMixin",
+    "MinecraftMixin",
+    "ScreenMixin",
+    "WindowMixin",
+    "WorldOpenFlowsMixin"
+  ],
+  "injectors": { "defaultRequire": 1 }
+}

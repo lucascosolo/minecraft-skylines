@@ -7,7 +7,10 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import dev.mcskylines.player.DevWorld;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +19,21 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 	public static final String MOD_ID = "mcskylines";
 	static final Logger LOG = LoggerFactory.getLogger(MOD_ID);
 	static final String PREFIX = "[MinecraftSkylines] ";
+	private static LinkController link;
+
+	/** MinecraftMixin: start of Minecraft.runTick. */
+	public static void onFrameStart() {
+		if (link != null) {
+			link.frame(Minecraft.getInstance());
+		}
+	}
+
+	/** MinecraftMixin: right after GameRenderer.render(). */
+	public static void onFrameRendered() {
+		if (link != null) {
+			link.rendered(Minecraft.getInstance());
+		}
+	}
 
 	@Override
 	public void onInitializeClient() {
@@ -29,6 +47,8 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 			.withPort(port)
 			.withLogger(msg -> LOG.info(PREFIX + "bridge: {}", msg)));
 		LinkController link = new LinkController(guest);
+		MinecraftSkylinesClient.link = link;
+		ServerLifecycleEvents.SERVER_STARTED.register(DevWorld::configureIfOurs);
 
 		ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
 			LOG.info(PREFIX + "connecting to Cities: Skylines on 127.0.0.1:{}", port);
