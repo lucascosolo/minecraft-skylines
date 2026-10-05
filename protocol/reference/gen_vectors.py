@@ -99,6 +99,27 @@ def frames() -> list[dict]:
           "partialTick": 0.5, "tickMs": 50.0}
     add("player_state", sb.PLAYER_STATE, ps, sb.PlayerState(ps).encode())
 
+    # ---- 1.2 (milestone 3)
+    png = bytes.fromhex("89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+                        "1f15c4890000000d49444154789c6360f8cff01f0005000201a5f2c8"
+                        "0e0000000049454e44ae426082")  # 1x1 RGBA PNG
+    add("block_atlas", sb.BLOCK_ATLAS, {"width": 1, "height": 1, "format": 1, "dataHex": png.hex()},
+        sb.BlockAtlas(1, 1, sb.ATLAS_PNG, png).encode())
+    rgba = bytes([255, 0, 0, 255, 0, 255, 0, 128])
+    add("atlas_region", sb.ATLAS_REGION, {"x": 16, "y": 32, "width": 2, "height": 1, "rgbaHex": rgba.hex()},
+        sb.AtlasRegion(16, 32, 2, 1, rgba).encode())
+    verts = [(0.0, 1.0, 0.0, 0.25, 0.5, 0xFF80FFFF, 0x0F00, 0),
+             (1.0, 1.0, 0.0, 0.3125, 0.5, 0xFF80FFFF, 0x0F00, 0),
+             (0.0, 1.0, 1.0, 0.25, 0.5625, 0xFFFFFFFF, 0x0F03, 1)]
+    add("section_mesh", sb.SECTION_MESH, {"sx": -2, "sy": 4, "sz": 37, "vertices": [
+        {"x": v[0], "y": v[1], "z": v[2], "u": v[3], "v": v[4], "color": v[5], "light": v[6], "flags": v[7]}
+        for v in verts]}, sb.SectionMesh(-2, 4, 37, verts).encode())
+    add("section_mesh_empty", sb.SECTION_MESH, {"sx": 0, "sy": -4, "sz": 0, "vertices": []},
+        sb.SectionMesh(0, -4, 0, []).encode())
+    add("sections_clear", sb.SECTIONS_CLEAR, {}, b"")
+    add("debug_command", sb.DEBUG_COMMAND, {"command": "fill 10 64 -20 12 66 -18 minecraft:stone"},
+        sb.DebugCommand("fill 10 64 -20 12 66 -18 minecraft:stone").encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")

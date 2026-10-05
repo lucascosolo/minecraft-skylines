@@ -358,6 +358,84 @@ class PlayerState:
         return PlayerState({name: getattr(r, kind)() for name, kind in PLAYER_STATE_FIELDS})
 
 
+# ---- minecraft-skylines app protocol 1.2: milestone 3 -----------------------------------------
+BLOCK_ATLAS, ATLAS_REGION, SECTION_MESH, SECTIONS_CLEAR, DEBUG_COMMAND = 0x0130, 0x0131, 0x0132, 0x0133, 0x01F0
+ATLAS_PNG = 1
+VERTEX = struct.Struct("<5f3I")  # x y z u v color light flags = 32 bytes
+
+
+@dataclass
+class BlockAtlas:
+    width: int
+    height: int
+    fmt: int
+    data: bytes
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.width).u32(self.height).u8(self.fmt).u32(len(self.data)).bytes() + self.data
+
+    @staticmethod
+    def decode(p: bytes) -> "BlockAtlas":
+        r = Reader(p)
+        w, h, fmt, n = r.u32(), r.u32(), r.u8(), r.u32()
+        return BlockAtlas(w, h, fmt, r._take(n))
+
+
+@dataclass
+class AtlasRegion:
+    x: int
+    y: int
+    width: int
+    height: int
+    rgba: bytes
+
+    def encode(self) -> bytes:
+        if len(self.rgba) != self.width * self.height * 4:
+            raise ValueError("rgba size mismatch")
+        return Writer().u32(self.x).u32(self.y).u32(self.width).u32(self.height).bytes() + self.rgba
+
+    @staticmethod
+    def decode(p: bytes) -> "AtlasRegion":
+        r = Reader(p)
+        x, y, w, h = r.u32(), r.u32(), r.u32(), r.u32()
+        return AtlasRegion(x, y, w, h, r._take(w * h * 4))
+
+
+@dataclass
+class SectionMesh:
+    sx: int
+    sy: int
+    sz: int
+    vertices: list  # each: (x, y, z, u, v, color, light, flags)
+
+    def encode(self) -> bytes:
+        if len(self.vertices) % 3:
+            raise ValueError("vertex count must be a multiple of 3")
+        w = Writer().i32(self.sx).i32(self.sy).i32(self.sz).u32(len(self.vertices))
+        return w.bytes() + b"".join(VERTEX.pack(*v) for v in self.vertices)
+
+    @staticmethod
+    def decode(p: bytes) -> "SectionMesh":
+        r = Reader(p)
+        sx, sy, sz, n = r.i32(), r.i32(), r.i32(), r.u32()
+        if n % 3:
+            raise ProtocolError("vertex count not a multiple of 3")
+        raw = r._take(n * VERTEX.size)
+        return SectionMesh(sx, sy, sz, [VERTEX.unpack_from(raw, i * VERTEX.size) for i in range(n)])
+
+
+@dataclass
+class DebugCommand:
+    command: str
+
+    def encode(self) -> bytes:
+        return Writer().string(self.command).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "DebugCommand":
+        return DebugCommand(Reader(p).string())
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

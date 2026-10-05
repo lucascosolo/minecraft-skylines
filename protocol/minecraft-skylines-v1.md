@@ -1,10 +1,10 @@
-# `minecraft-skylines` application protocol, version 1.1
+# `minecraft-skylines` application protocol, version 1.2
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 1`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 2`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
-state. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -136,3 +136,61 @@ all but the newest.
 
 The host draws the camera from these. It may use the frame values directly or interpolate the
 tick values on its own clock (as SkyCraft does) to hide the two games' frame-phase difference.
+
+## Milestone 3 messages (minor 2)
+
+Minecraft builds its block meshes with its own block renderer (models, biome tint, ambient
+occlusion) and ships them with its texture atlas; CS1 builds ordinary meshes from them and draws
+them in its own scene, so terrain and buildings occlude blocks and vice versa (SkyCraft's model).
+
+### `0x0130 BLOCK_ATLAS` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `width`, `height` | pixels |
+| u8 | `format` | 1 = PNG (the only format in 1.2; raw RGBA of a full atlas would exceed the 16 MiB frame limit) |
+| u32 | `byteLength` | |
+| bytes | `data` | the encoded image, top row first |
+
+Sent after the handshake once a world is loaded, and again whenever the atlas changes (resource
+reload). UV coordinates in `SECTION_MESH` refer to this image (0,0 = top-left corner).
+
+### `0x0131 ATLAS_REGION` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `x`, `y`, `width`, `height` | pixels in the atlas |
+| bytes | `rgba` | `width × height × 4` bytes, RGBA8, top row first |
+
+An animated sprite's current frame (water, lava, fire). Optional for a host to honour.
+
+### `0x0132 SECTION_MESH` (guest → host)
+
+The complete mesh of one 16×16×16 section of placed Minecraft blocks; replaces what the host has.
+
+| Type | Field | Notes |
+|---|---|---|
+| i32 | `sx`, `sy`, `sz` | section coordinates (`floor(block / 16)`) |
+| u32 | `vertexCount` | multiple of 3 (triangle list); 0 = the section is empty, drop it |
+| per vertex: f32 × 3 | `x`, `y`, `z` | Minecraft coordinates relative to the section origin (`sx*16, sy*16, sz*16`) |
+| f32 × 2 | `u`, `v` | atlas UV (0..1, origin top-left) |
+| u32 | `color` | RGBA8 as bytes R,G,B,A: biome tint × ambient occlusion (Minecraft's directional face shading left out: the host lights the mesh) |
+| u32 | `light` | low byte block light 0-15, next byte sky light 0-15 |
+| u32 | `flags` | bit 0 cutout (alpha test), bit 1 translucent |
+
+Triangles are counter-clockwise seen from outside in Minecraft's right-handed frame; a host in a
+left-handed frame that mirrors z must reverse the winding (as for collision).
+
+### `0x0133 SECTIONS_CLEAR` (guest → host)
+
+No fields. Drop every section (world change, dimension change, reconnect).
+
+### `0x01F0 DEBUG_COMMAND` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| string | `command` | a server command without the leading slash, e.g. `fill 10 64 -20 12 66 -18 minecraft:stone` |
+
+For automated in-game tests only. The guest runs it as the server console in its dev world
+`skylines-dev` and ignores it everywhere else, and only when started with
+`-Dmcskylines.debugCommands=true`. The result is logged, not returned.
