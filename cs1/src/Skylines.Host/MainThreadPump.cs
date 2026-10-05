@@ -13,6 +13,9 @@ namespace Skylines.Host
         /// <summary>Called once per frame from Update.</summary>
         public event Action Updated;
 
+        /// <summary>Called once per frame from LateUpdate, after every Update (camera driving).</summary>
+        public event Action LateUpdated;
+
         /// <summary>Called from OnGUI (possibly several times per frame).</summary>
         public event Action Gui;
 
@@ -34,6 +37,7 @@ namespace Skylines.Host
         public void Uninstall()
         {
             Updated = null;
+            LateUpdated = null;
             Gui = null;
             Quitting = null;
             Destroy(gameObject);
@@ -42,6 +46,11 @@ namespace Skylines.Host
         private void Update()
         {
             Invoke(Updated, "Update");
+        }
+
+        private void LateUpdate()
+        {
+            Invoke(LateUpdated, "LateUpdate");
         }
 
         private void OnGUI()

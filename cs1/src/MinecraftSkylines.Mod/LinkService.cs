@@ -11,7 +11,7 @@ using Skylines.Host;
 namespace MinecraftSkylines.Mod
 {
     /// <summary>
-    /// Milestone 1: owns the bridge host, exchanges status with Minecraft and shows the link state.
+    /// Owns the bridge host and player mode, exchanges status with Minecraft and shows the link state.
     /// Everything here runs on the Unity main thread except OnLoadData/OnSaveData, which only touch
     /// the thread-safe <see cref="SaveIdentity"/>. The game thread never blocks on the socket.
     /// </summary>
@@ -28,6 +28,7 @@ namespace MinecraftSkylines.Mod
         private static MainThreadPump s_pump;
         private static StatusOverlay s_overlay;
         private static TerrainClipProbe s_probe;
+        private static PlayerMode s_player;
         private static BridgeHost s_host;
         private static string s_startError;
 
@@ -57,6 +58,9 @@ namespace MinecraftSkylines.Mod
             s_probe = new TerrainClipProbe(s_log);
             s_pump.Updated += s_probe.Update;
             s_pump.Gui += s_overlay.Draw;
+            s_player = new PlayerMode(s_log, () => s_statusDirty = true);
+            s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
+            s_pump.Gui += s_player.OnGui;
             s_pump.Quitting += () => Stop("game exiting");
 
             var options = new HostOptions
@@ -90,12 +94,14 @@ namespace MinecraftSkylines.Mod
                 return;
             }
             s_log.Info("stopping: " + why + PerfSummary());
+            s_player.Exit(why, s_host, true);
             s_probe.RestoreAll(why, true);
             s_host.Shutdown(GoodbyeCodes.ShuttingDown, why);
             s_host = null;
             s_pump.Uninstall();
             s_pump = null;
             s_overlay = null;
+            s_player = null;
             s_guest = null;
             s_log.Close();
         }
@@ -114,6 +120,7 @@ namespace MinecraftSkylines.Mod
         {
             CityState.SetInCity(false);
             s_saveId.Clear();
+            if (s_player != null) s_player.Exit("city unloading", s_host, true);
             if (s_probe != null) s_probe.RestoreAll("level unloading", false);
             Log("level unloading");
             s_statusDirty = true;
@@ -179,6 +186,7 @@ namespace MinecraftSkylines.Mod
 
             CityState city = CityState.Capture();
             Guid saveId = s_saveId.Id;
+            s_player.Update(s_host, city.InCity && !city.Loading);
             if (!city.Equals(s_lastCity) || saveId != s_lastSentSaveId)
             {
                 s_lastCity = city;
@@ -216,6 +224,7 @@ namespace MinecraftSkylines.Mod
                     s_lastDisconnect = e.CauseName + (e.Code >= 0 ? " code " + e.Code : "") + (string.IsNullOrEmpty(e.Reason) ? "" : ": " + e.Reason);
                     Log("disconnected: " + s_lastDisconnect);
                     s_guest = null;
+                    s_player.Exit("link lost: " + s_lastDisconnect, s_host, false);
                     break;
                 case BridgeEventKind.Message:
                     if (e.MessageType == AppProtocol.GuestStatusType)
@@ -234,6 +243,17 @@ namespace MinecraftSkylines.Mod
                             s_log.Warn("bad GUEST_STATUS ignored: " + ex.Message);
                         }
                     }
+                    else if (e.MessageType == AppProtocol.PlayerStateType)
+                    {
+                        try
+                        {
+                            s_player.OnPlayerState(PlayerState.Decode(e.Payload));
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad PLAYER_STATE ignored: " + ex.Message);
+                        }
+                    }
                     // Other application types are ignored (forward compatibility within major 1).
                     break;
             }
@@ -245,6 +265,7 @@ namespace MinecraftSkylines.Mod
             if (city.InCity) flags |= HostStatusFlags.InCity;
             if (city.Loading) flags |= HostStatusFlags.Loading;
             if (city.SimulationPaused) flags |= HostStatusFlags.SimPaused;
+            if (s_player.IsOn) flags |= HostStatusFlags.PlayerMode;
             var status = new HostStatus
             {
                 Flags = flags,
@@ -291,6 +312,7 @@ namespace MinecraftSkylines.Mod
             {
                 sb.Append(saveId == Guid.Empty ? "  (not paired)" : "  save id " + saveId.ToString().Substring(0, 8));
             }
+            sb.Append('\n').Append(s_player.OverlayText());
             if (s_probe.Status.Length > 0)
             {
                 sb.Append('\n').Append(s_probe.Status);

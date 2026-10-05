@@ -19,7 +19,7 @@ namespace MinecraftSkylines.Mod
         /// <inheritdoc />
         public string Description
         {
-            get { return "Play your city as a Minecraft player (milestone 1: link status only)."; }
+            get { return "Play your city as a Minecraft player. In a city, Ctrl+Shift+M walks it as the Minecraft player; Esc returns."; }
         }
 
         /// <summary>Called by CS1 when the mod is enabled.</summary>
