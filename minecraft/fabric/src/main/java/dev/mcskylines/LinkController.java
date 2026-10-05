@@ -53,6 +53,13 @@ final class LinkController {
 	private static final boolean QUIT_WITH_HOST = Boolean.parseBoolean(System.getProperty("mcskylines.quitWithHost", "true"));
 	private static final long QUIT_AFTER_MS = 10_000;
 	private long hostGoneSinceMs = -1;
+	// A hidden Minecraft nobody can see or use: if its host vanished without a goodbye (crash, kill) and
+	// stays away this long after having been connected, save and quit too (SkyCraft quits when Skyrim's
+	// process is gone). Owner's run 2026-10-05 left a hidden client running after the game was killed.
+	private static final boolean STARTED_HIDDEN = Boolean.getBoolean("mcskylines.startHidden");
+	private static final long HIDDEN_ORPHAN_QUIT_MS = 60_000;
+	private boolean everConnected;
+	private long linkDownSinceMs = -1;
 
 	LinkController(BridgeGuest guest) {
 		this.guest = guest;
@@ -97,6 +104,19 @@ final class LinkController {
 
 	void tick(Minecraft mc) {
 		playerMode.clientTick(mc);
+		if (QUIT_WITH_HOST && STARTED_HIDDEN && everConnected && state != BridgeState.CONNECTED) {
+			long now = System.currentTimeMillis();
+			if (linkDownSinceMs < 0) {
+				linkDownSinceMs = now;
+			} else if (now - linkDownSinceMs > HIDDEN_ORPHAN_QUIT_MS) {
+				linkDownSinceMs = -1;
+				LOG.info(PREFIX + "hidden and Cities: Skylines has been gone for {} s; saving and quitting", HIDDEN_ORPHAN_QUIT_MS / 1000);
+				mc.stop();
+				return;
+			}
+		} else {
+			linkDownSinceMs = -1;
+		}
 		if (QUIT_WITH_HOST && hostGoneSinceMs >= 0 && System.currentTimeMillis() - hostGoneSinceMs > QUIT_AFTER_MS) {
 			hostGoneSinceMs = -1;
 			LOG.info(PREFIX + "Cities: Skylines shut down {} s ago and has not come back; saving and quitting", QUIT_AFTER_MS / 1000);
@@ -134,6 +154,7 @@ final class LinkController {
 				LOG.info(PREFIX + "link state {}{}", s.state().wireName(), s.detail().isEmpty() ? "" : " (" + s.detail() + ")");
 				if (s.state() == BridgeState.CONNECTED) {
 					hostGoneSinceMs = -1;
+					everConnected = true;
 					peer = guest.peer();
 					sentStatus = null;
 					playerMode.onLinkUp(mc);

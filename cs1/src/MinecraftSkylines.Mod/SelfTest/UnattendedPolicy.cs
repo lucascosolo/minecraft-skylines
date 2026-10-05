@@ -6,16 +6,20 @@ namespace MinecraftSkylines.Mod.SelfTest
     /// <summary>
     /// When to quit the game in an unattended run: 3 s after the self-test report (or after an autoload save was
     /// not found), or, 900 s after the autoloaded level finished loading without a report, abort the self-test
-    /// (which writes a partial report) and quit 3 s later. Does nothing when <c>selftest_quit</c> is off.
+    /// (which writes a partial report) and quit 3 s later; or quit if an autoload was issued but no level finished
+    /// loading within 300 s (owner's run 2026-10-05: a failed load left the game waiting forever).
+    /// Does nothing when <c>selftest_quit</c> is off.
     /// </summary>
     internal sealed class UnattendedPolicy
     {
         public const double QuitDelaySeconds = 3;
         public const double SafetySeconds = 900;
+        public const double LoadTimeoutSeconds = 300;
 
         private readonly bool _quitEnabled;
         private double? _quitDue;
         private double? _loadedAt;
+        private double? _issuedAt;
         private bool _quitIssued;
 
         public UnattendedPolicy(bool quitEnabled)
@@ -30,6 +34,11 @@ namespace MinecraftSkylines.Mod.SelfTest
 
         public void AutoloadNotFound(double now) { Schedule(now, "autoload save not found"); }
 
+        public void AutoloadIssued(double now)
+        {
+            if (_issuedAt == null) _issuedAt = now;
+        }
+
         public void AutoloadLevelLoaded(double now)
         {
             if (_loadedAt == null) _loadedAt = now;
@@ -40,6 +49,11 @@ namespace MinecraftSkylines.Mod.SelfTest
             if (!_quitEnabled || _quitIssued) return UnattendedAction.None;
             if (_quitDue == null)
             {
+                if (_loadedAt == null && _issuedAt != null && now - _issuedAt.Value >= LoadTimeoutSeconds)
+                {
+                    Schedule(now, "the autoloaded level did not finish loading within " + LoadTimeoutSeconds + " s");
+                    return UnattendedAction.None;
+                }
                 if (_loadedAt == null || now - _loadedAt.Value < SafetySeconds) return UnattendedAction.None;
                 Schedule(now, "safety timeout: no self-test report " + SafetySeconds + " s after the level load");
                 return UnattendedAction.AbortSelfTest;

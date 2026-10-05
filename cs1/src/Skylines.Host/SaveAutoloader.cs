@@ -218,7 +218,10 @@ namespace Skylines.Host
                     ngs.m_MapThemeMetaData.SetSelfRef(theme);
                 }
             }
-            Singleton<LoadingManager>.instance.LoadLevel(asset, "Game", "InGame", ngs);
+            // The panels pass GetListingData(), which is the metadata's assetRef (the map/save data), not the
+            // metadata asset itself (LoadSavePanelBase.cs:462-464). Passing the metadata asset made the game
+            // read it as simulation data: "File format version not supported" (owner's run, 2026-10-05).
+            Singleton<LoadingManager>.instance.LoadLevel(meta.assetRef ?? asset, "Game", "InGame", ngs);
         }
 
         /// <summary>
@@ -256,7 +259,10 @@ namespace Skylines.Host
                     ngs.m_MapThemeMetaData.SetSelfRef(theme);
                 }
             }
-            Singleton<LoadingManager>.instance.LoadLevel(asset, "Game", "InGame", ngs);
+            // The panels pass GetListingData(), which is the metadata's assetRef (the map/save data), not the
+            // metadata asset itself (LoadSavePanelBase.cs:462-464). Passing the metadata asset made the game
+            // read it as simulation data: "File format version not supported" (owner's run, 2026-10-05).
+            Singleton<LoadingManager>.instance.LoadLevel(meta.assetRef ?? asset, "Game", "InGame", ngs);
         }
 
         // LoadPanel.m_forceEnvironment is a serialized prefab field; read it from the live panel as

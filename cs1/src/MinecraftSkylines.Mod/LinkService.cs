@@ -286,7 +286,7 @@ namespace MinecraftSkylines.Mod
             try
             {
                 SaveAutoloader.Outcome o = s_autoload.Update();
-                if (o == SaveAutoloader.Outcome.Loaded) s_autoloadIssued = true;
+                if (o == SaveAutoloader.Outcome.Loaded) { s_autoloadIssued = true; s_unattended.AutoloadIssued(Now()); }
                 else if (o == SaveAutoloader.Outcome.NotFound || o == SaveAutoloader.Outcome.Failed) s_unattended.AutoloadNotFound(Now());
                 switch (s_unattended.Tick(Now()))
                 {

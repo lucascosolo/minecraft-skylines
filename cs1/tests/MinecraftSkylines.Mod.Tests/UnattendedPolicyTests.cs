@@ -105,5 +105,26 @@ namespace MinecraftSkylines.Mod.Tests
             Assert.Equal(UnattendedAction.Quit, p.Tick(913));
             Assert.Equal(UnattendedAction.None, p.Tick(1000));
         }
-    }
+    
+        [Fact]
+        public void Quits_when_an_issued_autoload_never_finishes_loading()
+        {
+            var p = new UnattendedPolicy(true);
+            p.AutoloadIssued(10);
+            Assert.Equal(UnattendedAction.None, p.Tick(10 + UnattendedPolicy.LoadTimeoutSeconds - 1));
+            Assert.Equal(UnattendedAction.None, p.Tick(10 + UnattendedPolicy.LoadTimeoutSeconds));
+            Assert.Contains("did not finish loading", p.QuitReason);
+            Assert.Equal(UnattendedAction.Quit, p.Tick(10 + UnattendedPolicy.LoadTimeoutSeconds + UnattendedPolicy.QuitDelaySeconds));
+        }
+
+        [Fact]
+        public void A_level_that_loads_in_time_cancels_the_load_timeout()
+        {
+            var p = new UnattendedPolicy(true);
+            p.AutoloadIssued(10);
+            p.AutoloadLevelLoaded(100);
+            Assert.Equal(UnattendedAction.None, p.Tick(10 + UnattendedPolicy.LoadTimeoutSeconds + 50));
+            Assert.Equal("", p.QuitReason);
+        }
+}
 }
