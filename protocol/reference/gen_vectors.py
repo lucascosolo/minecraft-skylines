@@ -120,6 +120,20 @@ def frames() -> list[dict]:
     add("debug_command", sb.DEBUG_COMMAND, {"command": "fill 10 64 -20 12 66 -18 minecraft:stone"},
         sb.DebugCommand("fill 10 64 -20 12 66 -18 minecraft:stone").encode())
 
+    # ---- 1.3 (milestone 3, GUI overlay)
+    add("viewport", sb.VIEWPORT, {"width": 1920, "height": 1080, "uiScale": 0.0},
+        sb.Viewport(1920, 1080, 0.0).encode())
+    add("overlay_offer", sb.OVERLAY_OFFER, {"path": "/dev/shm/mcskylines-overlay-65537", "maxWidth": 3840,
+        "maxHeight": 2160, "slotCount": 3, "generation": "2"},
+        sb.OverlayOffer("/dev/shm/mcskylines-overlay-65537", 3840, 2160, 3, 2).encode())
+    add("overlay_stop", sb.OVERLAY_STOP, {}, b"")
+    cin = sb.Input(10.0, 0.0, [sb.InputEvent(sb.IN_CURSOR, 0, sb.cursor_code(1919, 1079)),
+                               sb.InputEvent(sb.IN_CURSOR, 0, sb.cursor_code(40000, 5))])
+    add("input_cursor", sb.INPUT, {"yaw": 10.0, "pitch": 0.0, "events": [
+        {"kind": 6, "action": 0, "code": sb.cursor_code(1919, 1079), "cursorX": 1919, "cursorY": 1079},
+        {"kind": 6, "action": 0, "code": sb.cursor_code(40000, 5), "cursorX": 40000, "cursorY": 5}]},
+        cin.encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")

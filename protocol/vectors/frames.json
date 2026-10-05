@@ -354,6 +354,59 @@
       "hex": "2a000000f0010000280066696c6c203130203634202d3230203132203636202d3138206d696e6563726166743a73746f6e65"
     },
     {
+      "name": "viewport",
+      "type": 320,
+      "fields": {
+        "width": 1920,
+        "height": 1080,
+        "uiScale": 0.0
+      },
+      "hex": "0c00000040010000800700003804000000000000"
+    },
+    {
+      "name": "overlay_offer",
+      "type": 321,
+      "fields": {
+        "path": "/dev/shm/mcskylines-overlay-65537",
+        "maxWidth": 3840,
+        "maxHeight": 2160,
+        "slotCount": 3,
+        "generation": "2"
+      },
+      "hex": "370000004101000021002f6465762f73686d2f6d63736b796c696e65732d6f7665726c61792d3635353337000f000070080000030000000200000000000000"
+    },
+    {
+      "name": "overlay_stop",
+      "type": 322,
+      "fields": {},
+      "hex": "0000000042010000"
+    },
+    {
+      "name": "input_cursor",
+      "type": 274,
+      "fields": {
+        "yaw": 10.0,
+        "pitch": 0.0,
+        "events": [
+          {
+            "kind": 6,
+            "action": 0,
+            "code": 125764663,
+            "cursorX": 1919,
+            "cursorY": 1079
+          },
+          {
+            "kind": 6,
+            "action": 0,
+            "code": -1673527291,
+            "cursorX": 40000,
+            "cursorY": 5
+          }
+        ]
+      },
+      "hex": "160000001201000000002041000000000200060037047f0706000500409c"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {

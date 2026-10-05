@@ -436,6 +436,50 @@ class DebugCommand:
         return DebugCommand(Reader(p).string())
 
 
+# ---- minecraft-skylines app protocol 1.3: GUI overlay ----------------------------------------
+VIEWPORT, OVERLAY_OFFER, OVERLAY_STOP = 0x0140, 0x0141, 0x0142
+IN_CURSOR = 6
+OVERLAY_MAGIC, OVERLAY_DIRTY = 0x564F534D, 1 << 2
+
+
+@dataclass
+class Viewport:
+    width: int
+    height: int
+    ui_scale: float
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.width).u32(self.height).f32(self.ui_scale).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "Viewport":
+        r = Reader(p)
+        return Viewport(r.u32(), r.u32(), r.f32())
+
+
+@dataclass
+class OverlayOffer:
+    path: str
+    max_width: int
+    max_height: int
+    slot_count: int
+    generation: int
+
+    def encode(self) -> bytes:
+        return (Writer().string(self.path).u32(self.max_width).u32(self.max_height)
+                .u32(self.slot_count).u64(self.generation).bytes())
+
+    @staticmethod
+    def decode(p: bytes) -> "OverlayOffer":
+        r = Reader(p)
+        return OverlayOffer(r.string(), r.u32(), r.u32(), r.u32(), r.u64())
+
+
+def cursor_code(x: int, y: int) -> int:
+    v = ((x & 0xFFFF) << 16) | (y & 0xFFFF)
+    return v - (1 << 32) if v >= (1 << 31) else v  # carried in an i32
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

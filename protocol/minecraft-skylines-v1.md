@@ -1,10 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.2
+# `minecraft-skylines` application protocol, version 1.3
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 2`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 3`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
-state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
+through shared memory, viewport, cursor input. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -194,3 +195,68 @@ No fields. Drop every section (world change, dimension change, reconnect).
 For automated in-game tests only. The guest runs it as the server console in its dev world
 `skylines-dev` and ignores it everywhere else, and only when started with
 `-Dmcskylines.debugCommands=true`. The result is logged, not returned.
+
+## Milestone 3 messages, part 2 (minor 3): the GUI overlay
+
+Minecraft renders its HUD (hotbar, hearts, crosshair, held item) and any open screen (inventory,
+crafting, chat, pause menu) at the host's viewport size on a transparent background and publishes
+the pixels through a shared-memory file; the host draws them over its own view. Pixels never travel
+over the socket (a 1920×1080 frame is about 8 MB).
+
+### `0x0140 VIEWPORT` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `width`, `height` | the host's screen size in pixels |
+| f32 | `uiScale` | 0 = let the guest choose its GUI scale; otherwise a requested Minecraft GUI scale |
+
+Sent after the handshake, on every resize, and on entering player mode.
+
+### `0x0141 OVERLAY_OFFER` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| string | `path` | absolute path of the shared-memory file (Linux: under `/dev/shm`) |
+| u32 | `maxWidth`, `maxHeight` | the largest frame a slot holds |
+| u32 | `slotCount` | 3 |
+| u64 | `generation` | changes whenever the guest recreates the file |
+
+Sent once the guest has created and initialised the file (after a VIEWPORT), and again after it
+recreates it (bigger viewport, restart). The host maps the file read-write (it writes only the
+`state` word) and stops reading it on disconnect or a new offer.
+
+### `0x0142 OVERLAY_STOP` (guest → host)
+
+No fields. The guest stopped publishing (left the world, overlay disabled); the host hides the
+overlay and unmaps the file.
+
+### Shared-memory layout (all little-endian)
+
+| Offset | Type | Field |
+|---|---|---|
+| 0x00 | u32 | `magic` = `0x564F534D` (bytes "MSOV") |
+| 0x04 | u32 | `layoutVersion` = 1 |
+| 0x08 | u32 | `maxWidth` |
+| 0x0C | u32 | `maxHeight` |
+| 0x10 | u32 | `slotCount` (3) |
+| 0x14 | u32 | `state`: bits 0-1 index of the *middle* slot, bit 2 `DIRTY` (middle holds an unread frame) |
+| 0x18 | u64 | `framesPublished` |
+| 0x20 | u64 | `generation` (as in OVERLAY_OFFER) |
+| 0x40 + 0x40·i | slot header i | u32 `width`, u32 `height`, u32 `flags` (bit 0: rows bottom-up), u32 pad, u64 `frameId`, pad to 0x40 |
+| 0x100 + i·maxWidth·maxHeight·4 | slot pixels i | RGBA8, premultiplied alpha, `width`×`height` used, row stride `width`·4 |
+
+Triple buffer (SkyCraft's scheme): the guest owns a private *back* slot, writes a frame into it,
+then atomically exchanges `state` with `back | DIRTY` and keeps the returned index as its new back
+slot. The host owns a private *front* slot; once per host frame, if `state` has `DIRTY` set, it
+atomically exchanges `state` with `front` (DIRTY clear) and keeps the returned index as its new
+front slot. Initial state: guest back = 0, middle = 1 (not dirty), host front = 2. Both sides
+use 32-bit atomic exchange on the 4-byte-aligned `state` word.
+
+### INPUT additions (minor 3)
+
+| `kind` | Meaning |
+|---|---|
+| 6 | cursor: `code` = `(x << 16) | y` in host pixels, origin top-left; sent when a guest screen is open (`GUEST_STATUS.SCREEN_OPEN`) and the cursor moved |
+
+While `SCREEN_OPEN` is set the host shows its own mouse cursor, stops integrating mouse movement
+into yaw/pitch, and sends mouse buttons, wheel and keys as before plus cursor positions.
