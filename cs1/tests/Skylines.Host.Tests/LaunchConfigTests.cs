@@ -47,6 +47,33 @@ namespace Skylines.Host.Tests
             Assert.NotEmpty(c.Problems);
         }
 
+        [Fact]
+        public void PrewarmDefaultsToGameStart()
+        {
+            Assert.Equal(PrewarmMode.GameStart, LaunchConfig.Parse("command = x\n").Prewarm);
+        }
+
+        [Theory]
+        [InlineData("game_start", PrewarmMode.GameStart)]
+        [InlineData("city_load", PrewarmMode.CityLoad)]
+        [InlineData("off", PrewarmMode.Off)]
+        [InlineData("CITY_LOAD", PrewarmMode.CityLoad)]
+        [InlineData("  Off  ", PrewarmMode.Off)]
+        public void ParsesPrewarm(string value, PrewarmMode expected)
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nprewarm = " + value + "\n");
+            Assert.Empty(c.Problems);
+            Assert.Equal(expected, c.Prewarm);
+        }
+
+        [Fact]
+        public void BadPrewarmIsAProblemWithLineNumberAndStaysGameStart()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nprewarm = sometimes\n");
+            Assert.Contains(c.Problems, p => p.Contains("prewarm") && p.Contains("2"));
+            Assert.Equal(PrewarmMode.GameStart, c.Prewarm);
+        }
+
         [Theory]
         [InlineData("a b  c", new[] { "a", "b", "c" })]
         [InlineData("a \"b c\" d", new[] { "a", "b c", "d" })]

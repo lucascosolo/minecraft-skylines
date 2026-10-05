@@ -5,11 +5,24 @@ using System.Text;
 
 namespace Skylines.Host
 {
+    /// <summary>When the companion is started ahead of Ctrl+Shift+M (launch.cfg <c>prewarm</c>).</summary>
+    public enum PrewarmMode
+    {
+        /// <summary>When the mod is enabled at the main menu (<c>game_start</c>, the default).</summary>
+        GameStart,
+
+        /// <summary>When a city finishes loading (<c>city_load</c>).</summary>
+        CityLoad,
+
+        /// <summary>Only on Ctrl+Shift+M (<c>off</c>).</summary>
+        Off,
+    }
+
     /// <summary>
     /// Parsed <c>launch.cfg</c>: a plain <c>key = value</c> file (<c>#</c> starts a comment line).
     /// Keys: <c>command</c>, <c>args</c> (space separated, double quotes group, backslash escapes a quote
     /// or backslash inside quotes), <c>working_dir</c>, <c>env.NAME</c> (repeatable) and
-    /// <c>connect_timeout_seconds</c> (default 180). Pure logic: no Unity, no process start.
+    /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>). Pure logic: no Unity, no process start.
     /// </summary>
     public sealed class LaunchConfig
     {
@@ -30,6 +43,9 @@ namespace Skylines.Host
 
         /// <summary>Seconds to wait for the companion to connect.</summary>
         public int ConnectTimeoutSeconds = DefaultConnectTimeoutSeconds;
+
+        /// <summary>When to start the companion before the shortcut is pressed.</summary>
+        public PrewarmMode Prewarm = PrewarmMode.GameStart;
 
         /// <summary>Problems found while parsing (unknown keys, bad numbers, missing command).</summary>
         public readonly List<string> Problems = new List<string>();
@@ -124,6 +140,15 @@ namespace Skylines.Host
                     int s;
                     if (int.TryParse(value, out s) && s > 0) ConnectTimeoutSeconds = s;
                     else Problems.Add("line " + lineNo + ": connect_timeout_seconds must be a positive integer");
+                    break;
+                case "prewarm":
+                    switch (value.ToLowerInvariant())
+                    {
+                        case "game_start": Prewarm = PrewarmMode.GameStart; break;
+                        case "city_load": Prewarm = PrewarmMode.CityLoad; break;
+                        case "off": Prewarm = PrewarmMode.Off; break;
+                        default: Problems.Add("line " + lineNo + ": prewarm must be game_start, city_load or off"); break;
+                    }
                     break;
                 default:
                     if (key.StartsWith("env.", StringComparison.Ordinal) && key.Length > 4) Env[key.Substring(4)] = value;

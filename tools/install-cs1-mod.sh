@@ -41,6 +41,8 @@ args = --no-daemon --console=plain :fabric:runClient -PmcskylinesHidden
 working_dir = ${ROOT:?}/minecraft
 env.GRADLE_USER_HOME = ${HOME:?}/.cache/gradle-home
 connect_timeout_seconds = 180
+# Start Minecraft hidden ahead of time: game_start (main menu), city_load, or off (only on Ctrl+Shift+M).
+prewarm = game_start
 CFGEOF
   echo "wrote ${CFG}"
 fi

@@ -150,6 +150,9 @@ final class LinkController {
 						if (!next.equals(hostStatus)) {
 							LOG.info(PREFIX + "host status {}", next);
 						}
+						if (peer != null && shouldOpenWorld(hostStatus, next, peer.appMinor())) {
+							playerMode.prewarmWorld(mc);
+						}
 						hostStatus = next;
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed HOST_STATUS: {}", e.getMessage());
@@ -157,6 +160,11 @@ final class LinkController {
 				}
 			}
 		}
+	}
+
+	/** A city just became open in CS1 (and the host speaks app minor 1+): open the dev world now so ENTER_PLAYER_MODE only teleports. */
+	static boolean shouldOpenWorld(HostStatus previous, HostStatus next, int appMinor) {
+		return appMinor >= 1 && next.has(HostStatus.IN_CITY) && (previous == null || !previous.has(HostStatus.IN_CITY));
 	}
 
 	List<String> statusLines() {

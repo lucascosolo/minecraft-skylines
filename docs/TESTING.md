@@ -123,15 +123,21 @@ Minecraft now starts by itself: no Gradle terminal needed.
 1. Once: `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew --stop`
    (stops the daemon left from round 1). Close any Minecraft window still open.
 2. `bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh` (also writes `launch.cfg`, which
-   tells the mod how to start Minecraft; it prints where).
-3. Start Cities: Skylines, load the test city.
+   tells the mod how to start Minecraft; it prints where). An existing `launch.cfg` is kept; without a
+   `prewarm` line it behaves as `prewarm = game_start`.
+3. Start Cities: Skylines. About 6 s after the main menu appears, Minecraft starts hidden in the
+   background (no window). Check the mod log for `companion started (prewarm GameStart, posix_spawn, pid N)`;
+   on failure it now logs `start failed (…)` with the exception type, native error code and stack.
+   Load the test city; the status overlay shows "Minecraft: starting in background (N s)" until it
+   connects, and Minecraft opens its `skylines-dev` world by itself once the city is loaded.
 4. **T1 test 2** (paused, city camera): point at grass, **Ctrl+Shift+C**. Three cubes: a red one
    beside the hole (control), and under the hole a red one (normal prop layer) and a yellow one
    (the underground camera's layer). Screenshot from a low angle into the hole, and one with the
    control cube between the camera and the hole. **Ctrl+Shift+I**, then **Ctrl+Shift+U**.
-5. Point at open ground, **Ctrl+Shift+M**. Expected: "Starting Minecraft…" with a seconds counter
-   (first start can take a minute or two while Gradle builds), no Minecraft window, then Minecraft
-   mode starts by itself.
+5. Wait until the overlay no longer says "starting in background", point at open ground,
+   **Ctrl+Shift+M**. Expected: Minecraft mode within a second or two, no Minecraft window. (Pressed
+   earlier, it shows "Starting Minecraft…" and enters by itself once connected.) `ps` should show one
+   Gradle-launched Minecraft only.
 6. Walk from grass onto a ground road: you should step up onto it instead of walking through it. Esc.
 7. Quit Cities: Skylines to desktop. Minecraft should end by itself within about 10 s.
 8. Copy evidence into `~/.cache/minecraft-skylines/evidence/m2r2/`:

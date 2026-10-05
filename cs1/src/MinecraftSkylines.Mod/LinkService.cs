@@ -31,6 +31,7 @@ namespace MinecraftSkylines.Mod
         private static StatusOverlay s_overlay;
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
+        private static MinecraftLauncher s_launcher;
         private static BridgeHost s_host;
         private static string s_startError;
 
@@ -60,8 +61,9 @@ namespace MinecraftSkylines.Mod
             s_probe = new TerrainClipProbe(s_log);
             s_pump.Updated += s_probe.Update;
             s_pump.Gui += s_overlay.Draw;
-            s_player = new PlayerMode(s_log, () => s_statusDirty = true,
-                new MinecraftLauncher(s_log, Path.Combine(Path.Combine(DataLocation.localApplicationData, "ModLogs"), "MinecraftSkylines-companion.log")));
+            s_launcher = new MinecraftLauncher(s_log, Path.Combine(Path.Combine(DataLocation.localApplicationData, "ModLogs"), "MinecraftSkylines-companion.log"),
+                UnityEngine.Application.platform == UnityEngine.RuntimePlatform.LinuxPlayer);
+            s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
             s_pump.Gui += s_player.OnGui;
             s_pump.Quitting += () => Stop("game exiting");
@@ -105,6 +107,7 @@ namespace MinecraftSkylines.Mod
             s_pump = null;
             s_overlay = null;
             s_player = null;
+            s_launcher = null;
             s_guest = null;
             s_log.Close();
         }
@@ -189,6 +192,7 @@ namespace MinecraftSkylines.Mod
 
             CityState city = CityState.Capture();
             Guid saveId = s_saveId.Id;
+            s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
             s_player.Update(s_host, city.InCity && !city.Loading);
             if (!city.Equals(s_lastCity) || saveId != s_lastSentSaveId)
             {

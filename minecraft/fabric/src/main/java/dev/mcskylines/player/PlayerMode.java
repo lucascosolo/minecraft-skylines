@@ -65,6 +65,15 @@ public final class PlayerMode {
 		}
 	}
 
+	/** CS1 has a city open: open or create the dev world in the background if none is loaded (window stays as it is). */
+	public void prewarmWorld(Minecraft mc) {
+		if (mc.level == null && !wantWorld) {
+			LOG.info("[MinecraftSkylines] city open in Cities: Skylines; opening world {} ahead of player mode", DevWorld.NAME);
+			wantWorld = true;
+			DevWorld.request();
+		}
+	}
+
 	public void onExit(Minecraft mc, String reason) {
 		LOG.info("[MinecraftSkylines] EXIT_PLAYER_MODE ({})", reason);
 		leave(mc);
