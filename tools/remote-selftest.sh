@@ -32,7 +32,7 @@ MC_LOG="${ROOT:?}/minecraft/fabric/run/logs/latest.log"
 GAME="${MCSK_GAME_PROCESS:-Cities.x64}"
 POLL="${MCSK_POLL_SECONDS:-10}"
 TIMEOUT="${MCSK_TIMEOUT_SECONDS:-1200}"
-START_WINDOW="${MCSK_START_SECONDS:-180}"
+START_WINDOW="${MCSK_START_SECONDS:-90}"
 EXIT_WAIT="${MCSK_EXIT_WAIT_SECONDS:-120}"
 
 DEFAULT_MAP="Green Plains"
@@ -142,12 +142,59 @@ restore() {
 }
 trap restore EXIT
 
+# Over SSH this shell has none of the desktop session's display/session variables, and the steam
+# command may then fail to hand the launch to the running client (owner's first SSH run, 2026-10-05:
+# the game never started). Borrow them from the running Steam process (same user, /proc is readable).
+borrow_session_env() {
+  [ -n "${MCSK_STEAM_CMD:-}" ] && return 0
+  local pid
+  pid="$(pgrep -x steam | head -1 || true)"
+  [ -n "${pid}" ] && [ -r "/proc/${pid}/environ" ] || return 0
+  local var val
+  for var in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS XAUTHORITY XDG_SESSION_TYPE XDG_CURRENT_DESKTOP; do
+    if [ -z "${!var:-}" ]; then
+      val="$(tr '\0' '\n' < "/proc/${pid}/environ" | sed -n "s/^${var}=//p" | head -1)"
+      if [ -n "${val}" ]; then
+        export "${var}=${val}"
+        echo "   using ${var}=${val} from the running Steam (pid ${pid})"
+      fi
+    fi
+  done
+}
+
+# Everything needed to diagnose a launch that never happened, written where the agent can read it.
+write_diagnostics() {
+  local dir log
+  dir="${HOME:?}/.cache/minecraft-skylines/evidence/remote-diag-$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir -p "${dir:?}"
+  {
+    echo "date_utc: $(date -u +%FT%TZ)"
+    echo "steam_cmd: ${STEAM[*]}"
+    for var in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS XAUTHORITY XDG_SESSION_TYPE; do
+      echo "${var}=${!var:-}"
+    done
+    echo "--- processes matching cities|steam"
+    pgrep -a -f -i 'cities|steam' | cut -c1-300 | head -40 || true
+  } > "${dir:?}/diag.txt"
+  for log in "${HOME}/.steam/debian-installation/logs/console_log.txt" "${HOME}/.steam/steam/logs/console_log.txt" \
+             "${HOME}/.local/share/Steam/logs/console_log.txt"; do
+    if [ -f "${log}" ]; then
+      { echo "--- tail of ${log}"; tail -60 "${log}"; } >> "${dir:?}/diag.txt"
+      break
+    fi
+  done
+  [ -f "${MODLOG:-}" ] && cp "${MODLOG}" "${dir:?}/" 2>/dev/null || true
+  echo "diagnostics written to ${dir}" >&2
+}
+
 MODLOG="${MODLOGS:?}/MinecraftSkylines.log"
 LOG_START=0
 [ -f "${MODLOG}" ] && LOG_START="$(stat -c %s "${MODLOG}")"
 START="$(date +%s)"
+borrow_session_env
 echo "== $(date -u +%FT%TZ) starting the game: ${STEAM[*]} -applaunch 255710 (Steam must already be running in the desktop session)"
-"${STEAM[@]}" -applaunch 255710 >/dev/null 2>&1 || { echo "steam command failed" >&2; exit 2; }
+"${STEAM[@]}" -applaunch 255710 >/dev/null 2>&1 || { echo "steam command failed" >&2; write_diagnostics; exit 2; }
+RETRIED=0
 
 new_report() {
   [ -d "${MODLOGS:?}/selftest" ] || return 0
@@ -167,8 +214,14 @@ while :; do
   LINK="$(new_log | grep -i 'link state connected\|connected to ' >/dev/null && echo connected || echo "not connected")"
   STATUS="$({ new_log | grep -i 'self-test:\|autoload:\|unattended:' || true; } | tail -1 | sed -E 's/^[0-9:.]+ [A-Z]+ +//')"
   echo "[${ELAPSED}s] game ${UP}; link ${LINK}; ${STATUS:-no self-test line yet}"
+  if [ "${SEEN}" = 0 ] && [ "${RETRIED}" = 0 ] && [ "${ELAPSED}" -ge $(( START_WINDOW / 3 )) ]; then
+    RETRIED=1
+    echo "   no game yet; asking Steam again through steam://rungameid/255710"
+    "${STEAM[@]}" "steam://rungameid/255710" >/dev/null 2>&1 || true
+  fi
   if [ "${SEEN}" = 0 ] && [ "${ELAPSED}" -ge "${START_WINDOW}" ]; then
     echo "the game did not start within ${START_WINDOW} s (is Steam running in the desktop session?)" >&2
+    write_diagnostics
     exit 2
   fi
   if [ "${SEEN}" = 1 ] && [ "${UP}" = no ]; then
