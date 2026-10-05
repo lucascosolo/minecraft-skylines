@@ -19,6 +19,14 @@ namespace Skylines.Host.Geometry
         /// <summary>Deck thickness in metres.</summary>
         public const float DeckThickness = 1.0f;
 
+        /// <summary>
+        /// Ground roads are emitted as slabs this deep, not as zero-thickness ribbons: a guest's step-up
+        /// logic (Minecraft's included) only climbs onto a surface after bumping into its side, so a
+        /// sideless ribbon a few centimetres above the terrain lets the player walk underneath it
+        /// (owner's M2 test, 2026-10-05). The bottom face sits below ground, where nobody reaches it.
+        /// </summary>
+        public const float GroundRoadDepth = 1.0f;
+
         private const float StripStep = 4f;
         private const int DiscSegments = 16;
         private const float GridCell = 64f;       // NetManager.InitializeSegment: (int)(x / 64f + 135f)
@@ -96,7 +104,7 @@ namespace Skylines.Host.Geometry
                 Cx = m1.x, Cy = m1.y, Cz = m1.z, Dx = p1.x, Dy = p1.y, Dz = p1.z,
             };
             bool deck = kind == Kind.Bridge;
-            Strip.Road(curve, info.m_halfWidth, StripStep, deck ? DeckThickness : 0f, deck ? BridgeDeckFlag : RoadSurfaceFlag, into);
+            Strip.Road(curve, info.m_halfWidth, StripStep, deck ? DeckThickness : GroundRoadDepth, deck ? BridgeDeckFlag : RoadSurfaceFlag, into);
             _nodes.Add(seg.m_startNode);
             _nodes.Add(seg.m_endNode);
             LastSegmentCount++;
@@ -120,7 +128,7 @@ namespace Skylines.Host.Geometry
             if (radius <= 0f) return;
             Vector3 p = node.m_position;
             if (p.x + radius < minX || p.x - radius > maxX || p.z + radius < minZ || p.z - radius > maxZ) return;
-            Disc.Fan(p.x, p.y, p.z, radius, DiscSegments, allBridge ? DeckThickness : 0f, allBridge ? BridgeDeckFlag : RoadSurfaceFlag, into);
+            Disc.Fan(p.x, p.y, p.z, radius, DiscSegments, allBridge ? DeckThickness : GroundRoadDepth, allBridge ? BridgeDeckFlag : RoadSurfaceFlag, into);
         }
     }
 }

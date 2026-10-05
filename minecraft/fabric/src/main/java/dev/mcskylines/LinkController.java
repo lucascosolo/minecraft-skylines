@@ -37,6 +37,13 @@ final class LinkController {
 	private String lastDisconnect = "none";
 	private final PlayerMode playerMode = new PlayerMode();
 
+	// Minecraft only exists here to play inside Cities: Skylines, so when CS1 shuts down (GOODBYE
+	// SHUTTING_DOWN) and does not come back within QUIT_AFTER_MS, Minecraft saves and quits the normal
+	// way (as SkyCraft does with Skyrim). -Dmcskylines.quitWithHost=false keeps it running.
+	private static final boolean QUIT_WITH_HOST = Boolean.parseBoolean(System.getProperty("mcskylines.quitWithHost", "true"));
+	private static final long QUIT_AFTER_MS = 10_000;
+	private long hostGoneSinceMs = -1;
+
 	LinkController(BridgeGuest guest) {
 		this.guest = guest;
 	}
@@ -60,6 +67,12 @@ final class LinkController {
 
 	void tick(Minecraft mc) {
 		playerMode.clientTick(mc);
+		if (QUIT_WITH_HOST && hostGoneSinceMs >= 0 && System.currentTimeMillis() - hostGoneSinceMs > QUIT_AFTER_MS) {
+			hostGoneSinceMs = -1;
+			LOG.info(PREFIX + "Cities: Skylines shut down {} s ago and has not come back; saving and quitting", QUIT_AFTER_MS / 1000);
+			mc.stop();
+			return;
+		}
 		if (state == BridgeState.CONNECTED) {
 			GuestStatus now = currentStatus(mc);
 			if (!now.equals(sentStatus) && guest.send(AppProtocol.GUEST_STATUS, now.encode())) {
@@ -87,6 +100,7 @@ final class LinkController {
 				}
 				LOG.info(PREFIX + "link state {}{}", s.state().wireName(), s.detail().isEmpty() ? "" : " (" + s.detail() + ")");
 				if (s.state() == BridgeState.CONNECTED) {
+					hostGoneSinceMs = -1;
 					peer = guest.peer();
 					sentStatus = null;
 					playerMode.onLinkUp(mc);
@@ -101,6 +115,9 @@ final class LinkController {
 				hostStatus = null;
 				sentStatus = null;
 				playerMode.onLinkDown(mc);
+				if (d.cause() == DisconnectCause.PEER_GOODBYE && d.code() == Goodbye.SHUTTING_DOWN) {
+					hostGoneSinceMs = System.currentTimeMillis();
+				}
 				chat(mc, d.cause() == DisconnectCause.REJECTED
 					? "Cities: Skylines rejected the link: " + d.reason()
 					: "Disconnected from Cities: Skylines (" + lastDisconnect + ")");

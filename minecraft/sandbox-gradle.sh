@@ -6,7 +6,10 @@
 #     sandbox-shim/NoUnixSelectorProvider reports them as unsupported instead.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$HOME/.cache/gradle-home}"
+# Own Gradle home: the owner's builds (e.g. `./gradlew :fabric:runClient`) leave a daemon holding the shared
+# home's cache locks, and Gradle's cross-process lock handover cannot reach it from inside the sandbox
+# ("Timeout waiting to lock journal cache", 2026-10-05).
+export GRADLE_USER_HOME="${MCSK_AGENT_GRADLE_HOME:-$HOME/.cache/gradle-home-agent}"
 out="${HOME:?}/.cache/minecraft-skylines/sandbox-shim"
 jar="$out/nounix-shim.jar"
 src="$here/sandbox-shim/NoUnixSelectorProvider.java"

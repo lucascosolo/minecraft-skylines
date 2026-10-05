@@ -116,22 +116,52 @@ namespace MinecraftSkylines.Mod.Diagnostics
             float half = 1.5f * TerrainClipMask.CellSize;
             mask.Add(cx - half, cz - half, cx + half, cz + half);
             float ground = TerrainManager.instance.SampleDetailHeightSmooth(new Vector3(cx, 0f, cz));
-            GameObject below = Marker(new Vector3(cx, ground - 3f, cz));
-            GameObject control = Marker(new Vector3(cx + half + 3f, ground + 1f, cz));
-            Report(string.Format("markers: below-hole cube at y {0:0.0} (ground {1:0.0}), control cube beside it; layer {2}, camera culling mask 0x{3:X8}, shader '{4}'",
-                ground - 3f, ground, below.layer, cam.cullingMask, control.GetComponent<Renderer>().sharedMaterial.shader.name));
-            Report(string.Format("clipped x {0:0.0}..{1:0.0} z {2:0.0}..{3:0.0} around hit ({4:0.0}, {5:0.0}, {6:0.0}), cells {7}±1,{8}±1, {9}; {10} area(s)",
-                cx - half, cx + half, cz - half, cz + half, hit.x, hit.y, hit.z, _lastCellX, _lastCellZ, PatchState(), mask.Count));
+            int props = LayerMask.NameToLayer("Props");
+            int tunnels = LayerMask.NameToLayer("MetroTunnels");
+            // Test 2: is the clipped area a view into CS1's underground camera (which renders MetroTunnels)?
+            GameObject belowProps = Marker(new Vector3(cx - 3f, ground - 3f, cz), props, Color.red);
+            GameObject belowTunnel = Marker(new Vector3(cx + 3f, ground - 3f, cz), tunnels, Color.yellow);
+            GameObject control = Marker(new Vector3(cx + half + 3f, ground + 1f, cz), props, Color.red);
+            Camera under = UndergroundCamera();
+            Report(string.Format("markers: red below hole (Props layer {0}) at x {1:0.0}, yellow below hole (MetroTunnels layer {2}) at x {3:0.0}, y {4:0.0} (ground {5:0.0}); red control beside; shader '{6}'; main camera mask 0x{7:X8} (Props {8}, MetroTunnels {9}); underground camera {10}",
+                props, cx - 3f, tunnels, cx + 3f, ground - 3f, ground, control.GetComponent<Renderer>().sharedMaterial.shader.name,
+                cam.cullingMask, InMask(cam, props), InMask(cam, tunnels),
+                under == null ? "not found" : string.Format("'{0}' mask 0x{1:X8} (Props {2}, MetroTunnels {3}), enabled {4}, depth {5}",
+                    under.name, under.cullingMask, InMask(under, props), InMask(under, tunnels), under.enabled, under.depth)));
         }
 
-        private GameObject Marker(Vector3 position)
+        private static bool InMask(Camera c, int layer)
+        {
+            return layer >= 0 && (c.cullingMask & (1 << layer)) != 0;
+        }
+
+        // RenderManager finds the second world camera by the "UndergroundView" tag (RenderManager.cs:519-529).
+        private static Camera UndergroundCamera()
+        {
+            GameObject go = GameObject.FindGameObjectWithTag("UndergroundView");
+            return go == null ? null : go.GetComponent<Camera>();
+        }
+
+        private GameObject Marker(Vector3 position, int layer, Color color)
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            if (layer >= 0)
+            {
+                go.layer = layer;
+            }
             go.name = "MinecraftSkylines.T1Marker";
             UnityEngine.Object.Destroy(go.GetComponent<Collider>());
             go.transform.position = position;
             go.transform.localScale = new Vector3(2f, 2f, 2f);
-            go.GetComponent<Renderer>().material.color = Color.red;
+            // The default material's shader is not shipped with CS1 (it rendered as
+            // Hidden/InternalErrorShader in the first test); use the game's own prop shader.
+            Shader shader = Shader.Find("Custom/Props/Prop/Default") ?? Shader.Find("Diffuse");
+            Renderer r = go.GetComponent<Renderer>();
+            if (shader != null)
+            {
+                r.material = new Material(shader);
+            }
+            r.material.color = color;
             _markers.Add(go);
             return go;
         }

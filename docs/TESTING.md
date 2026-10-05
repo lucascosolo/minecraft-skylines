@@ -36,7 +36,7 @@ gives a clean baseline `Player.log`).
    - Expected: a small box top-left: `Link: listening on 127.0.0.1:47615`. F7 toggles it.
 3. **Start the Minecraft dev client** (its own folder `minecraft/fabric/run/`, offline test name,
    does not use your launcher, account or worlds):
-   `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew :fabric:runClient`
+   `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew --no-daemon :fabric:runClient`
    First run downloads Minecraft's assets (a few hundred MB).
    - Expected within ~2 s of the title screen: CS1 box shows `Link: connected to Minecraft ...`;
      in Minecraft, create a test world and type `/skylines status`: `connected`, peer
@@ -72,7 +72,7 @@ Build under test: `main` at the commit named in `.agent/ledger-m2.md`. About 20 
 2. Start Cities: Skylines, load the test city. Before testing, build a short **elevated road or
    bridge** with a ramp up to it, ideally over a slope, so there is a deck to climb and walk under.
 3. Start the Minecraft dev client (window visible for this first test):
-   `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew :fabric:runClient`
+   `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew --no-daemon :fabric:runClient`
    Stay on the title screen: the mod opens its own void world `skylines-dev` when needed.
    Wait until the Cities: Skylines box says `Link: connected`, then click back into Cities: Skylines.
 
@@ -103,3 +103,30 @@ whether mouse look is too fast or slow; anything that pressed through to the cit
 Evidence: copy into `~/.cache/minecraft-skylines/evidence/m2/` with
 `mkdir -p ~/.cache/minecraft-skylines/evidence/m2 && cp ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/MinecraftSkylines.log ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/Workspaces/minecraft-skylines/minecraft/fabric/run/logs/latest.log ~/.cache/minecraft-skylines/evidence/m2/`
 plus screenshots.
+
+### Milestone 2, round 1 result (owner, 2026-10-05; evidence `~/.cache/minecraft-skylines/evidence/m2/`)
+
+Verified in game: entering and leaving Minecraft mode three times (teleport acknowledged in
+0.1-3.7 s, up to 319 collision regions / 51,324 triangles streamed, player-mode frame cost
+0.1-0.2 ms average), walking up ramps and under bridges, Esc back to the city camera. Found:
+(1) ground roads had no sides, so the player walked under their surface (fixed: 1 m slabs);
+(2) Ctrl+C on Gradle left the Minecraft window running (now: Minecraft quits 10 s after CS1 says
+goodbye on exit; start the client with `--no-daemon` so Gradle ends with it); (3) walking feels a
+bit slow (Minecraft's own 4.3 m/s; Minecraft logged no lag); (4) T1: the clipped area's blue drew
+over a cube in front of it; the cube itself used Unity's error shader, so the test is redone with
+the game's prop shader and a marker on the underground camera's layer.
+
+### Milestone 2, round 2 (owner)
+
+1. `cd ~/Workspaces/minecraft-skylines/minecraft && GRADLE_USER_HOME=~/.cache/gradle-home ./gradlew --stop`
+   (stops the daemon left from round 1), then `bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh`.
+2. Start Cities: Skylines and the client (`--no-daemon` command above); load the test city.
+3. **T1 test 2** (paused, city camera): point at grass, **Ctrl+Shift+C**. Three cubes: a red one
+   beside the hole (control), and under the hole a red one (normal prop layer) and a yellow one
+   (the underground camera's layer). Screenshot from a low angle into the hole, and one with the
+   control cube between the camera and the hole. **Ctrl+Shift+I**, then **Ctrl+Shift+U**.
+4. **Ctrl+Shift+M**, walk from grass onto a ground road: you should now step up onto it instead of
+   walking through it. Esc.
+5. Quit Cities: Skylines to desktop and do nothing else: Minecraft should close by itself within
+   about 10 s, and the Gradle terminal should return to the prompt.
+6. Copy logs into `~/.cache/minecraft-skylines/evidence/m2r2/` (same command as above with `m2r2`).

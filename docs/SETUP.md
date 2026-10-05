@@ -10,7 +10,7 @@
 | SkyCraft reference clone | `~/.cache/minecraft-skylines/ref/SkyCraft` | no |
 | .NET SDK 10.0.401 | `~/.cache/dotnet/sdk10/` | no |
 | NuGet packages, dotnet home | `~/.cache/minecraft-skylines/{nuget,dotnet-home}` | no |
-| Gradle caches | `~/.cache/gradle-home` (shared, machine-wide) | no |
+| Gradle caches | `~/.cache/gradle-home` (owner's builds); agent builds use `~/.cache/gradle-home-agent` because an owner-side daemon holds the shared home's locks and the sandbox cannot ask it to release them | no |
 | Build outputs | `cs1/**/bin`, `cs1/**/obj`, `minecraft/**/build` | no |
 | Test reports | `reports/` | no |
 

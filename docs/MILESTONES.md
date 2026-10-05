@@ -55,6 +55,14 @@ uniform colour is a true hole (geometry behind it visible) or an opaque fill. Th
 a red cube 3 m below each clip plus a control cube beside it to settle this. Clip-based tunnels also
 leave CS1's water simulation untouched (heights unchanged).
 
+**In-game result 2 (owner, 2026-10-05):** a cube 3 m under the clip was not visible, and the blue
+drew over a cube standing in front of the hole (that cube used Unity's error shader, so the test is
+being repeated with the game's prop shader). Desk follow-up: CS1 renders a second, "UndergroundView"
+camera (MetroTunnels layer, used for tunnels and metro) and composites it as a full-screen
+post-process (`OverlayEffect`), which ignores scene depth; the blue is probably that underground view
+seen through the clipped terrain. If so, tunnel interiors drawn on the MetroTunnels layer should show
+through a clipped portal, the way the game's own tunnels do. Test 2 places one marker on each layer.
+
 Open, to be settled by an in-game experiment early in M2 (a debug key that clips one 4 m cell):
 1. Does the terrain shader actually discard clipped cells (and what is drawn in their place)?
 2. Can our replacement surface match the terrain's look (same material on our own mesh, or MC-style
