@@ -2,6 +2,17 @@ plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 }
 
+loom {
+	runs {
+		client {
+			// `./gradlew :fabric:runClient -PmcskylinesHidden` starts the dev client with its window hidden.
+			if (project.hasProperty('mcskylinesHidden')) {
+				vmArg '-Dmcskylines.startHidden=true'
+			}
+		}
+	}
+}
+
 base {
 	archivesName = 'mcskylines'
 }

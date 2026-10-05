@@ -29,6 +29,8 @@ namespace MinecraftSkylines.Mod
         private int _regionsSent;
         private long _trianglesSent;
         private double _lastBuildMs;
+        private const int MaxBuildAttempts = 3;
+        private readonly System.Collections.Generic.Dictionary<long, int> _failures = new System.Collections.Generic.Dictionary<long, int>();
 
         public CollisionStreamer(HostLog log)
         {
@@ -43,6 +45,7 @@ namespace MinecraftSkylines.Mod
         public byte[] Reset()
         {
             _planner.Reset();
+            _failures.Clear();
             return new CollisionReset { Epoch = _planner.Epoch }.Encode();
         }
 
@@ -86,10 +89,13 @@ namespace MinecraftSkylines.Mod
             get { return "collision: " + _regionsSent + " regions, " + _trianglesSent + " tris, last build " + _lastBuildMs.ToString("0.0") + " ms"; }
         }
 
-        // Returns false only when the frame could not be queued; a region that fails to build is logged and skipped.
+        // Returns false when the region should be retried on a later frame (the frame could not be queued,
+        // or the terrain failed to build and the region has not used up its attempts). Roads that fail to
+        // build are dropped from that region only, so the player never loses ground collision for them.
         private bool BuildAndSend(int rx, int rz, BridgeHost host)
         {
             CollisionRegion region;
+            long key = RegionGrid.Key(rx, rz);
             try
             {
                 var clock = Stopwatch.StartNew();
@@ -98,13 +104,30 @@ namespace MinecraftSkylines.Mod
                 float maxZ = -rz * RegionSize, minZ = maxZ - RegionSize;
                 _buffer.Clear();
                 Heightfield.Triangulate(_terrain.AsFunc(), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, _buffer);
-                _net.Emit(minX, minZ, maxX, maxZ, _buffer);
+                int terrainOnly = _buffer.Count;
+                try
+                {
+                    _net.Emit(minX, minZ, maxX, maxZ, _buffer);
+                }
+                catch (Exception e)
+                {
+                    _log.Error("collision region (" + rx + "," + rz + "): roads failed to build, sending terrain only", e);
+                    _buffer.Truncate(terrainOnly);
+                }
                 region = CollisionConversion.ToRegion(_buffer, _planner.Epoch, rx, rz);
                 _lastBuildMs = clock.Elapsed.TotalMilliseconds;
             }
             catch (Exception e)
             {
-                _log.Error("collision region (" + rx + "," + rz + ") failed to build, skipped", e);
+                int failures;
+                _failures.TryGetValue(key, out failures);
+                _failures[key] = ++failures;
+                if (failures < MaxBuildAttempts)
+                {
+                    _log.Error("collision region (" + rx + "," + rz + ") failed to build (attempt " + failures + "), will retry", e);
+                    return false;
+                }
+                _log.Error("collision region (" + rx + "," + rz + ") failed to build " + failures + " times, giving up on it", e);
                 return true;
             }
             if (!host.Send(AppProtocol.CollisionRegionType, region.Encode())) return false;

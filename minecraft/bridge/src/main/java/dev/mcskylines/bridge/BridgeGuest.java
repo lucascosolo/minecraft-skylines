@@ -121,6 +121,22 @@ public final class BridgeGuest {
 		return s != null && s.enqueue(FrameCodec.encode(type, payload), payload.length);
 	}
 
+	/**
+	 * Queues an application frame that supersedes any still-unsent frame of the same type ("latest value
+	 * wins"), for per-frame state such as PLAYER_STATE: at most one frame per type is ever waiting, so a
+	 * slow reader cannot make the queue grow. Returns false when there is no connected session.
+	 */
+	public boolean sendLatest(int type, byte[] payload) {
+		if (type < FrameCodec.APP_MIN || type > 0xFFFF) {
+			throw new IllegalArgumentException("application frame types are 0x0100-0xFFFF, got 0x" + Integer.toHexString(type));
+		}
+		if (payload.length > FrameCodec.MAX_PAYLOAD) {
+			throw new IllegalArgumentException("payload exceeds 16 MiB");
+		}
+		Session s = session;
+		return s != null && s.enqueueLatest(type, FrameCodec.encode(type, payload));
+	}
+
 	/** Hands every pending event to {@code sink} on the calling thread; returns how many. */
 	public int poll(Consumer<? super BridgeEvent> sink) {
 		int n = 0;
@@ -278,11 +294,14 @@ public final class BridgeGuest {
 
 	private final class Session {
 		private static final byte[] WAKE = new byte[0];
+		/** Tells the writer to flush {@link #latest}; queued once per type when its slot goes from empty to full. */
+		private static final byte[] LATEST = new byte[0];
 
 		private final Socket sock;
 		private final Welcome welcome;
 		private final LinkedBlockingQueue<byte[]> outbound = new LinkedBlockingQueue<>();
 		private final AtomicLong queuedBytes = new AtomicLong();
+		private final java.util.concurrent.ConcurrentHashMap<Integer, byte[]> latest = new java.util.concurrent.ConcurrentHashMap<>();
 		private final AtomicBoolean ended = new AtomicBoolean();
 		private volatile byte[] finalGoodbye;
 
@@ -301,6 +320,16 @@ public final class BridgeGuest {
 				return false;
 			}
 			outbound.add(frame);
+			return true;
+		}
+
+		boolean enqueueLatest(int type, byte[] frame) {
+			if (ended.get()) {
+				return false;
+			}
+			if (latest.put(type, frame) == null) {
+				outbound.add(LATEST);
+			}
 			return true;
 		}
 
@@ -338,6 +367,13 @@ public final class BridgeGuest {
 					if (frame == null) {
 						out.write(FrameCodec.encode(Heartbeat.TYPE, new Heartbeat(++seq & 0xFFFFFFFFL, uptimeMs()).encode()));
 						nextBeat += TimeUnit.MILLISECONDS.toNanos(interval);
+					} else if (frame == LATEST) {
+						for (Integer type : latest.keySet()) {
+							byte[] f = latest.remove(type);
+							if (f != null) {
+								out.write(f);
+							}
+						}
 					} else if (frame != WAKE) {
 						queuedBytes.addAndGet(-(frame.length - FrameCodec.HEADER_SIZE));
 						out.write(frame);

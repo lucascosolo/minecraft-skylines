@@ -21,6 +21,9 @@ namespace MinecraftSkylines.Mod.Diagnostics
         private bool _hasLast;
         private int _lastCellX;
         private int _lastCellZ;
+        // Spike T1 see-through check: a red cube 3 m below each clip and a control cube on the ground
+        // beside it. Unity objects only (no files, nothing saved); removed with the clips.
+        private readonly System.Collections.Generic.List<GameObject> _markers = new System.Collections.Generic.List<GameObject>();
 
         public TerrainClipProbe(HostLog log)
         {
@@ -67,6 +70,11 @@ namespace MinecraftSkylines.Mod.Diagnostics
             }
             try
             {
+                foreach (GameObject m in _markers)
+                {
+                    if (m != null) UnityEngine.Object.Destroy(m);
+                }
+                _markers.Clear();
                 int n = TerrainClipMask.Instance.Clear(recompute);
                 if (n > 0)
                 {
@@ -107,8 +115,25 @@ namespace MinecraftSkylines.Mod.Diagnostics
             float cz = TerrainClipMask.CellCentre(_lastCellZ);
             float half = 1.5f * TerrainClipMask.CellSize;
             mask.Add(cx - half, cz - half, cx + half, cz + half);
+            float ground = TerrainManager.instance.SampleDetailHeightSmooth(new Vector3(cx, 0f, cz));
+            GameObject below = Marker(new Vector3(cx, ground - 3f, cz));
+            GameObject control = Marker(new Vector3(cx + half + 3f, ground + 1f, cz));
+            Report(string.Format("markers: below-hole cube at y {0:0.0} (ground {1:0.0}), control cube beside it; layer {2}, camera culling mask 0x{3:X8}, shader '{4}'",
+                ground - 3f, ground, below.layer, cam.cullingMask, control.GetComponent<Renderer>().sharedMaterial.shader.name));
             Report(string.Format("clipped x {0:0.0}..{1:0.0} z {2:0.0}..{3:0.0} around hit ({4:0.0}, {5:0.0}, {6:0.0}), cells {7}±1,{8}±1, {9}; {10} area(s)",
                 cx - half, cx + half, cz - half, cz + half, hit.x, hit.y, hit.z, _lastCellX, _lastCellZ, PatchState(), mask.Count));
+        }
+
+        private GameObject Marker(Vector3 position)
+        {
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = "MinecraftSkylines.T1Marker";
+            UnityEngine.Object.Destroy(go.GetComponent<Collider>());
+            go.transform.position = position;
+            go.transform.localScale = new Vector3(2f, 2f, 2f);
+            go.GetComponent<Renderer>().material.color = Color.red;
+            _markers.Add(go);
+            return go;
         }
 
         private void Restore(string why)

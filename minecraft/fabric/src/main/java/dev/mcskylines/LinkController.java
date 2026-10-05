@@ -47,14 +47,14 @@ final class LinkController {
 		playerMode.beginFrame(mc);
 	}
 
-	/** After the frame is rendered. One PLAYER_STATE per frame; see OPEN note on bridge-side coalescing. */
+	/** After the frame is rendered. One PLAYER_STATE per frame; sendLatest keeps at most one unsent. */
 	void rendered(Minecraft mc) {
 		if (state != BridgeState.CONNECTED || peer == null || peer.appMinor() < 1) {
 			return;
 		}
 		PlayerState s = playerMode.frameState(mc);
 		if (s != null) {
-			guest.send(AppProtocol.PLAYER_STATE, s.encode());
+			guest.sendLatest(AppProtocol.PLAYER_STATE, s.encode());
 		}
 	}
 

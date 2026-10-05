@@ -39,6 +39,16 @@ namespace Skylines.Core.Geometry
             Count = 0;
         }
 
+        /// <summary>Keeps the first <paramref name="count"/> triangles and drops the rest.</summary>
+        public void Truncate(int count)
+        {
+            if (count < 0 || count > Count)
+            {
+                throw new ArgumentOutOfRangeException("count");
+            }
+            Count = count;
+        }
+
         /// <summary>Swaps b and c of every triangle, which flips its normal.</summary>
         public void ReverseWinding()
         {

@@ -45,6 +45,21 @@ namespace Skylines.Core.Tests
         }
 
         [Fact]
+        public void TruncateKeepsTheFirstTrianglesAndRejectsOutOfRange()
+        {
+            var b = new TriangleBuffer();
+            b.Add(1, 1, 1, 2, 2, 2, 3, 3, 3, 1);
+            b.Add(4, 4, 4, 5, 5, 5, 6, 6, 6, 2);
+            b.Truncate(1);
+            Assert.Equal(1, b.Count);
+            Assert.Equal(1, b.Flags[0]);
+            b.Add(7, 7, 7, 8, 8, 8, 9, 9, 9, 3);
+            Assert.Equal(7f, b.Positions[9]);
+            Assert.Throws<ArgumentOutOfRangeException>(() => b.Truncate(3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => b.Truncate(-1));
+        }
+
+        [Fact]
         public void ReverseWindingSwapsBAndCOfEveryTriangle()
         {
             var b = new TriangleBuffer();

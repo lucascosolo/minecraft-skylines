@@ -28,7 +28,7 @@ both sides.
 | M2 | First-person movement with MC physics; collision on terrain, slopes, roads, bridges | Walk, sprint-jump, climb a road ramp and cross a bridge deck in a test city; fall off nothing | **Spike T1 (terrain rendering suppression)** runs here even though digging is M5/M6, because it decides whether M6 is possible. Also: are building meshes readable for collision? |
 | M3 | MC hotbar/inventory overlay; a placed block rendered in the city with correct depth and collision | Place a block on a road, walk behind a building and see it occluded, stand on it | Shader/material for MC blocks under CS1 lighting; pixel transport for the GUI |
 | M4 | Breaking blocks; persistence across paired save/reload | Build, save city, quit both, reload: blocks back; load a different city: not there | `saveId` pairing, MC flush ordering on save |
-| M5 | Small native-terrain excavation (open pit) with matching appearance, collision, persistence | Dig a 3×3×2 pit: terrain visibly lowered/cut, walls textured, walk into it, survives reload | Terrain material reuse for cut walls; CS1 terrain edits vs MC authority |
+| M5 | Small native-terrain excavation (open pit) with matching appearance, collision, persistence | Dig a 3×3×2 pit: terrain visibly lowered/cut, walls textured, walk into it, survives reload | Terrain material reuse for cut walls; CS1 terrain edits vs MC authority; **CS1's water simulation floods lowered terrain below the water level (owner, 2026-10-05)**, so pits near water need a rule (let it flood as CS1 would, or keep pits clip-only) |
 | M6 | **Decisive volumetric test**: short tunnel with intact roof | 1×2×8 tunnel into a hillside: roof terrain still rendered above, interior faces visible, collision correct inside and on the roof, survives reload | Depends entirely on T1's answer |
 | M7 | Broader interactions guided by M1-M6: buildings and roads (bulldoze/cut), citizens and vehicles as entities, simulation reactions | defined after M6 | |
 
@@ -45,6 +45,15 @@ Resulting plan for M6 (tunnel with intact roof): leave the terrain above the tun
 roof is native terrain), draw the cavity's interior faces ourselves (an `IRenderableManager`), and
 clip only the 4 m surface cells where the excavation breaks the surface, redrawing the undug part
 of those cells ourselves. MC's collision comes from our own voxel-aware triangles, not CS1's.
+
+**In-game result 1 (owner, 2026-10-05, evidence `~/.cache/minecraft-skylines/evidence/t1/`):**
+the clip makes native terrain stop rendering: every clipped 12 m area showed a perfectly uniform
+colour (RGB 66,146,218 at every sampled pixel, no texture or shading), the clip survived a road
+built nearby (diagnostics still 9/9 clipped after the recompute), a clip over road surface left
+the road mesh drawn, and restore by key and on level unload both worked. Still open: whether the
+uniform colour is a true hole (geometry behind it visible) or an opaque fill. The probe now places
+a red cube 3 m below each clip plus a control cube beside it to settle this. Clip-based tunnels also
+leave CS1's water simulation untouched (heights unchanged).
 
 Open, to be settled by an in-game experiment early in M2 (a debug key that clips one 4 m cell):
 1. Does the terrain shader actually discard clipped cells (and what is drawn in their place)?
