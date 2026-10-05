@@ -41,6 +41,10 @@ public final class PlayerMode {
 		return linked;
 	}
 
+	public boolean active() {
+		return active;
+	}
+
 	public void onLinkUp(Minecraft mc) {
 		linked = true;
 		mc.options.pauseOnLostFocus = false;

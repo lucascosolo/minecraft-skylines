@@ -23,6 +23,8 @@ import dev.mcskylines.protocol.Input;
 import dev.mcskylines.protocol.PlayerState;
 import dev.mcskylines.player.DevWorld;
 import dev.mcskylines.player.PlayerMode;
+import dev.mcskylines.protocol.Viewport;
+import dev.mcskylines.render.OverlayExporter;
 import dev.mcskylines.render.SectionExporter;
 import java.util.List;
 import net.minecraft.client.Minecraft;
@@ -40,7 +42,9 @@ final class LinkController {
 	private String lastDisconnect = "none";
 	private final PlayerMode playerMode = new PlayerMode();
 	private final SectionExporter sections;
+	private final OverlayExporter overlay;
 	private int exportErrors;
+	private int overlayErrors;
 	private static final boolean DEBUG_COMMANDS = Boolean.getBoolean("mcskylines.debugCommands");
 
 	// Minecraft only exists here to play inside Cities: Skylines, so when CS1 shuts down (GOODBYE
@@ -53,6 +57,7 @@ final class LinkController {
 	LinkController(BridgeGuest guest) {
 		this.guest = guest;
 		this.sections = new SectionExporter(guest);
+		this.overlay = new OverlayExporter(guest);
 	}
 
 	/** Start of every frame: input and look arrive at host frame rate, not tick rate. */
@@ -76,6 +81,15 @@ final class LinkController {
 			} catch (RuntimeException e) {
 				if (exportErrors++ < 5) {
 					LOG.error(PREFIX + "block export failed", e);
+				}
+			}
+		}
+		if (peer.appMinor() >= 3) {
+			try {
+				overlay.frame(mc, peer.sessionId(), playerMode.active());
+			} catch (RuntimeException e) {
+				if (overlayErrors++ < 5) {
+					LOG.error(PREFIX + "overlay export failed", e);
 				}
 			}
 		}
@@ -114,6 +128,9 @@ final class LinkController {
 				if (state != BridgeState.CONNECTED && PlayerMode.linked()) {
 					playerMode.onLinkDown(mc);
 				}
+				if (state != BridgeState.CONNECTED) {
+					overlay.linkDown();
+				}
 				LOG.info(PREFIX + "link state {}{}", s.state().wireName(), s.detail().isEmpty() ? "" : " (" + s.detail() + ")");
 				if (s.state() == BridgeState.CONNECTED) {
 					hostGoneSinceMs = -1;
@@ -132,6 +149,7 @@ final class LinkController {
 				hostStatus = null;
 				sentStatus = null;
 				playerMode.onLinkDown(mc);
+				overlay.linkDown();
 				if (d.cause() == DisconnectCause.PEER_GOODBYE && d.code() == Goodbye.SHUTTING_DOWN) {
 					hostGoneSinceMs = System.currentTimeMillis();
 				}
@@ -160,6 +178,14 @@ final class LinkController {
 						}
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed player-mode message: {}", e.getMessage());
+					}
+				} else if (m.type() == AppProtocol.VIEWPORT) {
+					try {
+						if (peer != null && peer.appMinor() >= 3) {
+							overlay.onViewport(mc, Viewport.decode(m.payload()));
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed VIEWPORT: {}", e.getMessage());
 					}
 				} else if (m.type() == AppProtocol.DEBUG_COMMAND) {
 					try {

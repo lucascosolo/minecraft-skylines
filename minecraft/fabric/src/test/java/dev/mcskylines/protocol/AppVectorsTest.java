@@ -116,6 +116,73 @@ class AppVectorsTest {
     }
 
     @Test
+    void viewport() throws Exception {
+        JsonObject v = vector("viewport");
+        JsonObject f = v.getAsJsonObject("fields");
+        byte[] p = payload(v);
+        Viewport got = Viewport.decode(p);
+        assertEquals(new Viewport(f.get("width").getAsInt(), f.get("height").getAsInt(),
+                f.get("uiScale").getAsFloat()), got);
+        assertArrayEquals(p, got.encode());
+    }
+
+    @Test
+    void viewportTruncated() throws Exception {
+        byte[] p = payload(vector("viewport"));
+        assertThrows(ProtocolException.class, () -> Viewport.decode(Arrays.copyOf(p, p.length - 1)));
+    }
+
+    @Test
+    void overlayOffer() throws Exception {
+        JsonObject v = vector("overlay_offer");
+        JsonObject f = v.getAsJsonObject("fields");
+        byte[] p = payload(v);
+        OverlayOffer got = OverlayOffer.decode(p);
+        assertEquals(new OverlayOffer(f.get("path").getAsString(), f.get("maxWidth").getAsInt(),
+                f.get("maxHeight").getAsInt(), f.get("slotCount").getAsInt(),
+                Long.parseUnsignedLong(f.get("generation").getAsString())), got);
+        assertArrayEquals(p, got.encode());
+    }
+
+    @Test
+    void overlayOfferTruncated() throws Exception {
+        byte[] p = payload(vector("overlay_offer"));
+        assertThrows(ProtocolException.class, () -> OverlayOffer.decode(Arrays.copyOf(p, p.length - 1)));
+    }
+
+    @Test
+    void overlayStop() throws Exception {
+        byte[] p = payload(vector("overlay_stop"));
+        assertEquals(0, p.length);
+        assertEquals(new OverlayStop(), OverlayStop.decode(p));
+        assertEquals(0, new OverlayStop().encode().length);
+    }
+
+    @Test
+    void inputCursor() throws Exception {
+        JsonObject v = vector("input_cursor");
+        JsonObject f = v.getAsJsonObject("fields");
+        byte[] p = payload(v);
+        JsonArray events = f.getAsJsonArray("events");
+        Input.Event[] evs = new Input.Event[events.size()];
+        for (int i = 0; i < evs.length; i++) {
+            JsonObject e = events.get(i).getAsJsonObject();
+            evs[i] = new Input.Event(e.get("kind").getAsInt(), e.get("action").getAsInt(), e.get("code").getAsInt());
+        }
+        Input got = Input.decode(p);
+        assertEquals(new Input(f.get("yaw").getAsFloat(), f.get("pitch").getAsFloat(), evs), got);
+        assertEquals(6, Input.CURSOR);
+        for (int i = 0; i < evs.length; i++) {
+            JsonObject e = events.get(i).getAsJsonObject();
+            Input.Event d = got.events()[i];
+            assertEquals(e.get("cursorX").getAsInt(), d.cursorX(), "x" + i);
+            assertEquals(e.get("cursorY").getAsInt(), d.cursorY(), "y" + i);
+            assertEquals(d, Input.Event.cursor(e.get("cursorX").getAsInt(), e.get("cursorY").getAsInt()), "cursor" + i);
+        }
+        assertArrayEquals(p, got.encode());
+    }
+
+    @Test
     void collisionRegion() throws Exception {
         for (String name : new String[] {"collision_region", "collision_region_empty"}) {
             JsonObject v = vector(name);
@@ -181,13 +248,16 @@ class AppVectorsTest {
     void constants() {
         assertEquals("minecraft-skylines", AppProtocol.NAME);
         assertEquals(1, AppProtocol.MAJOR);
-        assertEquals(2, AppProtocol.MINOR);
+        assertEquals(3, AppProtocol.MINOR);
         assertEquals(0x0100, AppProtocol.HOST_STATUS);
         assertEquals(0x0101, AppProtocol.GUEST_STATUS);
         assertEquals(0x0130, AppProtocol.BLOCK_ATLAS);
         assertEquals(0x0131, AppProtocol.ATLAS_REGION);
         assertEquals(0x0132, AppProtocol.SECTION_MESH);
         assertEquals(0x0133, AppProtocol.SECTIONS_CLEAR);
+        assertEquals(0x0140, AppProtocol.VIEWPORT);
+        assertEquals(0x0141, AppProtocol.OVERLAY_OFFER);
+        assertEquals(0x0142, AppProtocol.OVERLAY_STOP);
         assertEquals(0x01F0, AppProtocol.DEBUG_COMMAND);
     }
 

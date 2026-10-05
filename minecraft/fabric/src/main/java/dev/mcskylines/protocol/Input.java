@@ -12,9 +12,22 @@ public record Input(float yaw, float pitch, Event[] events) {
 	public static final int SCROLL = 3;
 	public static final int TEXT = 4;
 	public static final int RELEASE_ALL = 5;
+	public static final int CURSOR = 6;
 
-	/** {@code action}: 1 press, 0 release. {@code code}: key, button, scroll notches x 120 or code point. */
+	/** {@code action}: 1 press, 0 release. {@code code}: key, button, scroll notches x 120 or code point; cursor see {@link #cursor}. */
 	public record Event(int kind, int action, int code) {
+		/** Cursor position in host pixels, origin top-left: {@code code = (x << 16) | y}. */
+		public static Event cursor(int x, int y) {
+			return new Event(CURSOR, 0, (x & 0xFFFF) << 16 | (y & 0xFFFF));
+		}
+
+		public int cursorX() {
+			return code >>> 16;
+		}
+
+		public int cursorY() {
+			return code & 0xFFFF;
+		}
 	}
 
 	public byte[] encode() {

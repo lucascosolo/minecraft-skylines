@@ -31,4 +31,24 @@ application {
 test {
 	useJUnitPlatform()
 	systemProperty 'mcskylines.vectors', rootProject.file('../protocol/vectors').absolutePath
+	// @TempDir follows $TMPDIR when set (the agent sandbox cannot write /tmp).
+	if (System.getenv('TMPDIR')) {
+		systemProperty 'java.io.tmpdir', System.getenv('TMPDIR')
+	}
+}
+
+// installDist also ships bin/overlay-demo (dev.mcskylines.bridge.overlay.OverlayDemo) next to bin/bridge, for the
+// cross-language overlay test: build/install/bridge/bin/overlay-demo <path> <width> <height> <frames>
+def overlayDemoScripts = tasks.register('overlayDemoStartScripts', CreateStartScripts) {
+	mainClass = 'dev.mcskylines.bridge.overlay.OverlayDemo'
+	applicationName = 'overlay-demo'
+	outputDir = layout.buildDirectory.dir('overlay-demo-scripts').get().asFile
+	classpath = tasks.named('startScripts').get().classpath
+}
+
+distributions.main.contents {
+	into('bin') {
+		from(overlayDemoScripts)
+		filePermissions { unix('rwxr-xr-x') }
+	}
 }

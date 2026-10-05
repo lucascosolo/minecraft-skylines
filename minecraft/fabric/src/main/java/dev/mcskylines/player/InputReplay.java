@@ -17,8 +17,16 @@ public final class InputReplay {
 	private static final boolean[] KEYS = new boolean[512];
 	private static final boolean[] BUTTONS = new boolean[9];
 	private static int modifiers;
+	private static int hostWidth, hostHeight;
+	private static double cursorX, cursorY;
 
 	private InputReplay() {
+	}
+
+	/** VIEWPORT: cursor positions arrive in host pixels. */
+	public static void setHostViewport(int width, int height) {
+		hostWidth = width;
+		hostHeight = height;
 	}
 
 	public static boolean isKeyDown(int scancode) {
@@ -49,6 +57,15 @@ public final class InputReplay {
 				}
 			}
 			case Input.RELEASE_ALL -> releaseAll(mc);
+			case Input.CURSOR -> {
+				if (hostWidth > 0 && hostHeight > 0) {
+					double x = e.cursorX() * (double) mc.getWindow().getScreenWidth() / hostWidth;
+					double y = e.cursorY() * (double) mc.getWindow().getScreenHeight() / hostHeight;
+					mc.mouseHandler.onMove(handle, x, y, x - cursorX, y - cursorY);
+					cursorX = x;
+					cursorY = y;
+				}
+			}
 			default -> {
 			}
 		}
