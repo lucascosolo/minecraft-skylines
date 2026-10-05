@@ -55,3 +55,50 @@ Open, to be settled by an in-game experiment early in M2 (a debug key that clips
 
 Fallback if clipping does not hide terrain: Harmony-patch `TerrainPatch.Render` to skip patches and
 redraw them ourselves (heavy), or a custom terrain shader from an AssetBundle (needs Unity 5.6.7f1).
+
+### Tool route (2026-10-05, read in the decompiled Assembly-CSharp; not yet tried in game)
+
+**How a clip reaches `SurfaceCell` data.** `TerrainModify.UpdateAreaImplementation` is the only
+writer of the detail surface. For every recomputed area it first zeroes the scratch buffer
+`m_tempSurface` (TerrainModify.cs:308, `surfaceCell.m_clipped = 0` and all other channels), then
+calls `TerrainManager.Managers_TerrainUpdated` (TerrainModify.cs:381 → TerrainManager.cs:2757),
+which calls `TerrainUpdated` on every registered `ITerrainManager` (NetManager.cs:3866,
+BuildingManager.cs:6797, which reach `NetSegment.TerrainUpdated` NetSegment.cs:1338 and
+`Building.TerrainUpdated` Building.cs:863, where `TerrainModify.ApplyQuad(..., Surface.Clip)` is
+called). Only after that is `m_tempSurface` copied into `m_detailSurface` (TerrainModify.cs:481) and
+the patches flagged for a texture refresh (TerrainModify.cs:526; `TerrainPatch.Refresh` puts
+`m_clipped` into `_SurfaceTexA.r`, TerrainPatch.cs:326). `ApplyQuad` writes only into
+`m_tempSurface` and returns at once unless a surface recompute is in progress
+(TerrainModify.cs:646). So: **`ApplyQuad` is only meaningful inside the game's recompute pass, and a
+direct write to `m_detailSurface` would be wiped by the next recompute touching that area** (any
+road, building, zoning or terraforming edit nearby).
+
+**Route chosen (no Harmony):** register our own `ITerrainManager` with the public static
+`TerrainManager.RegisterTerrainManager` (TerrainManager.cs:583; the game registers its own managers
+the same way, SimulationManager.cs:578). Its `TerrainUpdated` re-applies our clip quads with
+`ApplyQuad(a, b, c, d, Edges.None, Heights.None, Surface.Clip)` on every recompute, so the clip
+survives nearby updates by construction. To apply or remove a clip we queue
+`TerrainModify.UpdateArea(minX, minZ, maxX, maxZ, heights: false, surface: true, zones: false)` on the
+simulation thread with `SimulationManager.AddAction` (SimulationManager.cs:725/743); actions run
+inside `BeginUpdateArea`/`EndUpdateArea` on that thread, also while paused (SimulationManager.cs:871),
+so we never race the game's own terrain writes. Removal = forget the quad, recompute the area.
+`Edges.None` gives cells whose centre lies inside the quad a full 255 clip with no fade
+(TerrainModify.cs:1134); a 12 m square centred on a 4 m cell centre covers exactly 3×3 cells.
+
+**Limits found:** (1) the detail surface exists only for patches with `m_simDetailIndex != 0`
+(TerrainModify.cs:231), which `GameAreaManager` assigns to owned/unlocked tiles
+(`SetDetailedPatch`, TerrainManager.cs:903/940, GameAreaManager.cs:1000/1054); elsewhere a clip has no
+effect. (2) There is no unregister API; the mask object stays registered for the process and is
+inert when empty. (3) The surface is not saved (`TerrainManager.Data.Serialize`, TerrainManager.cs:46,
+writes heights only) and the recompute is surface-only, so heights and saves are untouched.
+
+**Debug probe** (`cs1/src/MinecraftSkylines.Mod/Debug/TerrainClipProbe.cs`, logic in
+`cs1/src/Skylines.Host/Terrain/TerrainClipMask.cs`), only in a loaded city: Ctrl+Shift+C clips the
+3×3 cells under the cursor (game terrain raycast `TerrainManager.RayCast`), Ctrl+Shift+U restores all,
+Ctrl+Shift+I logs the 9 `SurfaceCell`s and the patch's detail indices. Everything is restored on level
+unload and mod disable.
+
+**What only the in-game test can show:** whether the terrain shader discards clipped pixels or
+draws something else (the shader is not decompilable); what is visible through the hole (sky, water,
+underground view, black); whether the clip holds after a nearby road or building is placed; and
+whether the cut edge looks acceptable at 4 m resolution.

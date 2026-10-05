@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using ICities;
+using MinecraftSkylines.Mod.Diagnostics;
 using MinecraftSkylines.Protocol;
 using Skylines.Bridge;
 using Skylines.Host;
@@ -26,6 +27,7 @@ namespace MinecraftSkylines.Mod
         private static HostLog s_log;
         private static MainThreadPump s_pump;
         private static StatusOverlay s_overlay;
+        private static TerrainClipProbe s_probe;
         private static BridgeHost s_host;
         private static string s_startError;
 
@@ -52,6 +54,8 @@ namespace MinecraftSkylines.Mod
             s_pump.OnHandlerError = (where, e) => s_log.Error("handler in " + where, e);
             s_overlay = new StatusOverlay();
             s_pump.Updated += Tick;
+            s_probe = new TerrainClipProbe(s_log);
+            s_pump.Updated += s_probe.Update;
             s_pump.Gui += s_overlay.Draw;
             s_pump.Quitting += () => Stop("game exiting");
 
@@ -86,6 +90,7 @@ namespace MinecraftSkylines.Mod
                 return;
             }
             s_log.Info("stopping: " + why + PerfSummary());
+            s_probe.RestoreAll(why, true);
             s_host.Shutdown(GoodbyeCodes.ShuttingDown, why);
             s_host = null;
             s_pump.Uninstall();
@@ -109,6 +114,7 @@ namespace MinecraftSkylines.Mod
         {
             CityState.SetInCity(false);
             s_saveId.Clear();
+            if (s_probe != null) s_probe.RestoreAll("level unloading", false);
             Log("level unloading");
             s_statusDirty = true;
         }
@@ -284,6 +290,10 @@ namespace MinecraftSkylines.Mod
             if (city.InCity)
             {
                 sb.Append(saveId == Guid.Empty ? "  (not paired)" : "  save id " + saveId.ToString().Substring(0, 8));
+            }
+            if (s_probe.Status.Length > 0)
+            {
+                sb.Append('\n').Append(s_probe.Status);
             }
             if (s_ticks > 0)
             {
