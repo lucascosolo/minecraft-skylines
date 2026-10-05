@@ -15,14 +15,7 @@ namespace Skylines.Core.Geometry
         public static void Road(Bezier3D c, float halfWidth, float step, float thickness, ushort flags, TriangleBuffer into)
         {
             if (!(step > 0)) throw new ArgumentOutOfRangeException("step");
-            double len = 0, px = c.Ax, py = c.Ay, pz = c.Az;
-            for (int i = 1; i <= LengthSamples; i++)
-            {
-                double qx, qy, qz;
-                At(c, i / (double)LengthSamples, out qx, out qy, out qz);
-                len += Math.Sqrt((qx - px) * (qx - px) + (qy - py) * (qy - py) + (qz - pz) * (qz - pz));
-                px = qx; py = qy; pz = qz;
-            }
+            double len = Length(c);
             if (len < 1e-4) return;
 
             int n = Math.Max(1, (int)Math.Ceiling(len / step));
@@ -55,6 +48,87 @@ namespace Skylines.Core.Geometry
                 into.Add(lx[k], bk, lz[k], lx[j], bj, lz[j], lx[j], ly[j], lz[j], flags);
                 into.Add(rx[k], ly[k], rz[k], rx[j], ly[j], rz[j], rx[k], bk, rz[k], flags);
                 into.Add(rx[k], bk, rz[k], rx[j], ly[j], rz[j], rx[j], bj, rz[j], flags);
+            }
+        }
+
+        /// <summary>
+        /// Adds a ribbon between two edge curves sampled at the same parameters t = k / n, n = max(1, ceil(L / step)),
+        /// L the longer edge measured on a 16-segment polyline. Edge vertices lie exactly on their curve. Top faces up
+        /// whichever curve is geometrically left; a positive <paramref name="thickness"/> adds a bottom face and a wall
+        /// along each edge facing away from the other edge. Adds nothing when both edges have zero length.
+        /// </summary>
+        public static void Between(Bezier3D left, Bezier3D right, float step, float thickness, ushort flags, TriangleBuffer into)
+        {
+            if (!(step > 0)) throw new ArgumentOutOfRangeException("step");
+            double len = Math.Max(Length(left), Length(right));
+            if (len < 1e-4) return;
+            int n = Math.Max(1, (int)Math.Ceiling(len / step));
+            var l = new float[3 * (n + 1)];
+            var r = new float[3 * (n + 1)];
+            for (int k = 0; k <= n; k++)
+            {
+                Sample(left, k / (double)n, l, 3 * k);
+                Sample(right, k / (double)n, r, 3 * k);
+            }
+            for (int k = 0; k < n; k++)
+            {
+                int a = 3 * k, b = a + 3;
+                Up(into, r, a, l, a, l, b, 0, flags);
+                Up(into, r, a, l, b, r, b, 0, flags);
+                if (!(thickness > 0)) continue;
+                Up(into, r, a, l, a, l, b, thickness, flags);
+                Up(into, r, a, l, b, r, b, thickness, flags);
+                Wall(into, l, a, b, r, thickness, flags);
+                Wall(into, r, a, b, l, thickness, flags);
+            }
+        }
+
+        private static double Length(Bezier3D c)
+        {
+            double len = 0, px = c.Ax, py = c.Ay, pz = c.Az;
+            for (int i = 1; i <= LengthSamples; i++)
+            {
+                double qx, qy, qz;
+                At(c, i / (double)LengthSamples, out qx, out qy, out qz);
+                len += Math.Sqrt((qx - px) * (qx - px) + (qy - py) * (qy - py) + (qz - pz) * (qz - pz));
+                px = qx; py = qy; pz = qz;
+            }
+            return len;
+        }
+
+        private static void Sample(Bezier3D c, double t, float[] into, int o)
+        {
+            double x, y, z;
+            At(c, t, out x, out y, out z);
+            into[o] = (float)x; into[o + 1] = (float)y; into[o + 2] = (float)z;
+        }
+
+        // Adds triangle (p, q, s) lowered by drop; facing up when drop is 0, down otherwise.
+        private static void Up(TriangleBuffer into, float[] p, int i, float[] q, int j, float[] s, int k, float drop, ushort flags)
+        {
+            float ny = (q[j + 2] - p[i + 2]) * (s[k] - p[i]) - (q[j] - p[i]) * (s[k + 2] - p[i + 2]);
+            bool flip = (ny < 0) != (drop > 0);
+            if (flip) { float[] t = q; q = s; s = t; int u = j; j = k; k = u; }
+            into.Add(p[i], p[i + 1] - drop, p[i + 2], q[j], q[j + 1] - drop, q[j + 2], s[k], s[k + 1] - drop, s[k + 2], flags);
+        }
+
+        // Adds the wall below edge e between samples a and b, facing away from the other edge o.
+        private static void Wall(TriangleBuffer into, float[] e, int a, int b, float[] o, float h, ushort flags)
+        {
+            float ox = e[a] + e[b] - o[a] - o[b], oz = e[a + 2] + e[b + 2] - o[a + 2] - o[b + 2];
+            float dx = e[b] - e[a], dz = e[b + 2] - e[a + 2];
+            // Normal of (top a, bottom a, top b) is horizontal (-dz, 0, dx) * h; keep it when it points outward.
+            bool keep = dx * oz - dz * ox > 0;
+            float ax = e[a], ay = e[a + 1], az = e[a + 2], bx = e[b], by = e[b + 1], bz = e[b + 2];
+            if (keep)
+            {
+                into.Add(ax, ay, az, ax, ay - h, az, bx, by, bz, flags);
+                into.Add(ax, ay - h, az, bx, by - h, bz, bx, by, bz, flags);
+            }
+            else
+            {
+                into.Add(ax, ay, az, bx, by, bz, ax, ay - h, az, flags);
+                into.Add(ax, ay - h, az, bx, by, bz, bx, by - h, bz, flags);
             }
         }
 

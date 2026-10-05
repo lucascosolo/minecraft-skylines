@@ -6,6 +6,7 @@ using Skylines.Core.Geometry;
 using Skylines.Core.Streaming;
 using Skylines.Host;
 using Skylines.Host.Geometry;
+using MinecraftSkylines.Mod.Diagnostics;
 using UnityEngine;
 
 namespace MinecraftSkylines.Mod
@@ -15,7 +16,7 @@ namespace MinecraftSkylines.Mod
     /// Minecraft blocks; each is built in CS1 coordinates over the matching CS1 rectangle, converted to Minecraft
     /// coordinates and sent nearest first. Main thread only.
     /// </summary>
-    public sealed class CollisionStreamer
+    internal sealed class CollisionStreamer
     {
         private const float RegionSize = 16f;
         private const float TerrainStep = 2f;
@@ -35,7 +36,17 @@ namespace MinecraftSkylines.Mod
         public CollisionStreamer(HostLog log)
         {
             _log = log;
+            Viewer = new CollisionViewer(log);
             _planner = new RegionStreamPlanner(_grid, 64f, 96f);
+        }
+
+        /// <summary>Keeps a CS1-coordinate copy of every region built, for the Ctrl+Shift+G debug wireframe.</summary>
+        public CollisionViewer Viewer { get; private set; }
+
+        /// <summary>Diagnostic line about the ground road nearest to <paramref name="cs"/> (see <see cref="NetGeometry.DescribeNearestGround"/>).</summary>
+        public string DescribeNearestGround(Vector3 cs)
+        {
+            return _net.DescribeNearestGround(cs);
         }
 
         /// <summary>The current collision epoch (every region sent carries it).</summary>
@@ -46,6 +57,7 @@ namespace MinecraftSkylines.Mod
         {
             _planner.Reset();
             _failures.Clear();
+            Viewer.Clear();
             return new CollisionReset { Epoch = _planner.Epoch }.Encode();
         }
 
@@ -56,6 +68,7 @@ namespace MinecraftSkylines.Mod
         public void Tick(Vector3 csFeet, BridgeHost host, double budgetMs)
         {
             float mcX = csFeet.x, mcZ = -csFeet.z;
+            Viewer.Track(csFeet);
             var clock = Stopwatch.StartNew();
             do
             {
@@ -63,7 +76,7 @@ namespace MinecraftSkylines.Mod
                 if (due.Count == 0) return;
                 int rx, rz;
                 RegionGrid.Unkey(due[0], out rx, out rz);
-                if (!BuildAndSend(rx, rz, host))
+                if (!BuildAndSend(rx, rz, host, csFeet))
                 {
                     _planner.Invalidate(rx, rz);
                     return;
@@ -92,7 +105,7 @@ namespace MinecraftSkylines.Mod
         // Returns false when the region should be retried on a later frame (the frame could not be queued,
         // or the terrain failed to build and the region has not used up its attempts). Roads that fail to
         // build are dropped from that region only, so the player never loses ground collision for them.
-        private bool BuildAndSend(int rx, int rz, BridgeHost host)
+        private bool BuildAndSend(int rx, int rz, BridgeHost host, Vector3 csFeet)
         {
             CollisionRegion region;
             long key = RegionGrid.Key(rx, rz);
@@ -114,6 +127,7 @@ namespace MinecraftSkylines.Mod
                     _log.Error("collision region (" + rx + "," + rz + "): roads failed to build, sending terrain only", e);
                     _buffer.Truncate(terrainOnly);
                 }
+                Viewer.Store(key, minX, minZ, maxX, maxZ, _buffer, csFeet);
                 region = CollisionConversion.ToRegion(_buffer, _planner.Epoch, rx, rz);
                 _lastBuildMs = clock.Elapsed.TotalMilliseconds;
             }

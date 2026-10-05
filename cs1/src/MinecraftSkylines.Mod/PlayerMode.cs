@@ -73,6 +73,9 @@ namespace MinecraftSkylines.Mod
 
         public bool IsOn { get { return _state != State.Off; } }
 
+        /// <summary>The Ctrl+Shift+G collision wireframe.</summary>
+        public Diagnostics.CollisionViewer Viewer { get { return _streamer.Viewer; } }
+
         /// <summary>Per frame from the pump's Update, after bridge events were handled.</summary>
         public void Update(BridgeHost host, bool cityReady)
         {
@@ -321,6 +324,8 @@ namespace MinecraftSkylines.Mod
                 Vector3 target = _camera.CityTarget;
                 target.y = TerrainManager.instance.SampleDetailHeightSmooth(target);
                 _spawnFeet = target;
+                try { _log.Info("player mode: " + _streamer.DescribeNearestGround(target)); }
+                catch (Exception e) { _log.Error("nearest road diagnostics", e); }
                 _eye = SpawnEyeHeight;
                 _fov = 0f;
                 _look = new PlayerLook(_camera.CityRotation.eulerAngles.y, 0);

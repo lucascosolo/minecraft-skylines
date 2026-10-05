@@ -25,5 +25,38 @@ namespace Skylines.Core.Geometry
                 into.Add(x0, yb, z0, x1, y, z1, x1, yb, z1, flags);
             }
         }
+
+        /// <summary>
+        /// Adds an up-facing fan from (cx, cy, cz) over <paramref name="count"/> ring vertices (x, y, z triples in any
+        /// order; sorted by angle around the centre, the array is not modified). A positive <paramref name="thickness"/>
+        /// adds a down-facing copy lowered by it and outward walls along every ring edge. Fewer than three vertices add nothing.
+        /// </summary>
+        public static void Polygon(float cx, float cy, float cz, float[] ring, int count, float thickness, ushort flags, TriangleBuffer into)
+        {
+            if (ring == null) throw new ArgumentNullException("ring");
+            if (count < 0 || ring.Length < 3 * count) throw new ArgumentException("ring holds fewer than count vertices", "ring");
+            if (count < 3) return;
+            var order = new int[count];
+            var angle = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                order[i] = 3 * i;
+                angle[i] = Math.Atan2(ring[3 * i + 2] - cz, ring[3 * i] - cx);
+            }
+            Array.Sort(angle, order);
+            float yb = cy - thickness;
+            for (int i = 0; i < count; i++)
+            {
+                // Increasing angle in x-z is clockwise seen from above (+y), so (centre, next, this) faces up.
+                int p = order[i], q = order[(i + 1) % count];
+                float x0 = ring[p], y0 = ring[p + 1], z0 = ring[p + 2];
+                float x1 = ring[q], y1 = ring[q + 1], z1 = ring[q + 2];
+                into.Add(cx, cy, cz, x1, y1, z1, x0, y0, z0, flags);
+                if (!(thickness > 0)) continue;
+                into.Add(cx, yb, cz, x0, y0 - thickness, z0, x1, y1 - thickness, z1, flags);
+                into.Add(x0, y0, z0, x1, y1, z1, x0, y0 - thickness, z0, flags);
+                into.Add(x0, y0 - thickness, z0, x1, y1, z1, x1, y1 - thickness, z1, flags);
+            }
+        }
     }
 }

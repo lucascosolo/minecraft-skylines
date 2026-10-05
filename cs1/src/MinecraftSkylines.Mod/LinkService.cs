@@ -66,6 +66,7 @@ namespace MinecraftSkylines.Mod
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
             s_pump.Gui += s_player.OnGui;
+            s_pump.Updated += s_player.Viewer.Update;
             s_pump.Quitting += () => Stop("game exiting");
 
             var options = new HostOptions
@@ -100,6 +101,7 @@ namespace MinecraftSkylines.Mod
             }
             s_log.Info("stopping: " + why + PerfSummary());
             s_player.Exit(why, s_host, true);
+            s_player.Viewer.Dispose();
             s_probe.RestoreAll(why, true);
             s_host.Shutdown(GoodbyeCodes.ShuttingDown, why);
             s_host = null;
