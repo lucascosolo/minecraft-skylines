@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import dev.mcskylines.player.DevWorld;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
@@ -49,6 +50,7 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		LinkController link = new LinkController(guest);
 		MinecraftSkylinesClient.link = link;
 		ServerLifecycleEvents.SERVER_STARTED.register(DevWorld::configureIfOurs);
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> DevWorld.creativeIfOurs(handler.player, server));
 
 		ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
 			LOG.info(PREFIX + "connecting to Cities: Skylines on 127.0.0.1:{}", port);

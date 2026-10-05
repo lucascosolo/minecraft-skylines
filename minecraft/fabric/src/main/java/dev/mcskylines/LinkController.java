@@ -14,13 +14,16 @@ import dev.mcskylines.collision.CollisionStore;
 import dev.mcskylines.protocol.AppProtocol;
 import dev.mcskylines.protocol.CollisionRegion;
 import dev.mcskylines.protocol.CollisionReset;
+import dev.mcskylines.protocol.DebugCommand;
 import dev.mcskylines.protocol.EnterPlayerMode;
 import dev.mcskylines.protocol.ExitPlayerMode;
 import dev.mcskylines.protocol.GuestStatus;
 import dev.mcskylines.protocol.HostStatus;
 import dev.mcskylines.protocol.Input;
 import dev.mcskylines.protocol.PlayerState;
+import dev.mcskylines.player.DevWorld;
 import dev.mcskylines.player.PlayerMode;
+import dev.mcskylines.render.SectionExporter;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
@@ -36,6 +39,9 @@ final class LinkController {
 	private GuestStatus sentStatus;
 	private String lastDisconnect = "none";
 	private final PlayerMode playerMode = new PlayerMode();
+	private final SectionExporter sections;
+	private int exportErrors;
+	private static final boolean DEBUG_COMMANDS = Boolean.getBoolean("mcskylines.debugCommands");
 
 	// Minecraft only exists here to play inside Cities: Skylines, so when CS1 shuts down (GOODBYE
 	// SHUTTING_DOWN) and does not come back within QUIT_AFTER_MS, Minecraft saves and quits the normal
@@ -46,6 +52,7 @@ final class LinkController {
 
 	LinkController(BridgeGuest guest) {
 		this.guest = guest;
+		this.sections = new SectionExporter(guest);
 	}
 
 	/** Start of every frame: input and look arrive at host frame rate, not tick rate. */
@@ -62,6 +69,15 @@ final class LinkController {
 		PlayerState s = playerMode.frameState(mc);
 		if (s != null) {
 			guest.sendLatest(AppProtocol.PLAYER_STATE, s.encode());
+		}
+		if (peer.appMinor() >= 2) {
+			try {
+				sections.frame(mc);
+			} catch (RuntimeException e) {
+				if (exportErrors++ < 5) {
+					LOG.error(PREFIX + "block export failed", e);
+				}
+			}
 		}
 	}
 
@@ -104,6 +120,7 @@ final class LinkController {
 					peer = guest.peer();
 					sentStatus = null;
 					playerMode.onLinkUp(mc);
+					sections.linkUp();
 					if (peer != null) {
 						chat(mc, "Connected to " + peer.peerName() + " (" + peer.peerVersion() + ")");
 					}
@@ -144,6 +161,12 @@ final class LinkController {
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed player-mode message: {}", e.getMessage());
 					}
+				} else if (m.type() == AppProtocol.DEBUG_COMMAND) {
+					try {
+						runDebugCommand(mc, DebugCommand.decode(m.payload()).command());
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed DEBUG_COMMAND: {}", e.getMessage());
+					}
 				} else if (m.type() == AppProtocol.HOST_STATUS) {
 					try {
 						HostStatus next = HostStatus.decode(m.payload());
@@ -160,6 +183,21 @@ final class LinkController {
 				}
 			}
 		}
+	}
+
+	/** Only with -Dmcskylines.debugCommands=true and only in the dev world; runs as the server console, result logged. */
+	private static void runDebugCommand(Minecraft mc, String command) {
+		IntegratedServer server = mc.getSingleplayerServer();
+		if (!DEBUG_COMMANDS || server == null || !DevWorld.isOurs(server)) {
+			LOG.info(PREFIX + "ignoring DEBUG_COMMAND '{}' ({})", command,
+				!DEBUG_COMMANDS ? "-Dmcskylines.debugCommands=true not set" : "not in world " + DevWorld.NAME);
+			return;
+		}
+		server.execute(() -> {
+			LOG.info(PREFIX + "DEBUG_COMMAND /{}", command);
+			server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withCallback((success, result) ->
+				LOG.info(PREFIX + "DEBUG_COMMAND /{} -> {} (result {})", command, success ? "success" : "failure", result)), command);
+		});
 	}
 
 	/** A city just became open in CS1 (and the host speaks app minor 1+): open the dev world now so ENTER_PLAYER_MODE only teleports. */

@@ -9,6 +9,7 @@ import com.google.gson.JsonParser;
 import dev.mcskylines.bridge.Frame;
 import dev.mcskylines.bridge.FrameCodec;
 import dev.mcskylines.bridge.ProtocolException;
+import dev.mcskylines.render.MeshVertices;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -180,8 +181,150 @@ class AppVectorsTest {
     void constants() {
         assertEquals("minecraft-skylines", AppProtocol.NAME);
         assertEquals(1, AppProtocol.MAJOR);
-        assertEquals(1, AppProtocol.MINOR);
+        assertEquals(2, AppProtocol.MINOR);
         assertEquals(0x0100, AppProtocol.HOST_STATUS);
         assertEquals(0x0101, AppProtocol.GUEST_STATUS);
+        assertEquals(0x0130, AppProtocol.BLOCK_ATLAS);
+        assertEquals(0x0131, AppProtocol.ATLAS_REGION);
+        assertEquals(0x0132, AppProtocol.SECTION_MESH);
+        assertEquals(0x0133, AppProtocol.SECTIONS_CLEAR);
+        assertEquals(0x01F0, AppProtocol.DEBUG_COMMAND);
+    }
+
+    private static byte[] hex(JsonObject f, String key) {
+        return HexFormat.of().parseHex(f.get(key).getAsString());
+    }
+
+    @Test
+    void blockAtlas() throws Exception {
+        JsonObject v = vector("block_atlas");
+        JsonObject f = v.getAsJsonObject("fields");
+        byte[] p = payload(v);
+        BlockAtlas expected = new BlockAtlas(f.get("width").getAsInt(), f.get("height").getAsInt(),
+                f.get("format").getAsInt(), hex(f, "dataHex"));
+        BlockAtlas got = BlockAtlas.decode(p);
+        assertEquals(expected, got);
+        assertEquals(expected.hashCode(), got.hashCode());
+        assertArrayEquals(p, got.encode());
+        assertEquals(1, BlockAtlas.PNG);
+        assertThrows(ProtocolException.class, () -> BlockAtlas.decode(Arrays.copyOf(p, p.length - 1)));
+    }
+
+    @Test
+    void atlasRegion() throws Exception {
+        JsonObject v = vector("atlas_region");
+        JsonObject f = v.getAsJsonObject("fields");
+        byte[] p = payload(v);
+        AtlasRegion expected = new AtlasRegion(f.get("x").getAsInt(), f.get("y").getAsInt(),
+                f.get("width").getAsInt(), f.get("height").getAsInt(), hex(f, "rgbaHex"));
+        AtlasRegion got = AtlasRegion.decode(p);
+        assertEquals(expected, got);
+        assertEquals(expected.hashCode(), got.hashCode());
+        assertArrayEquals(p, got.encode());
+        assertThrows(ProtocolException.class, () -> AtlasRegion.decode(Arrays.copyOf(p, p.length - 1)));
+    }
+
+    @Test
+    void atlasRegionEncodeRejectsWrongLength() {
+        assertThrows(IllegalStateException.class, () -> new AtlasRegion(0, 0, 2, 2, new byte[15]).encode());
+    }
+
+    private static SectionMesh meshFromFields(JsonObject f) {
+        JsonArray vs = f.getAsJsonArray("vertices");
+        MeshVertices mv = new MeshVertices();
+        for (JsonElement e : vs) {
+            JsonObject o = e.getAsJsonObject();
+            int c = (int) o.get("color").getAsLong();
+            int argb = (c & 0xFF000000) | ((c & 0xFF) << 16) | (c & 0xFF00) | ((c >>> 16) & 0xFF);
+            int light = (int) o.get("light").getAsLong();
+            int packed = ((light & 0xFF) << 4) | (((light >>> 8) & 0xFF) << 20);
+            mv.put(o.get("x").getAsFloat(), o.get("y").getAsFloat(), o.get("z").getAsFloat(),
+                    o.get("u").getAsFloat(), o.get("v").getAsFloat(), argb, packed,
+                    (int) o.get("flags").getAsLong());
+        }
+        return new SectionMesh(f.get("sx").getAsInt(), f.get("sy").getAsInt(), f.get("sz").getAsInt(),
+                mv.toBytes());
+    }
+
+    @Test
+    void sectionMesh() throws Exception {
+        for (String name : new String[] {"section_mesh", "section_mesh_empty"}) {
+            JsonObject v = vector(name);
+            JsonObject f = v.getAsJsonObject("fields");
+            byte[] p = payload(v);
+            JsonArray vs = f.getAsJsonArray("vertices");
+            SectionMesh got = SectionMesh.decode(p);
+            assertEquals(f.get("sx").getAsInt(), got.sx(), name);
+            assertEquals(f.get("sy").getAsInt(), got.sy(), name);
+            assertEquals(f.get("sz").getAsInt(), got.sz(), name);
+            assertEquals(vs.size(), got.vertexCount(), name);
+            for (int i = 0; i < vs.size(); i++) {
+                JsonObject o = vs.get(i).getAsJsonObject();
+                assertEquals(o.get("x").getAsFloat(), got.x(i), name);
+                assertEquals(o.get("y").getAsFloat(), got.y(i), name);
+                assertEquals(o.get("z").getAsFloat(), got.z(i), name);
+                assertEquals(o.get("u").getAsFloat(), got.u(i), name);
+                assertEquals(o.get("v").getAsFloat(), got.v(i), name);
+                assertEquals((int) o.get("color").getAsLong(), got.color(i), name);
+                assertEquals((int) o.get("light").getAsLong(), got.light(i), name);
+                assertEquals((int) o.get("flags").getAsLong(), got.flags(i), name);
+            }
+            assertArrayEquals(p, got.encode(), name);
+            assertEquals(got, SectionMesh.decode(got.encode()), name);
+        }
+    }
+
+    @Test
+    void sectionMeshBuiltFromFieldsMatchesVector() throws Exception {
+        for (String name : new String[] {"section_mesh", "section_mesh_empty"}) {
+            JsonObject v = vector(name);
+            SectionMesh built = meshFromFields(v.getAsJsonObject("fields"));
+            assertArrayEquals(payload(v), built.encode(), name);
+        }
+    }
+
+    @Test
+    void sectionMeshEmptyAndConstants() {
+        SectionMesh e = SectionMesh.empty(1, -2, 3);
+        assertEquals(0, e.vertexCount());
+        assertEquals(1, e.sx());
+        assertEquals(-2, e.sy());
+        assertEquals(3, e.sz());
+        assertEquals(32, SectionMesh.VERTEX_BYTES);
+        assertEquals(1, SectionMesh.CUTOUT);
+        assertEquals(2, SectionMesh.TRANSLUCENT);
+    }
+
+    @Test
+    void sectionMeshRejectsNonTriangleVertexArray() {
+        assertThrows(IllegalArgumentException.class, () -> new SectionMesh(0, 0, 0, new byte[32]));
+        assertThrows(IllegalArgumentException.class, () -> new SectionMesh(0, 0, 0, new byte[97]));
+    }
+
+    @Test
+    void sectionMeshDecodeRejectsBadPayloads() throws Exception {
+        byte[] p = payload(vector("section_mesh"));
+        assertThrows(ProtocolException.class, () -> SectionMesh.decode(Arrays.copyOf(p, p.length - 1)));
+        // valid payload with one vertex removed: count no longer a multiple of 3 once count is patched
+        byte[] one = SectionMesh.empty(0, 0, 0).encode();
+        assertThrows(ProtocolException.class, () -> SectionMesh.decode(Arrays.copyOf(one, one.length - 1)));
+    }
+
+    @Test
+    void sectionsClear() throws Exception {
+        JsonObject v = vector("sections_clear");
+        byte[] p = payload(v);
+        assertEquals(0, p.length);
+        assertEquals(new SectionsClear(), SectionsClear.decode(p));
+        assertEquals(0, new SectionsClear().encode().length);
+    }
+
+    @Test
+    void debugCommand() throws Exception {
+        JsonObject v = vector("debug_command");
+        byte[] p = payload(v);
+        DebugCommand got = DebugCommand.decode(p);
+        assertEquals(new DebugCommand(v.getAsJsonObject("fields").get("command").getAsString()), got);
+        assertArrayEquals(p, got.encode());
     }
 }

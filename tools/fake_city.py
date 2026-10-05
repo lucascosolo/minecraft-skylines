@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Sandbox stand-in for the Cities: Skylines host (minecraft-skylines app protocol 1.1).
+"""Sandbox stand-in for the Cities: Skylines host (minecraft-skylines app protocol 1.2).
 
 Listens as the bridge host, sends status, collision geometry and ENTER_PLAYER_MODE, then drives
-scripted INPUT and prints the guest's PLAYER_STATE. See protocol/minecraft-skylines-v1.md.
+scripted INPUT and prints the guest's PLAYER_STATE. Summarises BLOCK_ATLAS (optionally saving the PNG with
+--atlas-out), SECTION_MESH, SECTIONS_CLEAR and ATLAS_REGION, and can send one DEBUG_COMMAND (--debug-command).
+--self-check decodes the 1.2 golden vectors and exits. See protocol/minecraft-skylines-v1.md.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import socket
@@ -19,7 +22,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import skbridge as sb  # noqa: E402
 
 APP = "minecraft-skylines"
-MINOR = 1
+MINOR = 2
+VECTORS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "protocol", "vectors", "frames.json")
 START = time.monotonic()
 HB_MS, TIMEOUT_MS = 1000, 5000
 FLAG_NAMES = ["in_world", "on_ground", "sneaking", "sprinting", "swimming", "flying", "dead", "held"]
@@ -70,6 +74,66 @@ def build_regions():
     return regions
 
 
+def describe(type_: int, payload: bytes, atlas_out: str | None = None) -> str | None:
+    """One-line summary of a 1.2 render frame (None for other types); writes the atlas PNG to atlas_out."""
+    if type_ == sb.BLOCK_ATLAS:
+        a = sb.BlockAtlas.decode(payload)
+        png_ok = a.data[:8] == b"\x89PNG\r\n\x1a\n"
+        if atlas_out:
+            with open(atlas_out, "wb") as f:
+                f.write(a.data)
+        return (f"BLOCK_ATLAS {a.width}x{a.height} format={a.fmt} bytes={len(a.data)} png={'ok' if png_ok else 'BAD'}"
+                + (f" -> {atlas_out}" if atlas_out else ""))
+    if type_ == sb.SECTION_MESH:
+        m = sb.SectionMesh.decode(payload)
+        n = len(m.vertices)
+        cut = sum(1 for v in m.vertices if v[7] & 1)
+        tr = sum(1 for v in m.vertices if v[7] & 2)
+        return f"SECTION_MESH section=({m.sx},{m.sy},{m.sz}) vertices={n}" + (" (empty: drop)" if n == 0 else f" cutout={cut} translucent={tr}")
+    if type_ == sb.SECTIONS_CLEAR:
+        return "SECTIONS_CLEAR"
+    if type_ == sb.ATLAS_REGION:
+        r = sb.AtlasRegion.decode(payload)
+        return f"ATLAS_REGION ({r.x},{r.y}) {r.width}x{r.height}"
+    return None
+
+
+def self_check() -> int:
+    """Decodes the 1.2 golden vectors through describe() and the reference codecs; returns a process exit code."""
+    vectors = {v["name"]: v for v in json.load(open(VECTORS))["valid"]}
+    bad = 0
+
+    def check(name, cond, what):
+        nonlocal bad
+        print(f"{'ok  ' if cond else 'FAIL'} {name}: {what}", flush=True)
+        bad += 0 if cond else 1
+
+    def frame_of(name):
+        raw = bytes.fromhex(vectors[name]["hex"])
+        length, type_, _ = sb.HEADER.unpack_from(raw)
+        return type_, raw[sb.HEADER.size:sb.HEADER.size + length], vectors[name]["fields"]
+
+    t, p, f = frame_of("block_atlas")
+    line = describe(t, p)
+    check("block_atlas", line == f"BLOCK_ATLAS {f['width']}x{f['height']} format={f['format']} bytes={len(f['dataHex']) // 2} png=ok", line)
+    t, p, f = frame_of("atlas_region")
+    r = sb.AtlasRegion.decode(p)
+    check("atlas_region", (r.x, r.y, r.width, r.height, r.rgba.hex()) == (f["x"], f["y"], f["width"], f["height"], f["rgbaHex"]), describe(t, p))
+    for name in ("section_mesh", "section_mesh_empty"):
+        t, p, f = frame_of(name)
+        m = sb.SectionMesh.decode(p)
+        want = [(v["x"], v["y"], v["z"], v["u"], v["v"], v["color"], v["light"], v["flags"]) for v in f["vertices"]]
+        check(name, (m.sx, m.sy, m.sz) == (f["sx"], f["sy"], f["sz"]) and [tuple(v) for v in m.vertices] == want
+              and t == sb.SECTION_MESH, describe(t, p))
+    t, p, _ = frame_of("sections_clear")
+    check("sections_clear", describe(t, p) == "SECTIONS_CLEAR" and p == b"", describe(t, p))
+    t, p, f = frame_of("debug_command")
+    check("debug_command", t == sb.DEBUG_COMMAND and sb.DebugCommand(f["command"]).encode() == p
+          and sb.DebugCommand.decode(p).command == f["command"], f["command"])
+    print(f"self-check: {'PASS' if bad == 0 else f'{bad} FAILED'}", flush=True)
+    return 1 if bad else 0
+
+
 class Link:
     def __init__(self, conn: sb.Conn) -> None:
         self.c = conn
@@ -83,6 +147,10 @@ class Link:
         self.quiet = 1
         self.last_print = 0.0
         self.count = 0
+        self.atlas_out = None
+        self.meshes = 0
+        self.mesh_vertices = 0
+        self.regions = 0
 
     def send(self, type_: int, payload: bytes) -> None:
         with self.lock:
@@ -132,6 +200,8 @@ class Link:
                     print(f"GUEST_STATUS {sb.GuestStatus.decode(payload)}", flush=True)
                 elif type_ == sb.PLAYER_STATE:
                     self._state(sb.PlayerState.decode(payload))
+                elif type_ in (sb.BLOCK_ATLAS, sb.SECTION_MESH, sb.SECTIONS_CLEAR, sb.ATLAS_REGION):
+                    self._render(type_, payload)
                 # heartbeats and echoed host-direction frames are ignored
             except sb.ProtocolError as e:
                 print(f"decode error on 0x{type_:04x}: {e}", flush=True)
@@ -150,6 +220,17 @@ class Link:
         print(f"STATE tick={v['tickSeq']} flags={flags} ack={v['teleportAck']} "
               f"feet=({v['x']:.3f},{v['y']:.3f},{v['z']:.3f}) eyeY={v['eyeY']:.3f} "
               f"yaw={v['yaw']:.2f} pitch={v['pitch']:.2f} fov={v['fovDeg']:.1f}", flush=True)
+
+    def _render(self, type_: int, payload: bytes) -> None:
+        line = describe(type_, payload, self.atlas_out)
+        if type_ == sb.SECTION_MESH:
+            self.meshes += 1
+            self.mesh_vertices += len(payload) // sb.VERTEX.size
+        elif type_ == sb.ATLAS_REGION:
+            self.regions += 1
+            if self.regions > 5 and self.regions % 500:
+                return  # animated sprites arrive every tick
+        print(line, flush=True)
 
     def wait_ack(self, seq: int, timeout_s: float) -> bool:
         deadline = time.monotonic() + timeout_s
@@ -217,17 +298,30 @@ def main() -> None:
     ap.add_argument("--seconds", type=float, default=30.0)
     ap.add_argument("--quiet-states", type=int, default=1, metavar="N", help="print only every Nth state")
     ap.add_argument("--handshake-only", action="store_true")
+    ap.add_argument("--atlas-out", metavar="PATH", help="write the BLOCK_ATLAS PNG here")
+    ap.add_argument("--debug-command", metavar="CMD", help="send this DEBUG_COMMAND (no leading slash) after the handshake")
+    ap.add_argument("--self-check", action="store_true", help="decode the 1.2 golden vectors and exit")
     a = ap.parse_args()
+    if a.self_check:
+        sys.exit(self_check())
     t_end = time.monotonic() + a.seconds
 
     link = accept_guest(a.port)
     link.quiet = max(1, a.quiet_states)
+    link.atlas_out = a.atlas_out
     link.start()
     link.send(sb.HOST_STATUS, sb.HostStatus(1 | 8, "fake city", uuid.UUID(int=0), "fake").encode())
     if link.negotiated < 1:
         print("WARNING: negotiated minor < 1, not sending player-mode messages", flush=True)
         time.sleep(1)
         finish(link)
+
+    if a.debug_command:
+        if link.negotiated >= 2:
+            link.send(sb.DEBUG_COMMAND, sb.DebugCommand(a.debug_command).encode())
+            print(f"sent DEBUG_COMMAND {a.debug_command!r}", flush=True)
+        else:
+            print("WARNING: negotiated minor < 2, not sending DEBUG_COMMAND", flush=True)
 
     regions = build_regions()
     link.send(sb.COLLISION_RESET, sb.CollisionReset(1).encode())
@@ -269,7 +363,8 @@ def main() -> None:
 
     with link.state_cv:
         st = [s.values for s in link.states]
-    print(f"SUMMARY states={len(st)}", flush=True)
+    print(f"SUMMARY states={len(st)} section_meshes={link.meshes} mesh_vertices={link.mesh_vertices} "
+          f"atlas_regions={link.regions}", flush=True)
     if st:
         f, l = st[0], st[-1]
         print(f"  first feet=({f['x']:.3f},{f['y']:.3f},{f['z']:.3f}) last feet=({l['x']:.3f},{l['y']:.3f},{l['z']:.3f})", flush=True)

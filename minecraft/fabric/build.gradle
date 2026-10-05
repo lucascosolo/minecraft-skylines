@@ -9,6 +9,10 @@ loom {
 			if (project.hasProperty('mcskylinesHidden')) {
 				vmArg '-Dmcskylines.startHidden=true'
 			}
+			// `-PmcskylinesDebugCommands` lets the host run server commands in the dev world (automated in-game tests).
+			if (project.hasProperty('mcskylinesDebugCommands')) {
+				vmArg '-Dmcskylines.debugCommands=true'
+			}
 		}
 	}
 }

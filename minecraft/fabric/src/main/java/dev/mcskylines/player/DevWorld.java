@@ -8,6 +8,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
@@ -62,7 +63,7 @@ public final class DevWorld {
 
 	/** The integrated server just started: if it is our world (by folder), CS1 drives time, weather and spawning. */
 	public static void configureIfOurs(MinecraftServer server) {
-		if (!NAME.equals(server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName().toString())) {
+		if (!isOurs(server)) {
 			return;
 		}
 		GameRules rules = server.getGameRules();
@@ -74,5 +75,17 @@ public final class DevWorld {
 		rules.set(GameRules.KEEP_INVENTORY, true, server);
 		rules.set(GameRules.IMMEDIATE_RESPAWN, true, server);
 		LOG.info("[MinecraftSkylines] configured world {}", NAME);
+	}
+
+	/** True if the server runs the dev world (by folder name). */
+	public static boolean isOurs(MinecraftServer server) {
+		return NAME.equals(server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName().toString());
+	}
+
+	/** Temporary dev choice: creative in the dev world so blocks can be placed without an inventory. */
+	public static void creativeIfOurs(ServerPlayer player, MinecraftServer server) {
+		if (isOurs(server) && player.setGameMode(GameType.CREATIVE)) {
+			LOG.info("[MinecraftSkylines] {} set to creative in {}", player.getName().getString(), NAME);
+		}
 	}
 }

@@ -6,10 +6,15 @@
     "CameraAccessor",
     "FramerateLimitTrackerMixin",
     "InputConstantsMixin",
+    "LevelExtractorMixin",
     "MinecraftMixin",
     "ScreenMixin",
+    "SpriteContentsAccessor",
+    "TextureAtlasAccessor",
     "WindowMixin",
     "WorldOpenFlowsMixin"
   ],
-  "injectors": { "defaultRequire": 1 }
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

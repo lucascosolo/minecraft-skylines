@@ -137,6 +137,12 @@ public final class BridgeGuest {
 		return s != null && s.enqueueLatest(type, FrameCodec.encode(type, payload));
 	}
 
+	/** Payload bytes queued by {@link #send} and not yet written to the socket; 0 without a session. */
+	public long queuedBytes() {
+		Session s = session;
+		return s == null ? 0 : s.queuedBytes.get();
+	}
+
 	/** Hands every pending event to {@code sink} on the calling thread; returns how many. */
 	public int poll(Consumer<? super BridgeEvent> sink) {
 		int n = 0;

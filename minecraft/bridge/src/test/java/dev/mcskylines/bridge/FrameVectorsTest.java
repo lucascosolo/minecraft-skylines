@@ -100,7 +100,7 @@ class FrameVectorsTest {
     @Test
     void vectorCounts() throws Exception {
         JsonObject root = load();
-        assertEquals(17, root.getAsJsonArray("valid").size());
+        assertEquals(23, root.getAsJsonArray("valid").size()); // 17 of 1.1 + 6 of 1.2
         assertEquals(7, root.getAsJsonArray("invalid").size());
     }
 }
