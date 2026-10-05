@@ -136,8 +136,23 @@ SRC_ARGS=()
 echo "== installing the mod with selftest = city_load, selftest_quit = true, autoload = ${AUTOLOAD}"
 bash "${INSTALL:?}" --selftest --selftest-quit --autoload "${AUTOLOAD}" "${SRC_ARGS[@]}" || { echo "install failed" >&2; exit 1; }
 
+# Copies every log the agent needs into a folder it can read. Runs on every exit after the game was
+# asked to start (success, timeout, game ended without a report), not only on success.
+EVIDENCE=""
+copy_evidence() {
+  [ -n "${EVIDENCE}" ] && return 0
+  EVIDENCE="${HOME:?}/.cache/minecraft-skylines/evidence/selftest-$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir -p "${EVIDENCE:?}"
+  [ -d "${MODLOGS:?}" ] && cp -r "${MODLOGS:?}" "${EVIDENCE:?}/ModLogs" 2>/dev/null || true
+  [ -f "${PLAYER_LOG}" ] && cp "${PLAYER_LOG}" "${EVIDENCE:?}/" 2>/dev/null || true
+  [ -f "${MC_LOG}" ] && cp "${MC_LOG}" "${EVIDENCE:?}/minecraft-latest.log" 2>/dev/null || true
+  echo "Evidence: ${EVIDENCE}" >&2
+}
+LAUNCHED=0
+
 restore() {
   local rc=$?
+  [ "${LAUNCHED}" = 1 ] && copy_evidence
   echo "== setting launch.cfg back to normal play (autoload off, selftest off, selftest_quit false)"
   bash "${INSTALL:?}" --normal || echo "WARNING: could not reset launch.cfg; run: bash ${INSTALL} --normal" >&2
   exit "${rc}"
@@ -212,6 +227,7 @@ borrow_session_env
 # attach to the running Steam client without a restart through Steam. MCSK_LAUNCH=steam keeps the old way.
 LAUNCH="${MCSK_LAUNCH:-direct}"
 RETRIED=0
+LAUNCHED=1
 if [ "${LAUNCH}" = direct ]; then
   RETRIED=1
   GAME_DIR="${MCSK_GAME_DIR:-$(sed -n 's/^cs1_install: //p' "${HOME:?}/.cache/minecraft-skylines/refs/environment.txt" 2>/dev/null | head -1)}"
@@ -283,11 +299,7 @@ while pgrep -x "${GAME}" >/dev/null && [ "${WAITED}" -lt "${EXIT_WAIT}" ]; do
 done
 pgrep -x "${GAME}" >/dev/null && echo "WARNING: the game is still running after ${EXIT_WAIT} s; copying evidence anyway" >&2
 
-EVIDENCE="${HOME:?}/.cache/minecraft-skylines/evidence/selftest-$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -p "${EVIDENCE:?}"
-cp -r "${MODLOGS:?}" "${EVIDENCE:?}/ModLogs"
-[ -f "${PLAYER_LOG}" ] && cp "${PLAYER_LOG}" "${EVIDENCE:?}/"
-[ -f "${MC_LOG}" ] && cp "${MC_LOG}" "${EVIDENCE:?}/minecraft-latest.log"
+copy_evidence
 python3 -c '
 import json, sys
 r = json.load(open(sys.argv[1]))
