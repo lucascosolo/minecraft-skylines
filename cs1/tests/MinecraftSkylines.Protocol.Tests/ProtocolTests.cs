@@ -57,16 +57,126 @@ namespace MinecraftSkylines.Protocol.Tests
                 Assert.Equal(f.GetProperty("gameVersion").GetString(), s.GameVersion);
                 payload = s.Encode();
             }
-            else
+            else if (frame.Type == AppProtocol.GuestStatusType)
             {
-                Assert.Equal(AppProtocol.GuestStatusType, frame.Type);
                 GuestStatus s = GuestStatus.Decode(frame.Payload);
                 Assert.Equal(f.GetProperty("flags").GetUInt32(), s.Flags);
                 Assert.Equal(f.GetProperty("worldName").GetString(), s.WorldName);
                 Assert.Equal(new Guid(f.GetProperty("pairedSaveId").GetString()), s.PairedSaveId);
                 payload = s.Encode();
             }
+            else
+            {
+                payload = CheckPlayerMessage(frame, f);
+            }
             Assert.Equal(hex, Convert.ToHexString(FrameCodec.Encode(frame.Type, payload)).ToLowerInvariant());
+        }
+
+        private static byte[] CheckPlayerMessage(Frame frame, JsonElement f)
+        {
+            switch (frame.Type)
+            {
+                case AppProtocol.EnterPlayerModeType:
+                    {
+                        EnterPlayerMode m = EnterPlayerMode.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("teleportSeq").GetUInt32(), m.TeleportSeq);
+                        Assert.Equal(f.GetProperty("x").GetDouble(), m.X);
+                        Assert.Equal(f.GetProperty("y").GetDouble(), m.Y);
+                        Assert.Equal(f.GetProperty("z").GetDouble(), m.Z);
+                        Assert.Equal(f.GetProperty("yaw").GetSingle(), m.Yaw);
+                        Assert.Equal(f.GetProperty("pitch").GetSingle(), m.Pitch);
+                        Assert.Equal(f.GetProperty("collisionEpoch").GetUInt32(), m.CollisionEpoch);
+                        return m.Encode();
+                    }
+                case AppProtocol.ExitPlayerModeType:
+                    {
+                        ExitPlayerMode m = ExitPlayerMode.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("reason").GetString(), m.Reason);
+                        return m.Encode();
+                    }
+                case AppProtocol.InputType:
+                    {
+                        Input m = Input.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("yaw").GetSingle(), m.Yaw);
+                        Assert.Equal(f.GetProperty("pitch").GetSingle(), m.Pitch);
+                        JsonElement events = f.GetProperty("events");
+                        Assert.Equal(events.GetArrayLength(), m.Events.Length);
+                        int i = 0;
+                        foreach (JsonElement e in events.EnumerateArray())
+                        {
+                            Assert.Equal(e.GetProperty("kind").GetByte(), m.Events[i].Kind);
+                            Assert.Equal(e.GetProperty("action").GetByte(), m.Events[i].Action);
+                            Assert.Equal(e.GetProperty("code").GetInt32(), m.Events[i].Code);
+                            i++;
+                        }
+                        return m.Encode();
+                    }
+                case AppProtocol.CollisionRegionType:
+                    {
+                        CollisionRegion m = CollisionRegion.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("epoch").GetUInt32(), m.Epoch);
+                        Assert.Equal(f.GetProperty("regionX").GetInt32(), m.RegionX);
+                        Assert.Equal(f.GetProperty("regionZ").GetInt32(), m.RegionZ);
+                        JsonElement tris = f.GetProperty("tris");
+                        Assert.Equal(tris.GetArrayLength(), m.TriangleCount);
+                        Assert.Equal(9 * m.TriangleCount, m.Vertices.Length);
+                        int t = 0;
+                        foreach (JsonElement tri in tris.EnumerateArray())
+                        {
+                            int k = 0;
+                            foreach (JsonElement v in tri.GetProperty("v").EnumerateArray())
+                                Assert.Equal(v.GetSingle(), m.Vertices[9 * t + k++]);
+                            Assert.Equal(9, k);
+                            Assert.Equal(tri.GetProperty("flags").GetUInt16(), m.Flags[t]);
+                            t++;
+                        }
+                        return m.Encode();
+                    }
+                case AppProtocol.CollisionResetType:
+                    {
+                        CollisionReset m = CollisionReset.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("epoch").GetUInt32(), m.Epoch);
+                        return m.Encode();
+                    }
+                default:
+                    {
+                        Assert.Equal(AppProtocol.PlayerStateType, frame.Type);
+                        PlayerState m = PlayerState.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("flags").GetUInt32(), m.Flags);
+                        Assert.Equal(f.GetProperty("teleportAck").GetUInt32(), m.TeleportAck);
+                        Assert.Equal(f.GetProperty("x").GetDouble(), m.X);
+                        Assert.Equal(f.GetProperty("y").GetDouble(), m.Y);
+                        Assert.Equal(f.GetProperty("z").GetDouble(), m.Z);
+                        Assert.Equal(f.GetProperty("eyeX").GetDouble(), m.EyeX);
+                        Assert.Equal(f.GetProperty("eyeY").GetDouble(), m.EyeY);
+                        Assert.Equal(f.GetProperty("eyeZ").GetDouble(), m.EyeZ);
+                        Assert.Equal(f.GetProperty("yaw").GetSingle(), m.Yaw);
+                        Assert.Equal(f.GetProperty("pitch").GetSingle(), m.Pitch);
+                        Assert.Equal(f.GetProperty("fovDeg").GetSingle(), m.FovDeg);
+                        Assert.Equal(f.GetProperty("tickSeq").GetUInt32(), m.TickSeq);
+                        Assert.Equal(f.GetProperty("prevX").GetDouble(), m.PrevX);
+                        Assert.Equal(f.GetProperty("prevY").GetDouble(), m.PrevY);
+                        Assert.Equal(f.GetProperty("prevZ").GetDouble(), m.PrevZ);
+                        Assert.Equal(f.GetProperty("curX").GetDouble(), m.CurX);
+                        Assert.Equal(f.GetProperty("curY").GetDouble(), m.CurY);
+                        Assert.Equal(f.GetProperty("curZ").GetDouble(), m.CurZ);
+                        Assert.Equal(f.GetProperty("prevEyeHeight").GetSingle(), m.PrevEyeHeight);
+                        Assert.Equal(f.GetProperty("curEyeHeight").GetSingle(), m.CurEyeHeight);
+                        Assert.Equal(f.GetProperty("partialTick").GetSingle(), m.PartialTick);
+                        Assert.Equal(f.GetProperty("tickMs").GetSingle(), m.TickMs);
+                        return m.Encode();
+                    }
+            }
+        }
+
+        [Fact]
+        public void TruncatedPlayerMessagesAreProtocolErrors()
+        {
+            Assert.Throws<ProtocolException>(() => EnterPlayerMode.Decode(new byte[10]));
+            Assert.Throws<ProtocolException>(() => Input.Decode(new byte[] { 0, 0, 0, 0, 0, 0, 1, 0, 1, 1 }));
+            Assert.Throws<ProtocolException>(() => PlayerState.Decode(new byte[20]));
+            // triCount claims 2^32-1 triangles with no data behind it: must fail without allocating.
+            Assert.Throws<ProtocolException>(() => CollisionRegion.Decode(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255 }));
         }
 
         [Fact]
@@ -81,7 +191,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(0, AppProtocol.Minor);
+            Assert.Equal(1, AppProtocol.Minor);
             Assert.Equal(8u, HostStatusFlags.PlayerMode);
             Assert.Equal(2u, GuestStatusFlags.ScreenOpen);
         }

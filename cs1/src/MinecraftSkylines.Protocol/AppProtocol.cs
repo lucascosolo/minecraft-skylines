@@ -8,11 +8,23 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 0;
+        public const ushort Minor = 1;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
         public const ushort GuestStatusType = 0x0101;
+        /// <summary>Message type of <see cref="EnterPlayerMode"/> (host to guest).</summary>
+        public const ushort EnterPlayerModeType = 0x0110;
+        /// <summary>Message type of <see cref="ExitPlayerMode"/> (host to guest).</summary>
+        public const ushort ExitPlayerModeType = 0x0111;
+        /// <summary>Message type of <see cref="Input"/> (host to guest).</summary>
+        public const ushort InputType = 0x0112;
+        /// <summary>Message type of <see cref="CollisionRegion"/> (host to guest).</summary>
+        public const ushort CollisionRegionType = 0x0113;
+        /// <summary>Message type of <see cref="CollisionReset"/> (host to guest).</summary>
+        public const ushort CollisionResetType = 0x0114;
+        /// <summary>Message type of <see cref="PlayerState"/> (guest to host).</summary>
+        public const ushort PlayerStateType = 0x0120;
     }
 
     /// <summary>Bits of <see cref="HostStatus.Flags"/>.</summary>
