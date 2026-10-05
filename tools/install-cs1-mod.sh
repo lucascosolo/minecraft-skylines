@@ -2,10 +2,16 @@
 # Copy the built Cities: Skylines mod into the game's local mods folder. Run it yourself in a normal
 # terminal (the agent's sandbox cannot write there):
 #
-#     bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh [--selftest] [build-output-dir]
+#     bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh [--selftest] [--selftest-quit]
+#         [--autoload "<save name>"] [build-output-dir]
+#     bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh --normal
 #
 # --selftest (any position): also ensures launch.cfg has "selftest = city_load" and that the args
 # line carries -PmcskylinesDebugCommands (dated backup copy before any edit of an existing line).
+# --selftest-quit: "selftest_quit = true" (quit the game after the self-test report). --autoload NAME:
+# "autoload = NAME" (load that save from the main menu once per game start). --normal: copies nothing and
+# only sets "autoload =", "selftest = off", "selftest_quit = false" (back to normal play). A changed key
+# gets its old file kept as one dated backup per run; a missing key is appended.
 # Without an argument it installs the repo's current Release build. With one, it installs that
 # folder instead (e.g. a pinned build of a specific commit).
 # Copies four DLLs into Addons/Mods/MinecraftSkylines/ (overwriting older copies of the same four
@@ -15,13 +21,62 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SELFTEST=0
+SELFTEST_QUIT=0
+NORMAL=0
+AUTOLOAD=""
+AUTOLOAD_SET=0
 SRC_ARG=""
-for a in "$@"; do
-  if [ "$a" = "--selftest" ]; then SELFTEST=1; else SRC_ARG="$a"; fi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --selftest) SELFTEST=1 ;;
+    --selftest-quit) SELFTEST_QUIT=1 ;;
+    --normal) NORMAL=1 ;;
+    --autoload)
+      [ $# -ge 2 ] || { echo "--autoload needs a save name"; exit 2; }
+      AUTOLOAD="$2"; AUTOLOAD_SET=1; shift ;;
+    *) SRC_ARG="$1" ;;
+  esac
+  shift
 done
+if [ "${NORMAL}" = 1 ] && [ "${SELFTEST}${SELFTEST_QUIT}${AUTOLOAD_SET}" != 000 ]; then
+  echo "--normal cannot be combined with --selftest, --selftest-quit or --autoload"; exit 2
+fi
 SRC="${SRC_ARG:-${ROOT:?}/cs1/src/MinecraftSkylines.Mod/bin/Release/net35}"
 DATA="${XDG_DATA_HOME:-${HOME:?}/.local/share}"
 DEST="${DATA:?}/Colossal Order/Cities_Skylines/Addons/Mods/MinecraftSkylines"
+CFG="${DEST:?}/launch.cfg"
+BACKUP=""
+backup_once() {
+  [ -n "${BACKUP}" ] && return 0
+  BACKUP="${CFG:?}.backup-$(date +%Y%m%d-%H%M%S)-$$"
+  cp -p "${CFG:?}" "${BACKUP:?}"
+}
+# set_key KEY VALUE: append when missing; when any line of KEY has another value, back up once and replace
+# every KEY line with one "KEY = VALUE" (awk takes the value from the environment: no escaping problems).
+set_key() {
+  local key="$1" value="$2" line want cur
+  if [ -n "${value}" ]; then want="${key} = ${value}"; else want="${key} ="; fi
+  if ! grep -q "^[[:space:]]*${key}[[:space:]]*=" "${CFG:?}"; then
+    printf '%s\n' "${want}" >> "${CFG:?}"
+    echo "added '${want}' to ${CFG}"
+    return 0
+  fi
+  cur="$(KEY="${key}" awk '{ l=$0; sub(/^[ \t]+/, "", l); k=l; sub(/[ \t]*=.*/, "", k); if (k == ENVIRON["KEY"] && index(l, "=") > 0) { v=substr(l, index(l, "=") + 1); gsub(/^[ \t]+|[ \t\r]+$/, "", v); print v } }' "${CFG:?}")"
+  if [ "${cur}" = "${value}" ]; then return 0; fi
+  backup_once
+  line="$(KEY="${key}" WANT="${want}" awk '{ l=$0; sub(/^[ \t]+/, "", l); k=l; sub(/[ \t]*=.*/, "", k); if (k == ENVIRON["KEY"] && index(l, "=") > 0) { if (!done) print ENVIRON["WANT"]; done=1 } else print }' "${CFG:?}")"
+  printf '%s\n' "${line}" > "${CFG:?}"
+  echo "set '${want}' in ${CFG}; old file kept as ${BACKUP}"
+}
+
+if [ "${NORMAL}" = 1 ]; then
+  if [ ! -e "${CFG:?}" ]; then echo "no ${CFG}; nothing to do"; exit 0; fi
+  set_key autoload ""
+  set_key selftest off
+  set_key selftest_quit false
+  echo "launch.cfg set for normal play (no autoload, no self-test, no quit): ${CFG}"
+  exit 0
+fi
 
 FILES=(MinecraftSkylines.dll Skylines.Host.dll Skylines.Bridge.dll MinecraftSkylines.Protocol.dll)
 # Optional assemblies: installed when the build has them.
@@ -37,7 +92,6 @@ done
 
 # Developer auto-start config for Ctrl+Shift+M (see cs1/src/MinecraftSkylines.Mod/MinecraftLauncher.cs).
 # Written only when absent: a user-edited launch.cfg is never overwritten.
-CFG="${DEST:?}/launch.cfg"
 
 # Steam runs the game inside its Linux runtime container: the host's /usr (and so /usr/lib/jvm and
 # /usr/bin/java) is not visible there, but the home folder is (owner's runs, 2026-10-05: "no java on
@@ -57,8 +111,7 @@ if [ -e "${CFG:?}" ]; then
   # invisible inside Steam's container, so those two lines are replaced after a dated backup copy.
   CUR_JH="$(sed -n 's/^[[:space:]]*env\.JAVA_HOME[[:space:]]*=[[:space:]]*//p' "${CFG:?}" | tail -1)"
   if [ -n "${CUR_JH}" ] && [ "${CUR_JH#${HOME}/}" = "${CUR_JH}" ]; then
-    BACKUP="${CFG:?}.backup-$(date +%Y%m%d-%H%M%S)-$$"
-    cp -p "${CFG:?}" "${BACKUP:?}"
+    backup_once
     grep -vE '^[[:space:]]*env\.(JAVA_HOME|PATH)[[:space:]]*=' "${BACKUP:?}" > "${CFG:?}"
     echo "replaced env.JAVA_HOME ${CUR_JH} (not visible inside Steam's container); old file kept as ${BACKUP}"
   fi
@@ -87,23 +140,7 @@ CFGEOF
   echo "wrote ${CFG}"
 fi
 if [ "${SELFTEST}" = 1 ]; then
-  BACKUP="${BACKUP:-}"
-  backup_once() {
-    [ -n "${BACKUP}" ] && return 0
-    BACKUP="${CFG:?}.backup-$(date +%Y%m%d-%H%M%S)-$$"
-    cp -p "${CFG:?}" "${BACKUP:?}"
-  }
-  SELFTMP="$(mktemp)"
-  CUR_ST="$(sed -n 's/^[[:space:]]*selftest[[:space:]]*=[[:space:]]*//p' "${CFG:?}" | tail -1)"
-  if ! grep -q '^[[:space:]]*selftest[[:space:]]*=' "${CFG:?}"; then
-    printf 'selftest = city_load\n' >> "${CFG:?}"
-    echo "added selftest = city_load to ${CFG}"
-  elif [ "${CUR_ST}" != "city_load" ]; then
-    backup_once
-    sed 's/^[[:space:]]*selftest[[:space:]]*=.*/selftest = city_load/' "${CFG:?}" > "${SELFTMP:?}"
-    cat "${SELFTMP:?}" > "${CFG:?}"
-    echo "replaced selftest = ${CUR_ST} with city_load; old file kept as ${BACKUP}"
-  fi
+  set_key selftest city_load
   if ! grep -q '^[[:space:]]*args[[:space:]]*=' "${CFG:?}"; then
     echo "WARNING: no args line in ${CFG}; -PmcskylinesDebugCommands not added"
   else
@@ -112,12 +149,15 @@ if [ "${SELFTEST}" = 1 ]; then
       *[[:space:]]-PmcskylinesDebugCommands[[:space:]]*) ;;
       *)
         backup_once
-        sed '/^[[:space:]]*args[[:space:]]*=/s/$/ -PmcskylinesDebugCommands/' "${CFG:?}" > "${SELFTMP:?}"
-        cat "${SELFTMP:?}" > "${CFG:?}"
+        # Edited in memory and written back: no temp file is left behind (/tmp is RAM here).
+        NEW_CFG="$(sed '/^[[:space:]]*args[[:space:]]*=/s/$/ -PmcskylinesDebugCommands/' "${CFG:?}")"
+        printf '%s\n' "${NEW_CFG}" > "${CFG:?}"
         echo "appended -PmcskylinesDebugCommands to args; backup ${BACKUP}"
         ;;
     esac
   fi
 fi
+if [ "${SELFTEST_QUIT}" = 1 ]; then set_key selftest_quit true; fi
+if [ "${AUTOLOAD_SET}" = 1 ]; then set_key autoload "${AUTOLOAD}"; fi
 echo "Mod folder: ${DEST}"
 echo "Now start Cities: Skylines, open Content Manager > Mods and enable 'Minecraft Skylines'."

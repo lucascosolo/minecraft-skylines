@@ -215,4 +215,45 @@ atomics and pixel transfer agree across languages; says nothing about Minecraft'
    Esc aborts.
 3. Afterwards copy the results:
    `mkdir -p ~/.cache/minecraft-skylines/evidence/selftest && cp -r ~/.local/share/"Colossal Order"/Cities_Skylines/ModLogs/. ~/.config/unity3d/"Colossal Order"/"Cities_ Skylines"/Player.log ~/.cache/minecraft-skylines/evidence/selftest/`
-4. To play normally again, set `selftest = off` in launch.cfg (the script prints its path).
+4. To play normally again: `bash ~/Workspaces/minecraft-skylines/tools/install-cs1-mod.sh --normal` (or set `selftest = off` in launch.cfg by hand).
+
+## Remote unattended run (SSH)
+
+For the owner away from the PC with only SSH: the game runs on the home display, nobody clicks.
+Steam must already be running and logged in on the desktop session; the screen may be locked
+(unverified, see below).
+
+1. `bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh --list-saves` prints the local save
+   names (newest first). Pick the test city.
+2. `bash ~/Workspaces/minecraft-skylines/tools/remote-selftest.sh "<save name>"`. It refuses if
+   `Cities.x64` already runs (it never kills anything), installs the mod with launch.cfg
+   `selftest = city_load`, `selftest_quit = true`, `autoload = <save name>` (one dated
+   `launch.cfg.backup-*` when a line changes), runs `steam -applaunch 255710`, and every 10 s prints
+   whether the game is up, whether the mod log shows the link connected, and the latest
+   self-test/autoload line. The mod loads the save from the main menu exactly as the Load button would,
+   runs S1-S9, writes the report, waits 3 s and quits the game itself (no save). The script then waits up
+   to 2 minutes for the game to exit, copies `ModLogs/` (with `selftest/`), `Player.log` and Minecraft's
+   `latest.log` into `~/.cache/minecraft-skylines/evidence/selftest-<UTC>/`, and prints the
+   `Self-test: N pass, …` line and `Evidence: <dir>`.
+3. On every exit after the install (success, timeout, no start) it runs
+   `install-cs1-mod.sh --normal`, which sets `autoload =`, `selftest = off`, `selftest_quit = false` and
+   copies nothing, so the next manual start is normal play.
+
+Exit codes: 0 report found; 1 refused (game already running) or install failed; 2 the game did not
+start within 180 s (or Steam is not running); 3 no report within 20 minutes, or the game exited without
+one; 4 bad usage.
+
+Safety nets in the mod (launch.cfg, all default off): `autoload` loads only once per game start and
+never saves; if the name matches no save, the mod logs every available save (package, asset and city
+name) and loads nothing, and with `selftest_quit = true` quits 3 s later. With `autoload` and
+`selftest_quit`, a self-test still unfinished 15 minutes after the level load is aborted (partial
+report) and the game quits. Matching: package (file) name first, then the Load panel's asset name, then
+the city name, case-insensitive; the newest save wins a tie.
+
+Only a real run can settle: whether `steam -applaunch` from an SSH shell reaches the desktop Steam
+client (it talks to the running client over its pipe; no DISPLAY is needed in principle); whether
+the game renders, and so takes screenshots, while the screen is locked or blanked; whether a modal
+dialog at the main menu (news, a Paradox login, a mod warning) blocks the load; and whether the
+game's own autosave fires during the run (it writes a separate autosave, never the loaded city).
+
+Script tests (scratch HOME, fake Steam and game): `bash cs1/tests/scripts/remote-selftest.test.sh`.

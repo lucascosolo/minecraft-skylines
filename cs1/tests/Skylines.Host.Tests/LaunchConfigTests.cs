@@ -148,5 +148,50 @@ namespace Skylines.Host.Tests
         {
             Assert.Equal(expected, LaunchConfig.SplitArgs(line).ToArray());
         }
+
+        [Fact]
+        public void AutoloadAndSelfTestQuitDefaults()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\n");
+            Assert.Equal("", c.Autoload);
+            Assert.False(c.SelfTestQuit);
+            Assert.Empty(c.Problems);
+        }
+
+        [Fact]
+        public void AutoloadKeepsValueVerbatimAndLastWins()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nautoload = first\nautoload =   My City #2 = Big  Save  \n");
+            Assert.Equal("My City #2 = Big  Save", c.Autoload);
+            Assert.Empty(c.Problems);
+        }
+
+        [Fact]
+        public void AutoloadEmptyIsAllowed()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nautoload =\n");
+            Assert.Equal("", c.Autoload);
+            Assert.Empty(c.Problems);
+        }
+
+        [Theory]
+        [InlineData("TRUE", true)]
+        [InlineData("true", true)]
+        [InlineData("False", false)]
+        public void SelfTestQuitParsesCaseInsensitive(string v, bool expected)
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nselftest_quit = " + v + "\n");
+            Assert.Equal(expected, c.SelfTestQuit);
+            Assert.Empty(c.Problems);
+        }
+
+        [Fact]
+        public void BadSelfTestQuitIsOneProblemAndKeepsPreviousValue()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\nselftest_quit = true\nselftest_quit = maybe\n");
+            Assert.True(c.SelfTestQuit);
+            Assert.Single(c.Problems);
+            Assert.Contains("selftest_quit", c.Problems[0]);
+        }
     }
 }

@@ -54,6 +54,18 @@ namespace MinecraftSkylines.Mod
             get { Load(); return _config == null ? SelfTestMode.Off : _config.SelfTest; }
         }
 
+        /// <summary>launch.cfg <c>autoload</c>; empty without a usable launch.cfg.</summary>
+        public string Autoload
+        {
+            get { Load(); return _config == null ? "" : _config.Autoload; }
+        }
+
+        /// <summary>launch.cfg <c>selftest_quit</c>; false without a usable launch.cfg.</summary>
+        public bool SelfTestQuit
+        {
+            get { Load(); return _config != null && _config.SelfTestQuit; }
+        }
+
         /// <summary>launch.cfg <c>block_material</c>; 0 without a usable launch.cfg.</summary>
         public int BlockMaterial
         {

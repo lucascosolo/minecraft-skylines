@@ -37,6 +37,10 @@ namespace MinecraftSkylines.Mod
         private static OverlayLink s_gui;
         private static SelfTestController s_selfTest;
         private static MinecraftLauncher s_launcher;
+        private static SaveAutoloader s_autoload;
+        private static UnattendedPolicy s_unattended;
+        private static readonly Stopwatch s_clock = Stopwatch.StartNew();
+        private static bool s_autoloadIssued;
         private static BridgeHost s_host;
         private static string s_startError;
 
@@ -76,6 +80,17 @@ namespace MinecraftSkylines.Mod
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;
             s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, s_gui, () => s_guest, ModVersion);
+            s_autoload = new SaveAutoloader(s_log, s_launcher.Autoload);
+            s_unattended = new UnattendedPolicy(s_launcher.SelfTestQuit);
+            s_selfTest.ReportWritten = () =>
+            {
+                s_unattended.ReportWritten(Now());
+                if (s_launcher.SelfTestQuit) s_log.Info("unattended: self-test report written; quitting in " + UnattendedPolicy.QuitDelaySeconds + " s");
+            };
+            if (s_launcher.Autoload.Length > 0 || s_launcher.SelfTestQuit)
+            {
+                s_log.Info("unattended: autoload '" + s_launcher.Autoload + "', selftest_quit " + s_launcher.SelfTestQuit);
+            }
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
             // Graphics.DrawMesh queues for the coming render of every camera, so the pump's LateUpdate (after
             // the camera is placed) draws in city and Minecraft mode alike. Meshes are kept across city reloads (the
@@ -131,6 +146,8 @@ namespace MinecraftSkylines.Mod
             s_blocks = null;
             s_gui = null;
             s_selfTest = null;
+            s_autoload = null;
+            s_unattended = null;
             s_launcher = null;
             s_guest = null;
             s_log.Close();
@@ -143,6 +160,7 @@ namespace MinecraftSkylines.Mod
             // player switches it to Minecraft mode, so a city merely loaded with the mod enabled is
             // saved exactly as without it. See docs/DECISIONS.md, "player safety".
             if (s_selfTest != null) s_selfTest.OnLevelLoaded();
+            if (s_autoloadIssued && s_unattended != null) s_unattended.AutoloadLevelLoaded(Now());
             Log("level loaded (" + mode + "); save id " + (s_saveId.LoadedFromSave ? s_saveId.Id.ToString() : "none (city not paired)"));
             s_statusDirty = true;
         }
@@ -223,6 +241,7 @@ namespace MinecraftSkylines.Mod
             s_player.Update(s_host, city.InCity && !city.Loading);
             s_gui.Tick(s_host, s_player.IsOn);
             s_selfTest.Update(s_host, city.InCity && !city.Loading);
+            Unattended();
             if (!city.Equals(s_lastCity) || saveId != s_lastSentSaveId)
             {
                 s_lastCity = city;
@@ -241,6 +260,36 @@ namespace MinecraftSkylines.Mod
             if (ms > s_tickMaxMs)
             {
                 s_tickMaxMs = ms;
+            }
+        }
+
+        private static double Now()
+        {
+            return s_clock.Elapsed.TotalSeconds;
+        }
+
+        private static void Unattended()
+        {
+            try
+            {
+                SaveAutoloader.Outcome o = s_autoload.Update();
+                if (o == SaveAutoloader.Outcome.Loaded) s_autoloadIssued = true;
+                else if (o == SaveAutoloader.Outcome.NotFound || o == SaveAutoloader.Outcome.Failed) s_unattended.AutoloadNotFound(Now());
+                switch (s_unattended.Tick(Now()))
+                {
+                    case UnattendedAction.AbortSelfTest:
+                        s_log.Warn("unattended: " + s_unattended.QuitReason + "; aborting the self-test");
+                        s_selfTest.Abort("safety timeout");
+                        break;
+                    case UnattendedAction.Quit:
+                        s_log.Info("unattended: quitting the game (" + s_unattended.QuitReason + "); no save");
+                        SaveAutoloader.QuitGame();
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                s_log.Error("unattended run", e);
             }
         }
 

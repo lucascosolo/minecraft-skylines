@@ -32,7 +32,9 @@ namespace Skylines.Host
     /// Parsed <c>launch.cfg</c>: a plain <c>key = value</c> file (<c>#</c> starts a comment line).
     /// Keys: <c>command</c>, <c>args</c> (space separated, double quotes group, backslash escapes a quote
     /// or backslash inside quotes), <c>working_dir</c>, <c>env.NAME</c> (repeatable) and
-    /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>), <c>selftest</c> (<c>off</c> default, <c>city_load</c>). Pure logic: no Unity, no process start.
+    /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>), <c>selftest</c> (<c>off</c> default, <c>city_load</c>),
+    /// <c>autoload</c> (a save name to load from the main menu once per game start; empty default = off) and
+    /// <c>selftest_quit</c> (<c>false</c> default, <c>true</c>: quit the game after the self-test report). Pure logic: no Unity, no process start.
     /// </summary>
     public sealed class LaunchConfig
     {
@@ -59,6 +61,12 @@ namespace Skylines.Host
 
         /// <summary>When the self-test starts by itself.</summary>
         public SelfTestMode SelfTest = SelfTestMode.Off;
+
+        /// <summary>Save to load from the main menu once per game start; empty means off.</summary>
+        public string Autoload = "";
+
+        /// <summary>Quit the game after the self-test writes its report (unattended runs).</summary>
+        public bool SelfTestQuit;
 
         /// <summary>Material variant for drawn block meshes, 0-3 (an in-game experiment knob).</summary>
         public int BlockMaterial;
@@ -172,6 +180,15 @@ namespace Skylines.Host
                         case "off": SelfTest = SelfTestMode.Off; break;
                         case "city_load": SelfTest = SelfTestMode.CityLoad; break;
                         default: Problems.Add("line " + lineNo + ": selftest must be off or city_load"); break;
+                    }
+                    break;
+                case "autoload": Autoload = value; break;
+                case "selftest_quit":
+                    switch (value.ToLowerInvariant())
+                    {
+                        case "true": SelfTestQuit = true; break;
+                        case "false": SelfTestQuit = false; break;
+                        default: Problems.Add("line " + lineNo + ": selftest_quit must be true or false"); break;
                     }
                     break;
                 case "block_material":

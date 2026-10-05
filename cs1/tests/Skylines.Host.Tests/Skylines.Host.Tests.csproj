@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\Skylines.Host\Process\LaunchConfig.cs" Link="LaunchConfig.cs" />
+    <Compile Include="..\..\src\Skylines.Host\Process\SaveMatch.cs" Link="SaveMatch.cs" />
     <Compile Include="..\..\src\Skylines.Host\Process\CompanionProcess.cs" Link="CompanionProcess.cs" />
     <Compile Include="..\..\src\Skylines.Host\Rendering\MeshSplit.cs" Link="MeshSplit.cs" />
     <Compile Include="..\..\src\Skylines.Host\Overlay\SharedOverlayReader.cs" Link="SharedOverlayReader.cs" />

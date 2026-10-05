@@ -9,6 +9,7 @@
     <Compile Include="..\..\src\MinecraftSkylines.Mod\ScreenInput.cs" Link="ScreenInput.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\PlayerLook.cs" Link="PlayerLook.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\SelfTestCore.cs" Link="SelfTestCore.cs" />
+    <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\UnattendedPolicy.cs" Link="UnattendedPolicy.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

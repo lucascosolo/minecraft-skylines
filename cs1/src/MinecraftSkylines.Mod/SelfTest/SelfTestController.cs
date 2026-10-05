@@ -97,6 +97,9 @@ namespace MinecraftSkylines.Mod.SelfTest
 
         public bool Running { get { return _phase != Phase.Idle; } }
 
+        /// <summary>Called after every run's report was written (finished, aborted or failed).</summary>
+        public Action ReportWritten;
+
         public void OnLevelLoaded()
         {
             _ranThisLoad = false;
@@ -278,6 +281,7 @@ namespace MinecraftSkylines.Mod.SelfTest
             });
             _regions.Clear();
             _runner = null;
+            if (ReportWritten != null) Safe("report callback", ReportWritten);
         }
 
         private void Safe(string what, Action step)
