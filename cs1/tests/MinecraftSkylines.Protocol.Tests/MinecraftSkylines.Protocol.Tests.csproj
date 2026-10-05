@@ -7,6 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\MinecraftSkylines.Protocol\MinecraftSkylines.Protocol.csproj" />
     <ProjectReference Include="..\..\src\Skylines.Bridge\Skylines.Bridge.csproj" />
+    <ProjectReference Include="..\..\src\Skylines.Core\Skylines.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

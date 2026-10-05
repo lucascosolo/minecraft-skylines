@@ -6,4 +6,7 @@
     <AssemblyName>Skylines.Host</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Skylines.Core\Skylines.Core.csproj" />
+  </ItemGroup>
 </Project>
