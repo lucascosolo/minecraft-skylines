@@ -242,7 +242,13 @@ namespace Skylines.Host.Rendering
             block.SetTexture("_MainTex", tex);
             block.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f * colour.a));
             block.SetColor("_Color", new Color(1f, 1f, 1f, colour.a)); // the UI-shader fallback tints with _Color
-            Matrix4x4 m = Matrix4x4.TRS(eye + dir.normalized * d, Quaternion.LookRotation(dir, up), Vector3.one * (2f * half * d));
+            // Edges level with the horizon, as Minecraft draws its sun and moon (owner, 2026-10-06: the sun stood on its
+            // corner): the quad's right axis is horizontal and perpendicular to the direction; the light's own roll
+            // (the passed-in up) only matters straight overhead, where no horizontal axis exists.
+            Vector3 n = dir.normalized;
+            Vector3 right = Vector3.Cross(Vector3.up, n);
+            Vector3 quadUp = right.sqrMagnitude > 1e-6f ? Vector3.Cross(n, right.normalized) : up;
+            Matrix4x4 m = Matrix4x4.TRS(eye + n * d, Quaternion.LookRotation(n, quadUp), Vector3.one * (2f * half * d));
             Graphics.DrawMesh(_quad, m, mat, _layer, cam, 0, block);
         }
 
