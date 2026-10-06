@@ -39,7 +39,7 @@ class EntityVectorsTest {
         assertEquals(0x01E0, AppProtocol.ENTITY_MODEL);
         assertEquals(0x01E1, AppProtocol.ENTITY_TEXTURE);
         assertEquals(0x01E2, AppProtocol.ENTITY_STATES);
-        assertEquals(14, AppProtocol.MINOR);
+        assertEquals(15, AppProtocol.MINOR);
         assertEquals(1024, EntityModel.MAX_PARTS);
         assertEquals(4096, EntityModel.MAX_QUADS);
         assertEquals(23, EntityModel.FLOATS_PER_QUAD);

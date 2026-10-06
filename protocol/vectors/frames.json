@@ -888,6 +888,19 @@
       "hex": "08000000c10100000300000070110100"
     },
     {
+      "name": "tree_grown",
+      "type": 450,
+      "fields": {
+        "openSeq": 4,
+        "x": 100.5,
+        "y": 64.0,
+        "z": -200.5,
+        "kind": 2,
+        "seed": 123456789
+      },
+      "hex": "15000000c2010000040000000000c94200008042008048c30215cd5b07"
+    },
+    {
       "name": "entity_model_two_parts",
       "type": 480,
       "fields": {
@@ -1212,6 +1225,16 @@
       "name": "tree_felled_truncated",
       "hex": "04000000c101000001000000",
       "why": "payload ends before treeId"
+    },
+    {
+      "name": "tree_grown_truncated",
+      "hex": "11000000c2010000040000000000c94200008042008048c302",
+      "why": "payload ends before seed"
+    },
+    {
+      "name": "tree_grown_bad_kind",
+      "hex": "15000000c2010000040000000000c94200008042008048c30701000000",
+      "why": "kind above 6"
     },
     {
       "name": "entity_model_too_many_parts",

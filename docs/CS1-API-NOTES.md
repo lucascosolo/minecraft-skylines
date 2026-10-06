@@ -279,6 +279,21 @@ Assembly-CSharp:
   (`Vector3`), `TreeInfo.m_minScale/m_maxScale` (float); scale from `ColossalFramework.Math.Randomizer(treeID).Int32(10000u)`
   as `TreeInstance.RenderInstance` does.
 
+## Trees grown from saplings (TREE_GROWN, minor 15; verified against the decompile 2026-10-06, compiles against the real assemblies; not seen in game)
+
+Assembly-CSharp / ColossalManaged:
+- `TreeManager.CreateTree(out uint tree, ref Randomizer randomizer, TreeInfo info, Vector3 position, bool single)` (public, bool,
+  TreeManager.cs:771): fails when `CheckLimits()` is false or `m_trees.CreateItem` fails; sets flags 1, `Single`, `GrowState = 15`
+  (fully grown), `Position`, then `UpdateTree`. `TreeTool.CreateTree()` (TreeTool.cs:290-300) calls it with the mouse hit position
+  and `single: true` on the simulation thread; `FixedHeight` is set only in the asset editor (TreeTool.cs:302-304), so not here.
+  No height snapping beyond the hit position.
+- `PrefabCollection<TreeInfo>.LoadedCount()` (static int, PrefabCollection.cs:38) and `GetLoaded(uint index)` (static T, :43;
+  null when the prefab is not initialized).
+- `ColossalFramework.Math.Randomizer` (struct, ColossalManaged Randomizer.cs:3) with constructors `(int)`, `(uint)`, `(long)`,
+  `(ulong)` (:7-20); `(uint)` computes `seed = 6364136223846793005 * _seed + 1442695040888963407`. The mod uses `Randomizer(uint)`.
+- Height used to pick the prefab: `m_generatedInfo.m_size.y` times the mean of `m_minScale`/`m_maxScale`, the notion of the TREES
+  export (`ObstacleGeometry.Sample`, size.y * drawn scale).
+
 ## Dug ground (milestone 5; verified against the decompile 2026-10-06, compiles against the real assemblies; not seen in game)
 
 Assembly-CSharp:

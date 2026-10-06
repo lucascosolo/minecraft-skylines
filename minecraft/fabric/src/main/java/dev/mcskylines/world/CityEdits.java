@@ -3,6 +3,8 @@ package dev.mcskylines.world;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.mcskylines.bridge.BridgeGuest;
 import dev.mcskylines.bridge.ProtocolException;
+import dev.mcskylines.collision.CollisionStore;
+import dev.mcskylines.collision.SkyTri;
 import dev.mcskylines.player.DevWorld;
 import dev.mcskylines.player.RespawnChoice;
 import dev.mcskylines.protocol.AppProtocol;
@@ -16,6 +18,7 @@ import dev.mcskylines.protocol.LightSources;
 import dev.mcskylines.protocol.PlayerData;
 import dev.mcskylines.protocol.RespawnRequest;
 import dev.mcskylines.protocol.TreeFelled;
+import dev.mcskylines.protocol.TreeGrown;
 import dev.mcskylines.shadow.ShadowMaterials;
 import dev.mcskylines.shadow.ShadowWorld;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
@@ -23,6 +26,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,17 +35,24 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LightBlock;
+import net.minecraft.world.level.block.SaplingBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +72,7 @@ public final class CityEdits {
 	private static final int APPLY_FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_SKIP_ALL_SIDEEFFECTS;
 	private static final Object LINK_DOWN = new Object();
 	private static final Object PLAYER_JOINED = new Object();
+	private static final int GROWTH_TICKS = 20; // growth catch-up round, once a second
 	private static final int PLAYER_CHECK_TICKS = 200; // PLAYER_DATA when changed, at most every 10 s
 	private static volatile CityEdits recording;
 
@@ -85,6 +97,10 @@ public final class CityEdits {
 	private boolean applying;
 	private final Long2IntOpenHashMap lamps = new Long2IntOpenHashMap(); // our light blocks: position to level
 	private final ShadowWorld shadow = new ShadowWorld();
+	private final Growth growth = new Growth();
+	private long[] savedClocks = new long[0]; // the growth clocks the applied player data carried
+	private long citySeed;
+	private int growthTicks;
 	private final ShadowWorld.Host shadowHost = new ShadowWorld.Host() {
 		@Override
 		public boolean playerOwns(long key) {
@@ -225,6 +241,8 @@ public final class CityEdits {
 
 	private void onOpen(CityOpen o) {
 		lamps.clear();
+		growth.clear();
+		savedClocks = new long[0];
 		shadow.reset();
 		flushRecorded();
 		stopRecording();
@@ -277,6 +295,7 @@ public final class CityEdits {
 		stopRecording();
 		flushRecorded();
 		lamps.clear();
+		growth.clear();
 		shadow.reset();
 		LOG.info(PREFIX + "CITY_CLOSE {}; reverting the city world to empty", Integer.toUnsignedString(c.openSeq()));
 		open = null;
@@ -339,6 +358,7 @@ public final class CityEdits {
 
 	private void onLinkDown() {
 		lamps.clear();
+		growth.clear();
 		shadow.reset();
 		stopRecording();
 		recorder.clear();
@@ -382,6 +402,7 @@ public final class CityEdits {
 			send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.APPLYING, 0).encode());
 		}
 		lamps.clear();
+		growth.clear();
 		shadow.reset();
 		targetApplied = false;
 		pending.clear();
@@ -443,6 +464,13 @@ public final class CityEdits {
 				LOG.info(PREFIX + "city world: all queued chunks applied");
 			}
 		}
+		if (open != null && open.ready && ++growthTicks >= GROWTH_TICKS) {
+			growthTicks = 0;
+			long now = CityClock.lastTicks();
+			if (now != Long.MIN_VALUE) {
+				growth.step(level, now, citySeed, CityClock.dayNight(), ck -> pending.containsKey(ck));
+			}
+		}
 		flushRecorded();
 		if (open != null && open.ready) {
 			applying = true;
@@ -498,7 +526,7 @@ public final class CityEdits {
 			return;
 		}
 		try {
-			PlayerSnapshot.apply(p, open.playerData);
+			savedClocks = PlayerSnapshot.apply(p, open.playerData);
 			LOG.info(PREFIX + "city player applied ({})", open.playerData.length == 0 ? "fresh survival player" : open.playerData.length + " bytes");
 		} catch (Exception e) {
 			open.playerBroken = true;
@@ -519,7 +547,7 @@ public final class CityEdits {
 		}
 		byte[] data;
 		try {
-			data = PlayerSnapshot.capture(p);
+			data = PlayerSnapshot.capture(p, growth.clockPairs());
 		} catch (Exception e) {
 			LOG.error(PREFIX + "could not capture the player's data", e);
 			return;
@@ -549,7 +577,9 @@ public final class CityEdits {
 		}
 		open.ready = true;
 		recording = this;
-		shadow.start(ShadowMaterials.seed(open.msg.saveId()));
+		citySeed = ShadowMaterials.seed(open.msg.saveId());
+		buildGrowth();
+		shadow.start(citySeed);
 		send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.READY, target.size()).encode());
 	}
 
@@ -604,6 +634,136 @@ public final class CityEdits {
 			LOG.info(PREFIX + "tree {} felled", Integer.toUnsignedString(felled));
 			send(AppProtocol.TREE_FELLED, new TreeFelled(open.seq(), felled).encode());
 		}
+	}
+
+	private void buildGrowth() {
+		growth.clear();
+		for (var e : open.snapshot.long2ObjectEntrySet()) {
+			if (parse(e.getValue()).map(Growth::isGrowing).orElse(false)) {
+				growth.update(e.getLongKey(), true);
+			}
+		}
+		growth.loadClocks(savedClocks);
+		growth.pruneClocks();
+		LOG.info(PREFIX + "growth: {} saved chunk clocks", savedClocks.length / 2);
+	}
+
+	/** Growth's tickChunk wrapper: true when vanilla's random tick must skip this owned growing cell of the open city. */
+	public static boolean growthOwns(Level l, BlockPos pos) {
+		CityEdits r = recording;
+		if (r == null || !BlockKey.fits(pos.getX(), pos.getY(), pos.getZ())) {
+			return false;
+		}
+		synchronized (r) {
+			return l == r.level && r.growth.owns(BlockKey.pack(pos.getX(), pos.getY(), pos.getZ()));
+		}
+	}
+
+	/**
+	 * SaplingBlock.advanceTree (stage 1, would grow): a sapling the player owns becomes a CS1 tree when the city has
+	 * room (minor 15). Returns true when vanilla growth must not run.
+	 */
+	public static boolean saplingGrows(Level l, BlockPos pos, BlockState state) {
+		CityEdits r = recording;
+		if (r == null || !BlockKey.fits(pos.getX(), pos.getY(), pos.getZ())) {
+			return false;
+		}
+		synchronized (r) {
+			return r.growSapling(l, pos, state);
+		}
+	}
+
+	private boolean growSapling(Level l, BlockPos pos, BlockState state) {
+		if (l != level || open == null || !open.ready || appMinor < 15 || !state.hasProperty(SaplingBlock.STAGE)
+			|| state.getValue(SaplingBlock.STAGE) != 1) {
+			return false;
+		}
+		long key = BlockKey.pack(pos.getX(), pos.getY(), pos.getZ());
+		int kind = TreeKinds.ofSapling(BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
+		if (kind < 0 || !open.snapshot.containsKey(key)) {
+			return false;
+		}
+		double cx = pos.getX() + 0.5, cz = pos.getZ() + 0.5;
+		if (!CollisionStore.INSTANCE.regionsLoadedAround(cx, cz, 1) || ShadowWorld.treeNear(cx, cz, 1.5)) {
+			return true;
+		}
+		float height = TreeKinds.height(kind), radius = TreeKinds.radius(kind);
+		double[] box = TreeRoom.queryBox(cx, pos.getY(), cz, height, radius);
+		List<SkyTri> tris = new ArrayList<>();
+		CollisionStore.INSTANCE.trianglesNear(box[0], box[1], box[2], box[3], box[4], box[5], tris);
+		if (!TreeRoom.fits(tris, cx, pos.getY(), cz, height, radius)) {
+			return true;
+		}
+		boolean was = applying;
+		applying = true;
+		try {
+			level.setBlock(pos, Blocks.AIR.defaultBlockState(), APPLY_FLAGS);
+		} finally {
+			applying = was;
+		}
+		recorder.record(key, Blocks.AIR.defaultBlockState());
+		growth.update(key, false);
+		flushRecorded();
+		int seed = (int) GrowthMath.mix(citySeed, key, CityClock.lastTicks());
+		LOG.info(PREFIX + "sapling at {} grows into a CS1 tree (kind {})", pos, kind);
+		send(AppProtocol.TREE_GROWN, new TreeGrown(open.seq(), (float) cx, pos.getY(), (float) cz, kind, seed).encode());
+		return true;
+	}
+
+	/** ServerPlayerGameMode.useItemOn: a ground tool aimed at CS1 ground acts on the shadow ground block; null leaves vanilla alone. */
+	public static BlockHitResult groundUse(Level l, ItemStack stack, BlockHitResult hit) {
+		CityEdits r = recording;
+		if (r == null || !BlockKey.fits(hit.getBlockPos().getX(), hit.getBlockPos().getY(), hit.getBlockPos().getZ())) {
+			return null;
+		}
+		synchronized (r) {
+			return r.redirectToGround(l, stack, hit);
+		}
+	}
+
+	private BlockHitResult redirectToGround(Level l, ItemStack stack, BlockHitResult hit) {
+		if (l != level || open == null || !open.ready
+			|| !GroundUse.isGroundTool(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())) {
+			return null;
+		}
+		GroundUse.Cells cells = new GroundUse.Cells() {
+			@Override
+			public boolean shadowPlant(long k) {
+				BlockState s = stateAt(k);
+				return shadow.wouldFill(k) && !shadowHost.playerOwns(k) && (s.is(Blocks.SHORT_GRASS) || s.is(Blocks.TALL_GRASS));
+			}
+
+			@Override
+			public boolean air(long k) {
+				return stateAt(k).isAir();
+			}
+
+			@Override
+			public boolean ground(long k) {
+				BlockState s = stateAt(k);
+				return s.is(BlockTags.DIRT) || s.is(Blocks.GRASS_BLOCK) || s.is(Blocks.PODZOL) || s.is(Blocks.MYCELIUM)
+					|| s.is(Blocks.DIRT_PATH);
+			}
+		};
+		BlockPos clicked = hit.getBlockPos();
+		long g = GroundUse.groundFor(BlockKey.pack(clicked.getX(), clicked.getY(), clicked.getZ()), cells);
+		if (g == GroundUse.NONE) {
+			return null;
+		}
+		long[] plants = GroundUse.plantsAbove(g, cells);
+		BlockPos ground = new BlockPos(BlockKey.x(g), BlockKey.y(g), BlockKey.z(g));
+		if (plants.length == 0 && ground.equals(clicked)) {
+			return null;
+		}
+		for (int i = plants.length - 1; i >= 0; i--) {
+			level.setBlock(new BlockPos(BlockKey.x(plants[i]), BlockKey.y(plants[i]), BlockKey.z(plants[i])),
+				Blocks.AIR.defaultBlockState(), APPLY_FLAGS);
+		}
+		return new BlockHitResult(new Vec3(ground.getX() + 0.5, ground.getY() + 1, ground.getZ() + 0.5), Direction.UP, ground, false);
+	}
+
+	private BlockState stateAt(long k) {
+		return level.getBlockState(new BlockPos(BlockKey.x(k), BlockKey.y(k), BlockKey.z(k)));
 	}
 
 	private void applyTarget() {
@@ -676,8 +836,10 @@ public final class CityEdits {
 				String state = b.palette().get(e.state());
 				if (ReconcilePlan.AIR.equals(state)) {
 					open.snapshot.remove(key);
+					growth.update(key, false);
 				} else {
 					open.snapshot.put(key, state);
+					growth.update(key, parse(state).map(Growth::isGrowing).orElse(false));
 				}
 			}
 			send(AppProtocol.BLOCK_EDITS, b.encode());

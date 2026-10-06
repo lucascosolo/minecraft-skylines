@@ -33,6 +33,7 @@ class TreesVectorsTest {
     void constants() {
         assertEquals(0x01C0, AppProtocol.TREES);
         assertEquals(0x01C1, AppProtocol.TREE_FELLED);
+        assertEquals(0x01C2, AppProtocol.TREE_GROWN);
         assertEquals(4096, Trees.MAX_COUNT);
     }
 
@@ -72,6 +73,41 @@ class TreesVectorsTest {
         assertEquals(v.getAsJsonObject("fields").get("openSeq").getAsInt(), got.openSeq());
         assertEquals(v.getAsJsonObject("fields").get("treeId").getAsInt(), got.treeId());
         assertArrayEquals(fr.payload(), got.encode());
+    }
+
+    @Test
+    void treeGrownVector() throws Exception {
+        JsonObject v = find("valid", "tree_grown");
+        Frame fr = frame(v);
+        assertEquals(AppProtocol.TREE_GROWN, fr.type());
+        JsonObject f = v.getAsJsonObject("fields");
+        TreeGrown got = TreeGrown.decode(fr.payload());
+        assertEquals((int) f.get("openSeq").getAsLong(), got.openSeq());
+        assertEquals(f.get("x").getAsFloat(), got.x());
+        assertEquals(f.get("y").getAsFloat(), got.y());
+        assertEquals(f.get("z").getAsFloat(), got.z());
+        assertEquals(f.get("kind").getAsInt(), got.kind());
+        assertEquals((int) f.get("seed").getAsLong(), got.seed());
+        assertEquals(21, fr.payload().length);
+        assertArrayEquals(fr.payload(), got.encode());
+    }
+
+    @Test
+    void treeGrownInvalidVectorsThrow() throws Exception {
+        for (String name : new String[] {"tree_grown_truncated", "tree_grown_bad_kind"}) {
+            Frame fr = frame(find("invalid", name));
+            assertEquals(AppProtocol.TREE_GROWN, fr.type(), name);
+            assertThrows(ProtocolException.class, () -> TreeGrown.decode(fr.payload()), name);
+        }
+    }
+
+    @Test
+    void treeGrownEveryTruncationThrows() throws Exception {
+        byte[] p = frame(find("valid", "tree_grown")).payload();
+        for (int len = 0; len < p.length; len++) {
+            byte[] cut = Arrays.copyOf(p, len);
+            assertThrows(ProtocolException.class, () -> TreeGrown.decode(cut), "grown cut to " + len);
+        }
     }
 
     @Test

@@ -50,7 +50,7 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Equal(0x01E0, AppProtocol.EntityModelType);
             Assert.Equal(0x01E1, AppProtocol.EntityTextureType);
             Assert.Equal(0x01E2, AppProtocol.EntityStatesType);
-            Assert.Equal(14, AppProtocol.Minor);
+            Assert.Equal(15, AppProtocol.Minor);
             Assert.Equal(1024, EntityModel.MaxParts);
             Assert.Equal(4096, EntityModel.MaxQuads);
             Assert.Equal(23, EntityModel.FloatsPerQuad);

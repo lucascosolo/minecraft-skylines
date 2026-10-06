@@ -248,7 +248,8 @@ class AppVectorsTest {
     void constants() {
         assertEquals("minecraft-skylines", AppProtocol.NAME);
         assertEquals(1, AppProtocol.MAJOR);
-        assertEquals(14, AppProtocol.MINOR);
+        assertEquals(15, AppProtocol.MINOR);
+        assertEquals(0x01C2, AppProtocol.TREE_GROWN);
         assertEquals(0x0180, AppProtocol.LIGHT_SOURCES);
         assertEquals(0x0190, AppProtocol.SKY_STATE);
         assertEquals(0x0191, AppProtocol.SKY_TEXTURES);
@@ -443,6 +444,6 @@ class AppVectorsTest {
         assertEquals(0, BlockSelection.KIND_BLOCK);
         assertEquals(1, BlockSelection.KIND_PLACEMENT);
         assertEquals(0x0134, AppProtocol.BLOCK_SELECTION);
-        assertEquals(14, AppProtocol.MINOR);
+        assertEquals(15, AppProtocol.MINOR);
     }
 }

@@ -16,10 +16,23 @@ public final class CityClock {
 	private static final Logger LOG = LoggerFactory.getLogger("mcskylines");
 	private static final String PREFIX = "[MinecraftSkylines] ";
 
+	private static volatile long lastTicks = Long.MIN_VALUE;
+	private static volatile boolean dayNight;
+
 	private WorldTime latest;
 	private long appliedTicks = Long.MIN_VALUE;
 	private MinecraftServer appliedOn;
 	private boolean logged;
+
+	/** Server thread: the city tick last applied, {@link Long#MIN_VALUE} while unknown (growth catch-up pauses then). */
+	public static long lastTicks() {
+		return lastTicks;
+	}
+
+	/** Server thread: whether the city runs day and night (otherwise the sun is always up). */
+	public static boolean dayNight() {
+		return dayNight;
+	}
 
 	/** Client thread: the newest time from the host. */
 	public void deliver(WorldTime t) {
@@ -44,6 +57,8 @@ public final class CityClock {
 			if (level == null) {
 				return;
 			}
+			lastTicks = ticks;
+			dayNight = (t.flags() & WorldTime.DAY_NIGHT) != 0;
 			level.dimensionType().defaultClock().ifPresent(clock -> server.clockManager().setTotalTicks(clock, ticks));
 			if (!logged) {
 				logged = true;
@@ -57,5 +72,6 @@ public final class CityClock {
 	public void linkDown() {
 		latest = null;
 		appliedTicks = Long.MIN_VALUE;
+		lastTicks = Long.MIN_VALUE;
 	}
 }

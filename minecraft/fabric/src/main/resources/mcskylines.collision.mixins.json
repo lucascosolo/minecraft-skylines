@@ -13,7 +13,11 @@
     "BuriedDropsMixin",
     "ShadowSuffocationMixin",
     "EntityTriCollideMixin",
-    "FarmlandWaterMixin"
+    "FarmlandWaterMixin",
+    "GrowthSkyMixin",
+    "GrowthTickMixin",
+    "GroundToolMixin",
+    "SaplingTreeMixin"
   ],
   "client": [
     "EntityCollideMixin",

@@ -32,6 +32,7 @@ namespace MinecraftSkylines.Mod
         private readonly System.Collections.Generic.List<TreeSample> _treeSamples = new System.Collections.Generic.List<TreeSample>();
         private readonly TriangleBuffer _spawnTris = new TriangleBuffer();
         private readonly System.Collections.Generic.List<long> _dug = new System.Collections.Generic.List<long>();
+        private static readonly System.Collections.Generic.List<long> s_resend = new System.Collections.Generic.List<long>();
         private int _regionsSent;
         private long _trianglesSent;
         private double _lastBuildMs;
@@ -74,6 +75,18 @@ namespace MinecraftSkylines.Mod
         {
             float mcX = csFeet.x, mcZ = -csFeet.z;
             Viewer.Track(csFeet);
+            _dug.Clear();
+            lock (s_resend)
+            {
+                _dug.AddRange(s_resend);
+                s_resend.Clear();
+            }
+            foreach (long k in _dug)
+            {
+                int tx, tz;
+                RegionGrid.Unkey(k, out tx, out tz);
+                _planner.Invalidate(tx, tz);
+            }
             if (Terrain.DigLink.Current != null)
             {
                 _dug.Clear();
@@ -125,6 +138,14 @@ namespace MinecraftSkylines.Mod
             maxX = minX + RegionSize;
             maxZ = -rz * RegionSize;
             minZ = maxZ - RegionSize;
+        }
+
+        /// <summary>Thread-safe: asks for the region holding CS1 point (x, z) to be sent again (a tree grew there).</summary>
+        public static void RequestResendAtCs(float x, float z)
+        {
+            int rx, rz;
+            RegionOfCs(x, z, out rx, out rz);
+            lock (s_resend) s_resend.Add(RegionGrid.Key(rx, rz));
         }
 
         /// <summary>The Minecraft region containing CS1 point (x, z).</summary>

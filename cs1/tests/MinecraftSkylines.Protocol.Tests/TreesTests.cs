@@ -60,6 +60,103 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Equal(payload, m.Encode());
         }
 
+        [Fact]
+        public void TreeGrownVectorRoundTrips()
+        {
+            Assert.Equal(0x01C2, AppProtocol.TreeGrownType);
+            byte[] payload = Payload("valid", "tree_grown");
+            Assert.Equal(21, payload.Length);
+            TreeGrown m = TreeGrown.Decode(payload);
+            Assert.Equal(4u, m.OpenSeq);
+            Assert.Equal(100.5f, m.X);
+            Assert.Equal(64.0f, m.Y);
+            Assert.Equal(-200.5f, m.Z);
+            Assert.Equal((byte)2, m.Kind);
+            Assert.Equal(123456789u, m.Seed);
+            Assert.Equal(payload, m.Encode());
+        }
+
+        [Theory]
+        [InlineData("tree_grown_truncated")]
+        [InlineData("tree_grown_bad_kind")]
+        public void InvalidTreeGrownVectorsThrow(string name)
+        {
+            byte[] p = Payload("invalid", name);
+            Assert.Throws<ProtocolException>(() => TreeGrown.Decode(p));
+        }
+
+        [Fact]
+        public void TreeGrownEveryTruncationThrows()
+        {
+            byte[] full = Payload("valid", "tree_grown");
+            for (int len = 0; len < full.Length; len++)
+            {
+                var cut = new byte[len];
+                Array.Copy(full, cut, len);
+                Assert.Throws<ProtocolException>(() => TreeGrown.Decode(cut));
+            }
+        }
+
+        private static int Pick(string[] names, float[] heights, byte kind, uint seed)
+        {
+            return TreeRecord.PickPrefab(names, heights, kind, seed);
+        }
+
+        [Fact]
+        public void PickPrefabOrdersMatchesByOrdinalName()
+        {
+            // All kind 1 (pine). Ordinal order: "Pine A" (idx 2), "Pine B" (idx 1), "Pine C" (idx 0).
+            string[] names = { "Pine C", "Pine B", "Pine A" };
+            float[] h = { 12f, 12f, 12f };
+            Assert.Equal(2, Pick(names, h, 1, 0u));
+            Assert.Equal(1, Pick(names, h, 1, 1u));
+            Assert.Equal(0, Pick(names, h, 1, 2u));
+        }
+
+        [Fact]
+        public void PickPrefabSeedIsTakenModuloCount()
+        {
+            string[] names = { "Pine A", "Pine B" };
+            float[] h = { 12f, 12f };
+            Assert.Equal(0, Pick(names, h, 1, 4u));
+            Assert.Equal(1, Pick(names, h, 1, uint.MaxValue)); // 4294967295 is odd
+        }
+
+        [Fact]
+        public void PickPrefabIgnoresOtherKinds()
+        {
+            string[] names = { "Birch", "Pine Tree", "Hedge" };
+            float[] h = { 8f, 12f, 4f };
+            Assert.Equal(1, Pick(names, h, 1, 7u));
+            Assert.Equal(0, Pick(names, h, 2, 7u));
+            Assert.Equal(2, Pick(names, h, 6, 7u));
+        }
+
+        [Fact]
+        public void PickPrefabFallsBackToKindZero()
+        {
+            string[] names = { "Pine Tree", "Tree1" };
+            float[] h = { 12f, 10f };
+            Assert.Equal(1, Pick(names, h, 3, 5u));
+        }
+
+        [Fact]
+        public void PickPrefabReturnsMinusOneWhenNothing()
+        {
+            Assert.Equal(-1, Pick(new string[0], new float[0], 0, 1u));
+            Assert.Equal(-1, Pick(new[] { "Pine Tree" }, new[] { 12f }, 0, 1u));
+            Assert.Equal(-1, Pick(new[] { "Pine Tree" }, new[] { 12f }, 4, 1u));
+        }
+
+        [Fact]
+        public void PickPrefabShortHeightIsBush()
+        {
+            string[] names = { "Tree1", "Tree2" };
+            float[] h = { 1.5f, 10f };
+            Assert.Equal(0, Pick(names, h, 6, 9u));
+            Assert.Equal(1, Pick(names, h, 0, 9u));
+        }
+
         [Theory]
         [InlineData("trees_too_many")]
         [InlineData("trees_truncated")]

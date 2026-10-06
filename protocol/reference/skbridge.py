@@ -867,6 +867,7 @@ class RespawnRequest:
 # ---- minecraft-skylines app protocol 1.12: trees -----------------------------------------------
 TREES = 0x01C0
 TREE_FELLED = 0x01C1
+TREE_GROWN = 0x01C2
 TREES_MAX = 4096
 TREE_KIND_BUSH = 6
 
@@ -923,6 +924,28 @@ class TreeFelled:
     def decode(p: bytes) -> "TreeFelled":
         r = Reader(p)
         return TreeFelled(r.u32(), r.u32())
+
+
+@dataclass
+class TreeGrown:
+    """A sapling the player placed grew; the host plants a tree of kind (0..6) at the Minecraft-frame position."""
+    open_seq: int
+    x: float
+    y: float
+    z: float
+    kind: int
+    seed: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).f32(self.x).f32(self.y).f32(self.z).u8(self.kind).u32(self.seed).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "TreeGrown":
+        r = Reader(p)
+        m = TreeGrown(r.u32(), r.f32(), r.f32(), r.f32(), r.u8(), r.u32())
+        if m.kind > TREE_KIND_BUSH:
+            raise ProtocolError(f"tree kind {m.kind} above {TREE_KIND_BUSH}")
+        return m
 
 
 # ---- minecraft-skylines app protocol 1.14: entities --------------------------------------------

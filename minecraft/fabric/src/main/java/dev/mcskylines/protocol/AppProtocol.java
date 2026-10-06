@@ -4,7 +4,7 @@ package dev.mcskylines.protocol;
 public final class AppProtocol {
 	public static final String NAME = "minecraft-skylines";
 	public static final int MAJOR = 1;
-	public static final int MINOR = 14;
+	public static final int MINOR = 15;
 	public static final int HOST_STATUS = 0x0100;
 	public static final int GUEST_STATUS = 0x0101;
 	public static final int ENTER_PLAYER_MODE = 0x0110;
@@ -37,6 +37,7 @@ public final class AppProtocol {
 	public static final int RESPAWN_REQUEST = 0x01B1; // minor 11: a dead joiner without a spawn asks the host for one
 	public static final int TREES = 0x01C0; // minor 12: the trees the host draws in a collision region (host to guest)
 	public static final int TREE_FELLED = 0x01C1; // minor 12: the player felled the tree placed for an id (guest to host)
+	public static final int TREE_GROWN = 0x01C2; // minor 15: a sapling grew into a tree (guest to host)
 	// minor 14: entities (13 is reserved for another branch)
 	public static final int ENTITY_MODEL = 0x01E0; // a model of textured box parts (guest to host)
 	public static final int ENTITY_TEXTURE = 0x01E1; // a PNG texture (guest to host)

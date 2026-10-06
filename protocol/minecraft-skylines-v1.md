@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.14
+# `minecraft-skylines` application protocol, version 1.15
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 14`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 15`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -560,7 +560,9 @@ writes nothing.
 
 Fabric guest: `data` is the gzip-compressed NBT of `ServerPlayer.saveWithoutId` (it carries `DataVersion`, so the
 guest's data fixer upgrades data written by an older Minecraft); applying it never changes the player's UUID,
-position, rotation or motion.
+position, rotation or motion. The NBT root also carries `mcskylines:growth`, a long array of (chunk key, city tick)
+pairs: up to which city time the player's growing blocks in that chunk have been simulated (guest-private; hosts keep
+the blob opaque).
 
 ### `0x01B1 RESPAWN_REQUEST` (guest → host)
 
@@ -684,3 +686,27 @@ texture the host does not have, or whose `partCount` differs from the model's, i
 entity's position, matrix (element-wise) and part transforms (angles the short way) between the last two messages,
 draws them lit in its own scene within a distance it chooses, and drops everything when the link is lost or the city
 unloads.
+
+## Minor 15: trees grown from saplings
+
+### `0x01C2 TREE_GROWN` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the open the guest saw |
+| f32 | `x` | Minecraft frame: the sapling cell's centre (block x + 0.5) |
+| f32 | `y` | the sapling cell's bottom |
+| f32 | `z` | Minecraft frame: the sapling cell's centre (block z + 0.5) |
+| u8 | `kind` | 0..6 as in `TREES`; above 6 is a protocol error |
+| u32 | `seed` | seeds the host's choices; the guest picks it |
+
+The payload is exactly 21 bytes. The guest sends it when a sapling it placed has grown into a tree, and only when the
+negotiated minor is at least 15; it removes the sapling edit after sending. The host acts only when `openSeq` is the
+current `CITY_OPEN`'s and the city is Minecraft-enabled (the condition under which it sends `CITY_OPEN`). On the
+simulation thread it picks a loaded `TreeInfo` of the kind, creates it through `TreeManager` at the CS position
+`(x, y, −z)` with a randomizer seeded by `seed`, then re-sends the `COLLISION_REGION` and `TREES` of the region holding
+it, so the guest's shadow world builds the tree. A failure such as the tree limit is ignored.
+
+Prefab choice: the candidates are the `TreeInfo`s whose kind (derived as for `TREES`, from name and height) equals
+`kind`, ordered by ordinal comparison of their names (ties by load index). With no candidate and `kind` not 0, the
+candidates are those of kind 0; with none still, nothing is created. Otherwise the pick is `candidates[seed mod count]`.

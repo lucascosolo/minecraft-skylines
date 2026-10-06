@@ -493,6 +493,17 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("treeId").GetUInt32(), m.TreeId);
                         return m.Encode();
                     }
+                case AppProtocol.TreeGrownType:
+                    {
+                        TreeGrown m = TreeGrown.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("x").GetSingle(), m.X);
+                        Assert.Equal(f.GetProperty("y").GetSingle(), m.Y);
+                        Assert.Equal(f.GetProperty("z").GetSingle(), m.Z);
+                        Assert.Equal(f.GetProperty("kind").GetByte(), m.Kind);
+                        Assert.Equal(f.GetProperty("seed").GetUInt32(), m.Seed);
+                        return m.Encode();
+                    }
                 default:
                     {
                         Assert.Equal(AppProtocol.PlayerStateType, frame.Type);
@@ -800,7 +811,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(14, AppProtocol.Minor);
+            Assert.Equal(15, AppProtocol.Minor);
             Assert.Equal(0x01E0, AppProtocol.EntityModelType);
             Assert.Equal(0x01E1, AppProtocol.EntityTextureType);
             Assert.Equal(0x01E2, AppProtocol.EntityStatesType);

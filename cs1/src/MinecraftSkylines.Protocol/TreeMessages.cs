@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Skylines.Bridge;
 
 namespace MinecraftSkylines.Protocol
@@ -34,6 +35,32 @@ namespace MinecraftSkylines.Protocol
             if (Has(n, "dark", "dead")) return 5;
             if (Has(n, "bush", "shrub", "hedge") || height < 2.5f) return KindBush;
             return 0;
+        }
+
+        /// <summary>
+        /// The prefab a grown sapling of <paramref name="kind"/> becomes: the candidates are the indices whose kind equals
+        /// it, ordered by ordinal name (ties by index); none and kind not 0 falls back to the oak candidates; -1 when none;
+        /// else candidates[seed % count].
+        /// </summary>
+        public static int PickPrefab(IList<string> names, IList<float> heights, byte kind, uint seed)
+        {
+            List<int> c = Candidates(names, heights, kind);
+            if (c.Count == 0 && kind != 0) c = Candidates(names, heights, 0);
+            if (c.Count == 0) return -1;
+            return c[(int)(seed % (uint)c.Count)];
+        }
+
+        private static List<int> Candidates(IList<string> names, IList<float> heights, byte kind)
+        {
+            var c = new List<int>();
+            for (int i = 0; i < names.Count; i++)
+                if (KindOf(names[i], heights[i]) == kind) c.Add(i);
+            c.Sort(delegate (int a, int b)
+            {
+                int d = string.CompareOrdinal(names[a], names[b]);
+                return d != 0 ? d : a.CompareTo(b);
+            });
+            return c;
         }
 
         private static bool Has(string name, params string[] words)
@@ -104,6 +131,31 @@ namespace MinecraftSkylines.Protocol
         {
             var r = new PayloadReader(payload);
             return new TreeFelled { OpenSeq = r.U32(), TreeId = r.U32() };
+        }
+    }
+
+    /// <summary>0x01C2 TREE_GROWN (guest to host, minor 15): a sapling the player placed grew into a tree of <see cref="Kind"/>.</summary>
+    public sealed class TreeGrown
+    {
+        /// <summary>The open the guest saw.</summary>
+        public uint OpenSeq;
+        /// <summary>Minecraft frame: the sapling cell's centre x, bottom y, centre z.</summary>
+        public float X, Y, Z;
+        /// <summary>Tree kind 0..6.</summary>
+        public byte Kind;
+        /// <summary>Seeds the host's choices.</summary>
+        public uint Seed;
+
+        /// <summary>Encodes the payload.</summary>
+        public byte[] Encode() { return new PayloadWriter().U32(OpenSeq).F32(X).F32(Y).F32(Z).U8(Kind).U32(Seed).ToArray(); }
+
+        /// <summary>Decodes a payload; throws <see cref="ProtocolException"/> if it is malformed or the kind is above 6.</summary>
+        public static TreeGrown Decode(byte[] payload)
+        {
+            var r = new PayloadReader(payload);
+            var m = new TreeGrown { OpenSeq = r.U32(), X = r.F32(), Y = r.F32(), Z = r.F32(), Kind = r.U8(), Seed = r.U32() };
+            if (m.Kind > TreeRecord.KindBush) throw new ProtocolException("tree kind " + m.Kind + " is above " + TreeRecord.KindBush);
+            return m;
         }
     }
 }

@@ -295,6 +295,16 @@ namespace MinecraftSkylines.Mod.City
                 ReleaseTree(f.TreeId);
                 return true;
             }
+            if (type == AppProtocol.TreeGrownType)
+            {
+                TreeGrown g = TreeGrown.Decode(payload);
+                lock (_sync)
+                {
+                    if (!_open || g.OpenSeq != _openSeq) return true;
+                }
+                GrowTree(g);
+                return true;
+            }
             if (type == AppProtocol.EditSyncAckType)
             {
                 _barrier.Acknowledge(EditSync.Decode(payload).Token);
@@ -404,6 +414,51 @@ namespace MinecraftSkylines.Mod.City
                 TreeManager tm = Singleton<TreeManager>.instance;
                 ushort flags = tm.m_trees.m_buffer[id].m_flags;
                 if (flags != 0 && (flags & (ushort)TreeInstance.Flags.Burning) == 0) tm.ReleaseTree(id);
+            });
+        }
+
+        // TREE_GROWN: a sapling grew in Minecraft. As TreeTool.CreateTree does (TreeManager.CreateTree, single: true),
+        // on the simulation thread; the prefab comes from the pure TreeRecord.PickPrefab over the loaded TreeInfos
+        // (height = generated mesh height at the mean scale, the notion CollisionStreamer's TREES export uses).
+        private void GrowTree(TreeGrown g)
+        {
+            Singleton<SimulationManager>.instance.AddAction(delegate
+            {
+                try
+                {
+                    int count = PrefabCollection<TreeInfo>.LoadedCount();
+                    var infos = new List<TreeInfo>();
+                    var names = new List<string>();
+                    var heights = new List<float>();
+                    for (uint i = 0; i < count; i++)
+                    {
+                        TreeInfo info = PrefabCollection<TreeInfo>.GetLoaded(i);
+                        if (info == null || info.m_generatedInfo == null) continue;
+                        infos.Add(info);
+                        names.Add(info.name);
+                        heights.Add(info.m_generatedInfo.m_size.y * 0.5f * (info.m_minScale + info.m_maxScale));
+                    }
+                    int pick = TreeRecord.PickPrefab(names, heights, g.Kind, g.Seed);
+                    if (pick < 0)
+                    {
+                        _log.Warn("trees: TREE_GROWN kind " + g.Kind + " has no loaded prefab");
+                        return;
+                    }
+                    var rnd = new ColossalFramework.Math.Randomizer(g.Seed);
+                    uint tree;
+                    var pos = new UnityEngine.Vector3(g.X, g.Y, -g.Z);
+                    if (!Singleton<TreeManager>.instance.CreateTree(out tree, ref rnd, infos[pick], pos, true))
+                    {
+                        _log.Warn("trees: TREE_GROWN at " + g.X + "," + g.Z + " not created (tree limit)");
+                        return;
+                    }
+                    _log.Info("trees: grew " + names[pick] + " #" + tree + " at CS " + pos.x + "," + pos.z);
+                    CollisionStreamer.RequestResendAtCs(pos.x, pos.z);
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn("trees: TREE_GROWN failed: " + ex.Message);
+                }
             });
         }
 

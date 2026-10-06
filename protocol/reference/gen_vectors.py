@@ -221,6 +221,8 @@ def frames() -> list[dict]:
             {"id": t.id, "x": t.x, "y": t.y, "z": t.z, "height": t.height, "radius": t.radius, "kind": t.kind}
             for t in ts]}, sb.Trees(7, -3, 128, ts).encode())
     add("tree_felled", sb.TREE_FELLED, {"openSeq": 3, "treeId": 70000}, sb.TreeFelled(3, 70000).encode())
+    add("tree_grown", sb.TREE_GROWN, {"openSeq": 4, "x": 100.5, "y": 64.0, "z": -200.5, "kind": 2, "seed": 123456789},
+        sb.TreeGrown(4, 100.5, 64.0, -200.5, 2, 123456789).encode())
 
     # ---- 1.14 (entities)
     quad = [0.0, 0.0, 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.25, 0.0, 8.0, 12.0, 0.0, 0.25, 0.5, 0.0, 12.0, 0.0, 0.0, 0.5,
@@ -282,6 +284,8 @@ def invalid_frames() -> list[dict]:
         bad("trees_truncated", sb.frame(sb.TREES, sb.Writer().u32(1).i32(0).i32(0).u16(1).u32(5).bytes()), "payload ends inside a tree"),
         bad("trees_trailing_bytes", sb.frame(sb.TREES, sb.Trees(1, 0, 0, []).encode() + b"\x00"), "payload longer than its count says"),
         bad("tree_felled_truncated", sb.frame(sb.TREE_FELLED, sb.Writer().u32(1).bytes()), "payload ends before treeId"),
+        bad("tree_grown_truncated", sb.frame(sb.TREE_GROWN, sb.Writer().u32(4).f32(100.5).f32(64.0).f32(-200.5).u8(2).bytes()), "payload ends before seed"),
+        bad("tree_grown_bad_kind", sb.frame(sb.TREE_GROWN, sb.TreeGrown(4, 100.5, 64.0, -200.5, 7, 1).encode()), "kind above 6"),
         # ---- 1.14 (entities)
         bad("entity_model_too_many_parts", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(sb.ENTITY_MODEL_MAX_PARTS + 1).bytes()), "part count > 1024 (checked before the parts)"),
         bad("entity_model_parent_not_before", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(0).u16(0).bytes()), "parent index at or above the part's own"),

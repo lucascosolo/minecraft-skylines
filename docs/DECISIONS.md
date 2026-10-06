@@ -194,3 +194,45 @@ guest refuses breaking a shadow cell in a column under a non-bridge road or a bu
 dips into a dug cell; a non-cave-air block placed in a pit keeps the hole open but its wall faces are not drawn; walls
 appear only where the guest has the shadow world loaded (around the Minecraft player); CS1 terraforming over a hole needs
 a reload to move it.
+
+## 2026-10-06: growing conditions, catch-up growth, ground tools, saplings grow into CS1 trees (protocol 1.15)
+
+Owner: "Saplings need to be fed the conditions necessary for them to grow", "Same with plants that can be farmed", "I
+would like to be able to hoe CS1 grass and turn it into farmland just like a normal grass block", "make all the trees
+spawned by the mod look like vanilla CS1 trees but behave like Minecraft trees".
+
+- **Growth follows the city's clock, for every player-owned growing block, in one mechanism.** The integrated server
+  keeps ticking in city view (the player is only frozen), but vanilla random ticks reach only chunks simulated near the
+  player and run on real time, so CS1's pause and speed did not matter. Now vanilla's random tick is suppressed for the
+  player's growing cells (saplings, crops, stems, cane, cactus, berries, bamboo, cocoa, nether wart, farmland) and
+  `Growth` replays it from the city clock (`WORLD_TIME` total ticks; a CS1 day/night cycle is 24000 ticks): about once
+  a second for every loaded chunk that holds such cells, from the chunk's last simulated city tick to now. Per cell the
+  random-tick times are sampled with vanilla's rate (randomTickSpeed/4096 per tick, geometric gaps, seeded from the
+  city seed, the cell and the start tick, at most 256 per round) and at each one vanilla's own `BlockState.randomTick`
+  runs, so every rule (sapling 1/7 at light 9 above, crop speed from moisture and neighbours, farmland drying,
+  CS1 water through `FarmlandWaterMixin`, CS1 lamps as light blocks) is Minecraft's. Sky light is the sun at the
+  sampled time: `Level.getSkyDarken` is overridden during the call with 26.3's `sky_light_level` timeline
+  (`GrowthMath.skyDarken`). Pausing CS1 stops the clock, so growth stops. A chunk that was unloaded catches up when it
+  loads. Rejected: letting vanilla tick near the player and catching up elsewhere (double growth, and growth while CS1
+  is paused); reimplementing each block's rule (drifts from vanilla). Limits: cocoa draws from the level's own random,
+  so it is not deterministic; rain is ignored; CS1 water and collision are only known around the player.
+- **The catch-up clocks live in the city's save, inside the player blob.** Per chunk "simulated up to city tick" pairs
+  are written into `PLAYER_DATA`'s NBT root (`mcskylines:growth`), which the host already stores opaquely in the
+  city's save and covers with the save barrier, so an older save rolls growth back with its blocks. Rejected: a new
+  message and host save field (more protocol for data the host never reads) and Minecraft's own world (a cache).
+- **Tools act on the shadow ground.** The crosshair keeps hitting the invisible shadow grass or the empty cell over
+  CS1's surface; on the server, a hoe, shovel or bone meal used there is retargeted to the shadow ground block below
+  (top face), after the invisible plant on it is removed without drops (saved as the player's cave-air edit, the rule
+  for emptied shadow cells). Vanilla then tills, flattens or fertilises exactly as on a bare grass block. A tilled cell
+  is an edit at the column's solid top, so milestone 5 opens CS1's surface there and the guest's `SECTION_MESH`
+  draws the farmland. Rejected: changing the client pick per held item (placement and mining would change too).
+- **A sapling that would grow becomes a CS1 tree** (`TREE_GROWN`, 0x01C2). The guest cancels vanilla's tree for a
+  player's sapling, checks room against the city's collision (trunk and crown boxes against every non-terrain
+  triangle: roads, bridges, buildings, railings, tunnels, trees, props, the land boundary; and no host tree within
+  1.5 m), sends the kind and a seed, and removes the sapling edit; the host picks a loaded tree prefab of that kind
+  (the `TREES` kind rule on prefab names, ordinal order, seed modulo, oak-kind fallback), creates it through
+  `TreeManager.CreateTree` and re-sends the region, so the shadow world builds and fells it like any city tree. No room
+  (or collision not streamed there yet) leaves a stage-1 sapling, as vanilla does when a tree does not fit. Kinds:
+  oak, cherry → 0 oak; spruce → 1; birch, poplar → 2; jungle, mangrove → 3; acacia → 4; dark oak, pale oak → 5. Room
+  sizes (height/radius m): 10/4, 14/3, 12/3, 12/4, 9/5, 10/5. Rejected: hard-coded CS1 prefab names (asset packs and
+  DLC vary; the kind rule already classifies whatever is loaded).

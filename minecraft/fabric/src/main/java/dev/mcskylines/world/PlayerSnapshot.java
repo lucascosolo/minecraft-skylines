@@ -28,25 +28,35 @@ final class PlayerSnapshot {
 	private static final String[] KEPT = {"UUID", "Pos", "Motion", "Rotation", "Dimension"};
 	private static final String GAME_TYPE = "playerGameType";
 	private static final String PREVIOUS_GAME_TYPE = "previousPlayerGameType";
+	private static final String GROWTH = "mcskylines:growth";
 
 	private PlayerSnapshot() {
 	}
 
-	static byte[] capture(ServerPlayer p) throws IOException {
+	/** {@code growth}: the city's growth clocks (chunkKey, tick pairs), kept in the blob so the city's save holds them. */
+	static byte[] capture(ServerPlayer p, long[] growth) throws IOException {
 		ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-		NbtIo.writeCompressed(tagOf(p), bytes);
+		CompoundTag tag = tagOf(p);
+		tag.putLongArray(GROWTH, growth);
+		NbtIo.writeCompressed(tag, bytes);
 		return bytes.toByteArray();
 	}
 
-	/** Replaces the player's state with {@code data}, or with a fresh survival player when it is empty, and syncs the client. */
-	static void apply(ServerPlayer p, byte[] data) throws IOException {
+	/**
+	 * Replaces the player's state with {@code data}, or with a fresh survival player when it is empty, and syncs the
+	 * client. Returns the growth clocks the data carried (empty when none).
+	 */
+	static long[] apply(ServerPlayer p, byte[] data) throws IOException {
 		CompoundTag tag = null;
+		long[] growth = new long[0];
 		if (data.length > 0) {
 			tag = NbtIo.readCompressed(new ByteArrayInputStream(data), NbtAccounter.unlimitedHeap());
 			tag = DataFixTypes.PLAYER.updateToCurrentVersion(p.level().getServer().getFixerUpper(), tag, NbtUtils.getDataVersion(tag));
 		}
 		reset(p);
 		if (tag != null) {
+			growth = tag.getLongArray(GROWTH).orElse(growth);
+			tag.remove(GROWTH);
 			CompoundTag own = tagOf(p);
 			for (String key : KEPT) {
 				Tag v = own.get(key);
@@ -71,6 +81,7 @@ final class PlayerSnapshot {
 		p.connection.send(new ClientboundSetHeldSlotPacket(p.getInventory().getSelectedSlot()));
 		p.onUpdateAbilities();
 		p.level().getServer().getPlayerList().sendActivePlayerEffects(p);
+		return growth;
 	}
 
 	/** Everything a city's player owns back to a new survival player's values, so nothing leaks from the previous city. */
