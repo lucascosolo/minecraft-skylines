@@ -20,3 +20,4 @@ _quarantine/*
 reports/
 __pycache__/
 .agent/ledger-*.md
+minecraft/fabric/logs/
