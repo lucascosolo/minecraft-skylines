@@ -610,6 +610,31 @@ class CityState:
         return CityState(r.u32(), r.u8(), r.u32())
 
 
+# ---- minecraft-skylines app protocol 1.6: the city's clock ---------------------------------------
+WORLD_TIME = 0x0160
+TIME_DAY_NIGHT = 1
+
+
+@dataclass
+class WorldTime:
+    hour: float
+    day: int
+    flags: int
+
+    def encode(self) -> bytes:
+        return Writer().f32(self.hour).u32(self.day).u8(self.flags).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "WorldTime":
+        r = Reader(p)
+        return WorldTime(r.f32(), r.u32(), r.u8())
+
+
+def minecraft_day_ticks(hour: float) -> int:
+    """Ticks into Minecraft's day (0 = 06:00) for a city hour."""
+    return int(((hour - 6.0) % 24.0) * 1000.0) % 24000
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

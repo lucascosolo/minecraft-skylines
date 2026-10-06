@@ -188,4 +188,25 @@ class CityVectorsTest {
         assertArrayEquals(p, got.encode());
         assertThrows(ProtocolException.class, () -> CityState.decode(Arrays.copyOf(p, p.length - 1)));
     }
+
+    @Test
+    void worldTime() throws Exception {
+        for (String name : new String[] {"world_time_evening", "world_time_no_cycle"}) {
+            JsonObject v = vector(name);
+            JsonObject f = v.getAsJsonObject("fields");
+            byte[] p = payload(v);
+            WorldTime got = WorldTime.decode(p);
+            assertEquals(f.get("hour").getAsFloat(), got.hour());
+            assertEquals(f.get("day").getAsLong(), Integer.toUnsignedLong(got.day()));
+            assertEquals(f.get("flags").getAsInt(), got.flags());
+            assertEquals(f.get("minecraftDayTicks").getAsInt(), WorldTime.minecraftDayTicks(got.hour()));
+            assertArrayEquals(p, got.encode());
+            assertThrows(ProtocolException.class, () -> WorldTime.decode(Arrays.copyOf(p, p.length - 1)));
+        }
+        assertEquals(6000, WorldTime.minecraftDayTicks(12f));
+        assertEquals(0, WorldTime.minecraftDayTicks(6f));
+        assertEquals(18000, WorldTime.minecraftDayTicks(0f));
+        assertEquals(2L * 24000 + 6000, new WorldTime(20f, 2, 0).totalTicks()); // no day/night cycle: midday
+        assertEquals(2L * 24000 + 14000, new WorldTime(20f, 2, WorldTime.DAY_NIGHT).totalTicks());
+    }
 }

@@ -212,6 +212,12 @@ namespace MinecraftSkylines.Mod.Diagnostics
             sb.Append("simulation: paused ").Append(sim.SimulationPaused).Append(", forced paused ").Append(sim.ForcedSimulationPaused)
                 .Append(", speed ").Append(sim.SelectedSimulationSpeed).Append(", frame ").Append(sim.m_currentFrameIndex)
                 .Append(", reference frame ").Append(sim.m_referenceFrameIndex).Append('\n');
+            RenderManager.CameraInfo ci = Singleton<RenderManager>.instance.CurrentCameraInfo;
+            if (ci != null)
+                sb.Append("render camera info: layer mask 0x").Append(ci.m_layerMask.ToString("X8")).Append(" (").Append(MaskNames(ci.m_layerMask))
+                    .Append("), height ").Append(ci.m_height.ToString("0")).Append(", near ").Append(ci.m_near.ToString("0.00")).Append(", far ")
+                    .Append(ci.m_far.ToString("0")).Append(", position (").Append(Fmt(ci.m_position)).Append("), level of detail factor ")
+                    .Append(RenderManager.LevelOfDetailFactor.ToString("0.00")).Append('\n');
             Vehicle[] vs = Singleton<VehicleManager>.instance.m_vehicles.m_buffer;
             int created = 0, spawned = 0, under = 0, shown = 0;
             for (int i = 1; i < vs.Length; i++)
@@ -226,7 +232,8 @@ namespace MinecraftSkylines.Mod.Diagnostics
                 {
                     VehicleInfo info = vs[i].Info;
                     sb.Append("vehicle ").Append(i).Append(" '").Append(info == null ? "?" : info.name).Append("' at (").Append(Fmt(p))
-                        .Append("), flags ").Append(vs[i].m_flags).Append(", maxRenderDistance ").Append(info == null ? 0f : info.m_maxRenderDistance)
+                        .Append("), flags ").Append(vs[i].m_flags).Append(", prefab data layer ").Append(info == null ? "?" : LayerText(info.m_prefabDataLayer))
+                        .Append(", maxRenderDistance ").Append(info == null ? 0f : info.m_maxRenderDistance)
                         .Append(", material ").Append(info == null ? "?" : MaterialText(info.m_material)).Append('\n');
                 }
             }
@@ -249,7 +256,8 @@ namespace MinecraftSkylines.Mod.Diagnostics
                 {
                     CitizenInfo info = cs[i].Info;
                     sb.Append("citizen instance ").Append(i).Append(" '").Append(info == null ? "?" : info.name).Append("' at (").Append(Fmt(p))
-                        .Append("), flags ").Append(cs[i].m_flags).Append(", inside building ").Append(f.m_insideBuilding)
+                        .Append("), flags ").Append(cs[i].m_flags).Append(", prefab data layer ").Append(info == null ? "?" : LayerText(info.m_prefabDataLayer))
+                        .Append(", inside building ").Append(f.m_insideBuilding)
                         .Append(", lodRenderDistance ").Append(info == null ? 0f : info.m_lodRenderDistance)
                         .Append(", maxRenderDistance ").Append(info == null ? 0f : info.m_maxRenderDistance).Append('\n');
                 }

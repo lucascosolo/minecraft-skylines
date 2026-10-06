@@ -542,6 +542,28 @@
       "hex": "0900000055010000030000000102000000"
     },
     {
+      "name": "world_time_evening",
+      "type": 352,
+      "fields": {
+        "hour": 18.5,
+        "day": 738000,
+        "flags": 1,
+        "minecraftDayTicks": 12500
+      },
+      "hex": "090000006001000000009441d0420b0001"
+    },
+    {
+      "name": "world_time_no_cycle",
+      "type": 352,
+      "fields": {
+        "hour": 3.25,
+        "day": 0,
+        "flags": 0,
+        "minecraftDayTicks": 21250
+      },
+      "hex": "0900000060010000000050400000000000"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {

@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.5
+# `minecraft-skylines` application protocol, version 1.6
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 5`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 6`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -362,4 +362,19 @@ they have on timeout.
 | u32 | `appliedCount` | edits applied so far for this open |
 
 Sent on every state change. The host enters player mode for a paired city only after `ready`.
+
+## Minor 6: the city's clock
+
+### `0x0160 WORLD_TIME` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| f32 | `hour` | the city's time of day, 0 ≤ hour < 24 (CS1 `SimulationManager.m_currentDayTimeHour`) |
+| u32 | `day` | whole days since an arbitrary epoch that only moves forward (CS1: days of `m_currentGameTime` since 0001-01-01); the guest uses it for the moon phase |
+| u8 | `flags` | bit 0 `DAY_NIGHT`: the city has a day/night cycle; when clear the guest shows midday |
+
+Sent while a city is loaded: right after the handshake (or the level load) and then at most once a second
+while the value changes. The guest stops its own clock and shows exactly this time, so the sky, light
+levels (and therefore everything Minecraft lights, the player's hand included) follow the city.
+Minecraft's day starts at 06:00: ticks into the day = ((hour − 6) mod 24) × 1000.
 

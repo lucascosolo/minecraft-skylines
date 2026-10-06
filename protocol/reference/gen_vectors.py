@@ -162,6 +162,12 @@ def frames() -> list[dict]:
     add("city_state_ready", sb.CITY_STATE, {"openSeq": 3, "state": 1, "appliedCount": 2},
         sb.CityState(3, sb.CITY_READY, 2).encode())
 
+    # ---- 1.6 (the city's clock)
+    add("world_time_evening", sb.WORLD_TIME, {"hour": 18.5, "day": 738000, "flags": 1, "minecraftDayTicks": 12500},
+        sb.WorldTime(18.5, 738000, sb.TIME_DAY_NIGHT).encode())
+    add("world_time_no_cycle", sb.WORLD_TIME, {"hour": 3.25, "day": 0, "flags": 0, "minecraftDayTicks": 21250},
+        sb.WorldTime(3.25, 0, 0).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")

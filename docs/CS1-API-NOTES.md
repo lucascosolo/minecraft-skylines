@@ -162,3 +162,6 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
 - `GameAreaManager.PointOutOfArea(Vector3)` (GameAreaManager.cs:1244): tile index `floor(p / 1920 + 2.5)`, so tile
   borders lie at `960 + k * 1920`; true outside owned tiles in game mode. `AreaBoundary` samples it 0.5 m either side of
   each border to place invisible walls (collision flag bit 8) and to refuse walk-in drops outside the city.
+- `SimulationManager.m_currentDayTimeHour` (float, SimulationManager.cs:361), `m_enableDayNight` (bool, line 364),
+  `m_currentGameTime` (DateTime, line 301): sent as WORLD_TIME (protocol 1.6). `SimulationPaused` (public get/set,
+  line 412): while paused nothing moves or spawns, so Minecraft mode asks to unpause first (`PauseGate`).

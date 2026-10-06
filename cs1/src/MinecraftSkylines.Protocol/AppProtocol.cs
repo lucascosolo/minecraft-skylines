@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 5;
+        public const ushort Minor = 6;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -55,6 +55,9 @@ namespace MinecraftSkylines.Protocol
         public const ushort EditSyncAckType = 0x0154;
         /// <summary>Message type of <see cref="CityStateUpdate"/> CITY_STATE (guest to host, minor 5).</summary>
         public const ushort CityStateType = 0x0155;
+
+        /// <summary>Message type of <see cref="WorldTime"/> WORLD_TIME (host to guest, minor 6).</summary>
+        public const ushort WorldTimeType = 0x0160;
     }
 
     /// <summary>Bits of <see cref="HostStatus.Flags"/>.</summary>

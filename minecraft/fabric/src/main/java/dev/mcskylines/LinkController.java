@@ -21,12 +21,14 @@ import dev.mcskylines.protocol.GuestStatus;
 import dev.mcskylines.protocol.HostStatus;
 import dev.mcskylines.protocol.Input;
 import dev.mcskylines.protocol.PlayerState;
+import dev.mcskylines.protocol.WorldTime;
 import dev.mcskylines.player.DevWorld;
 import dev.mcskylines.player.PlayerMode;
 import dev.mcskylines.protocol.Viewport;
 import dev.mcskylines.render.OverlayExporter;
 import dev.mcskylines.render.SectionExporter;
 import dev.mcskylines.render.SelectionExporter;
+import dev.mcskylines.world.CityClock;
 import dev.mcskylines.world.CityEdits;
 import java.util.List;
 import net.minecraft.client.Minecraft;
@@ -47,6 +49,7 @@ final class LinkController {
 	private final OverlayExporter overlay;
 	private final SelectionExporter selection;
 	private final CityEdits city;
+	private final CityClock clock = new CityClock();
 	private int exportErrors;
 	private int overlayErrors;
 	private static final boolean DEBUG_COMMANDS = Boolean.getBoolean("mcskylines.debugCommands");
@@ -114,6 +117,7 @@ final class LinkController {
 	void tick(Minecraft mc) {
 		playerMode.clientTick(mc);
 		city.clientTick();
+		clock.tick(mc);
 		if (QUIT_WITH_HOST && STARTED_HIDDEN && everConnected && state != BridgeState.CONNECTED) {
 			long now = System.currentTimeMillis();
 			if (linkDownSinceMs < 0) {
@@ -161,6 +165,7 @@ final class LinkController {
 				if (state != BridgeState.CONNECTED) {
 					overlay.linkDown();
 					city.linkDown();
+					clock.linkDown();
 				}
 				LOG.info(PREFIX + "link state {}{}", s.state().wireName(), s.detail().isEmpty() ? "" : " (" + s.detail() + ")");
 				if (s.state() == BridgeState.CONNECTED) {
@@ -184,6 +189,7 @@ final class LinkController {
 				playerMode.onLinkDown(mc);
 				overlay.linkDown();
 				city.linkDown();
+				clock.linkDown();
 				if (d.cause() == DisconnectCause.PEER_GOODBYE && d.code() == Goodbye.SHUTTING_DOWN) {
 					hostGoneSinceMs = System.currentTimeMillis();
 				}
@@ -225,6 +231,14 @@ final class LinkController {
 						|| m.type() == AppProtocol.CITY_CLOSE || m.type() == AppProtocol.EDIT_SYNC) {
 					if (peer != null && peer.appMinor() >= 5) {
 						city.deliver(m.type(), m.payload());
+					}
+				} else if (m.type() == AppProtocol.WORLD_TIME) {
+					try {
+						if (peer != null && peer.appMinor() >= 6) {
+							clock.deliver(WorldTime.decode(m.payload()));
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed WORLD_TIME: {}", e.getMessage());
 					}
 				} else if (m.type() == AppProtocol.DEBUG_COMMAND) {
 					try {

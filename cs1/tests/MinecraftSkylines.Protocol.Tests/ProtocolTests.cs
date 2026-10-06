@@ -264,6 +264,15 @@ namespace MinecraftSkylines.Protocol.Tests
                         }
                         return m.Encode();
                     }
+                case AppProtocol.WorldTimeType:
+                    {
+                        WorldTime m = WorldTime.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("hour").GetSingle(), m.Hour);
+                        Assert.Equal(f.GetProperty("day").GetUInt32(), m.Day);
+                        Assert.Equal(f.GetProperty("flags").GetByte(), m.Flags);
+                        Assert.Equal(f.GetProperty("minecraftDayTicks").GetInt32(), WorldTime.MinecraftDayTicks(m.Hour));
+                        return m.Encode();
+                    }
                 case AppProtocol.CityCloseType:
                     {
                         CityClose m = CityClose.Decode(frame.Payload);
@@ -517,6 +526,7 @@ namespace MinecraftSkylines.Protocol.Tests
         public void SmallCityMessagesRejectTruncation()
         {
             Assert.Throws<ProtocolException>(() => CityClose.Decode(new byte[3]));
+            Assert.Throws<ProtocolException>(() => WorldTime.Decode(new byte[8]));
             Assert.Throws<ProtocolException>(() => EditSync.Decode(new byte[7]));
             Assert.Throws<ProtocolException>(() => CityStateUpdate.Decode(new byte[8]));
             byte[] open = new CityOpen { OpenSeq = 1, SaveId = Guid.NewGuid(), CityName = "x", EditCount = 1 }.Encode();
@@ -533,7 +543,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(5, AppProtocol.Minor);
+            Assert.Equal(6, AppProtocol.Minor);
             Assert.Equal(0x0140, AppProtocol.ViewportType);
             Assert.Equal(0x0141, AppProtocol.OverlayOfferType);
             Assert.Equal(0x0142, AppProtocol.OverlayStopType);

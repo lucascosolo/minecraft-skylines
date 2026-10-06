@@ -35,6 +35,7 @@ namespace MinecraftSkylines.Mod
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
         private static CityLink s_city;
+        private static ClockLink s_cityClock;
         private static WalkInButton s_walkIn;
         private static BlockRenderer s_blocks;
         private static SelectionOutline s_selection;
@@ -84,7 +85,9 @@ namespace MinecraftSkylines.Mod
             s_gui.SetMode(s_launcher.OverlayMode);
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_city = new CityLink(s_log, s_saveId, s_player);
-            s_player.EnterGate = s_city.EnterGate;
+            s_cityClock = new ClockLink(s_log);
+            var pause = new PauseGate(s_log, s_player);
+            s_player.EnterGate = (host, connected) => pause.Check() ?? s_city.EnterGate(host, connected);
             s_walkIn = new WalkInButton(s_log, s_player);
             s_pump.Updated += s_walkIn.Update;
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
@@ -323,6 +326,7 @@ namespace MinecraftSkylines.Mod
             Guid saveId = s_saveId.Id;
             s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
             s_city.Update(s_host, city.InCity && !city.Loading);
+            s_cityClock.Update(s_host, city.InCity && !city.Loading, s_clock.Elapsed.TotalMilliseconds);
             s_player.Update(s_host, city.InCity && !city.Loading);
             s_gui.Tick(s_host, s_player.IsOn);
             s_fixture.Update(city.InCity && !city.Loading);
