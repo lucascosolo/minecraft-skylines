@@ -75,7 +75,10 @@ public final class DevWorld {
 		rules.set(GameRules.SPAWN_MOBS, false, server);
 		rules.set(GameRules.SPAWN_MONSTERS, false, server);
 		rules.set(GameRules.PLAYER_MOVEMENT_CHECK, false, server);
-		rules.set(GameRules.KEEP_INVENTORY, true, server);
+		// Owner, 2026-10-06: Normal difficulty and items dropped on death. Natural mob spawning stays off until
+		// entities are drawn in CS1 (docs/plans/survival.md step 4): mobs would otherwise spawn invisibly on placed blocks.
+		server.setDifficulty(Difficulty.NORMAL, true);
+		rules.set(GameRules.KEEP_INVENTORY, false, server);
 		rules.set(GameRules.IMMEDIATE_RESPAWN, true, server);
 		LOG.info("[MinecraftSkylines] configured world {}", NAME);
 	}
