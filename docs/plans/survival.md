@@ -11,7 +11,12 @@ material available including some ores buried in the ground. we need trees to ge
    save, respawn at the bed or the last entry spot.
 2. **Trees give wood**: breaking a CS1 tree's trunk drops logs (by tree size and type), plus leaves, saplings and
    sometimes apples, and the tree is removed from the city (TreeManager), so the city records the felling in its own
-   save. Planting a sapling may later grow a CS1 tree.
+   save. Breaking any log of a city tree, even by hand, fells the whole tree (owner, 2026-10-06: tree feller, "even
+   if broken with hands, the whole tree falls"; no extra axe wear). Queued (owner, 2026-10-06: "make all the trees
+   spawned by the mod look like vanilla CS1 trees but behave like Minecraft trees"): a sapling that grows in Minecraft
+   becomes a real CS1 tree (a guest-to-host "tree grown" message; the host creates it through TreeManager and sends it
+   back in TREES), drawn by CS1 as its own tree of the matching kind and felled like any other city tree. The
+   Minecraft-grown blocks are replaced by the shadow tree, so it is saved by the city, not as player edits.
 3. **Mining terrain** (milestone 5, see the terrain notes in docs/MILESTONES.md): hidden "shadow blocks" under CS1's
    ground make breaking vanilla Minecraft; the hole is drawn in CS1.
 4. **Creatures live in the city** (needed before hostile mobs). Owner (2026-10-06): "Minecraft mobs need to exist in
