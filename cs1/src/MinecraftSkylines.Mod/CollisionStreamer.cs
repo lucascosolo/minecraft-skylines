@@ -144,6 +144,7 @@ namespace MinecraftSkylines.Mod
         /// region keeps terrain, roads and buildings and the exception is returned.
         /// </summary>
         private static readonly ConvexCut s_cut = new ConvexCut();
+        private static readonly AreaBoundary s_boundary = new AreaBoundary();
         private static readonly TriangleBuffer s_uncut = new TriangleBuffer();
 
         private static void Copy(TriangleBuffer from, TriangleBuffer to)
@@ -199,6 +200,9 @@ namespace MinecraftSkylines.Mod
                 else into.Truncate(terrainOnly);
                 return e;
             }
+            // Invisible walls at the edge of the owned land (owner, 2026-10-06: "so the player can't wander off").
+            try { s_boundary.Emit(minX, minZ, maxX, maxZ, into); }
+            catch (Exception e) { if (failed == null) failed = e; }
             int solid = into.Count;
             try
             {

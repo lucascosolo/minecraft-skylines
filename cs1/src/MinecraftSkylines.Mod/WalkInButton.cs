@@ -1,6 +1,8 @@
 using System;
 using Skylines.Host;
+using Skylines.Host.Geometry;
 using Skylines.Host.Ui;
+using UnityEngine;
 
 namespace MinecraftSkylines.Mod
 {
@@ -35,7 +37,7 @@ namespace MinecraftSkylines.Mod
                     BackgroundStems = new[] { "OptionBase", "RoundBackBig", "ButtonMenu" },
                     Tooltip = Tooltip,
                 };
-                _button = new MapDropButton(spec, hit => _player.RequestEnterAt(hit.x, hit.z), _log);
+                _button = new MapDropButton(spec, Dropped, _log);
                 string problem = _button.Create();
                 if (problem != null)
                 {
@@ -54,6 +56,18 @@ namespace MinecraftSkylines.Mod
                 _button.Visible = !_player.IsOn;
                 _button.Update();
             });
+        }
+
+        // The invisible boundary walls (AreaBoundary) keep the player on owned land, so a drop outside it is refused.
+        private void Dropped(Vector3 hit)
+        {
+            if (AreaBoundary.Outside(hit.x, hit.z))
+            {
+                _log.Info("walk-in: drop at (" + hit.x.ToString("0") + ", " + hit.z.ToString("0") + ") is outside the owned area; refused");
+                if (_button != null) _button.ShowHint("That is outside your city: drop the figure on land you own");
+                return;
+            }
+            _player.RequestEnterAt(hit.x, hit.z);
         }
 
         /// <summary>Level unload and mod disable: destroys only what <see cref="MapDropButton"/> created.</summary>

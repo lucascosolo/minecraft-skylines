@@ -15,6 +15,8 @@ import net.minecraft.world.phys.Vec3;
 /** Makes the crosshair pick hit the city's collision triangles; vanilla still clips real blocks and the nearer hit wins. */
 public final class SkyClip {
 	private static final List<SkyTri> SCRATCH = new ArrayList<>();
+	/** COLLISION_REGION triangle flag bit 8: a boundary wall at the edge of the owned land. */
+	public static final int BOUNDARY = 1 << 8;
 
 	private SkyClip() {
 	}
@@ -24,6 +26,7 @@ public final class SkyClip {
 		SCRATCH.clear();
 		CollisionStore.INSTANCE.trianglesNear(Math.min(from.x, to.x) - 0.01, Math.min(from.y, to.y) - 0.01, Math.min(from.z, to.z) - 0.01,
 			Math.max(from.x, to.x) + 0.01, Math.max(from.y, to.y) + 0.01, Math.max(from.z, to.z) + 0.01, SCRATCH);
+		SCRATCH.removeIf(t -> (t.flags & BOUNDARY) != 0); // invisible city-edge walls are solid but not targetable
 		SkyRay.Hit hit = SCRATCH.isEmpty() ? null : SkyRay.cast(SCRATCH, from.x, from.y, from.z, to.x, to.y, to.z);
 		SCRATCH.clear();
 		if (hit == null) {

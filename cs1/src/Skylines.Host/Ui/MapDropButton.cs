@@ -247,7 +247,14 @@ namespace Skylines.Host.Ui
 
         private void ShowHint()
         {
+            ShowHint(_spec.Tooltip);
+        }
+
+        /// <summary>Shows <paramref name="text"/> beside the button for a few seconds (e.g. why a drop was refused).</summary>
+        public void ShowHint(string text)
+        {
             if (_hint == null) return;
+            _hint.text = text;
             _hint.isVisible = true;
             _hint.BringToFront();
             _hintUntil = Time.realtimeSinceStartup + HintSeconds;
