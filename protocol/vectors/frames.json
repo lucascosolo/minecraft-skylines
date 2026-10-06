@@ -437,6 +437,111 @@
       "hex": "1a000000340100000000000000000000000000000000000000000000000000000000"
     },
     {
+      "name": "city_open",
+      "type": 336,
+      "fields": {
+        "openSeq": 3,
+        "saveId": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+        "cityName": "New Tokyo",
+        "editCount": 2
+      },
+      "hex": "2300000050010000030000000f1e2d3c4b5a69788796a5b4c3d2e1f009004e657720546f6b796f02000000"
+    },
+    {
+      "name": "block_edits_snapshot_last",
+      "type": 337,
+      "fields": {
+        "openSeq": 3,
+        "flags": 1,
+        "palette": [
+          "minecraft:stone",
+          "minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]"
+        ],
+        "edits": [
+          {
+            "x": 10,
+            "y": 64,
+            "z": -21,
+            "state": 0
+          },
+          {
+            "x": -30000000,
+            "y": -64,
+            "z": 29999999,
+            "state": 1
+          }
+        ]
+      },
+      "hex": "8900000051010000030000000102000f006d696e6563726166743a73746f6e654f006d696e6563726166743a6f616b5f7374616972735b666163696e673d6e6f7274682c68616c663d626f74746f6d2c73686170653d73747261696768742c77617465726c6f676765643d66616c73655d020000000a00000040000000ebffffff0000803c36fec0ffffff7fc3c9010100"
+    },
+    {
+      "name": "block_edits_empty_last",
+      "type": 337,
+      "fields": {
+        "openSeq": 4,
+        "flags": 1,
+        "palette": [],
+        "edits": []
+      },
+      "hex": "0b000000510100000400000001000000000000"
+    },
+    {
+      "name": "block_edits_guest_air",
+      "type": 337,
+      "fields": {
+        "openSeq": 3,
+        "flags": 0,
+        "palette": [
+          "minecraft:air"
+        ],
+        "edits": [
+          {
+            "x": 10,
+            "y": 64,
+            "z": -21,
+            "state": 0
+          }
+        ]
+      },
+      "hex": "2800000051010000030000000001000d006d696e6563726166743a616972010000000a00000040000000ebffffff0000"
+    },
+    {
+      "name": "city_close",
+      "type": 338,
+      "fields": {
+        "openSeq": 3
+      },
+      "hex": "040000005201000003000000"
+    },
+    {
+      "name": "edit_sync",
+      "type": 339,
+      "fields": {
+        "openSeq": 3,
+        "token": 4294967295
+      },
+      "hex": "080000005301000003000000ffffffff"
+    },
+    {
+      "name": "edit_sync_ack",
+      "type": 340,
+      "fields": {
+        "openSeq": 3,
+        "token": 4294967295
+      },
+      "hex": "080000005401000003000000ffffffff"
+    },
+    {
+      "name": "city_state_ready",
+      "type": 341,
+      "fields": {
+        "openSeq": 3,
+        "state": 1,
+        "appliedCount": 2
+      },
+      "hex": "0900000055010000030000000102000000"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {
@@ -476,6 +581,21 @@
       "name": "invalid_utf8",
       "hex": "060000000400000000000200c328",
       "why": "string not UTF-8"
+    },
+    {
+      "name": "block_edits_index_out_of_range",
+      "hex": "2a00000051010000010000000001000f006d696e6563726166743a73746f6e65010000000000000000000000000000000100",
+      "why": "state index >= paletteCount"
+    },
+    {
+      "name": "block_edits_duplicate_palette",
+      "hex": "2d00000051010000010000000002000f006d696e6563726166743a73746f6e650f006d696e6563726166743a73746f6e6500000000",
+      "why": "palette has duplicates"
+    },
+    {
+      "name": "block_edits_too_many",
+      "hex": "0b000000510100000100000000000001000100",
+      "why": "editCount > 65536"
     },
     {
       "name": "unknown_bridge_type",

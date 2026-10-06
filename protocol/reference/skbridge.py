@@ -504,6 +504,112 @@ class BlockSelection:
         return BlockSelection(vis, box, r.u8())
 
 
+# ---- minecraft-skylines app protocol 1.5: per-city block edits -------------------------------
+CITY_OPEN, BLOCK_EDITS, CITY_CLOSE, EDIT_SYNC, EDIT_SYNC_ACK, CITY_STATE = 0x0150, 0x0151, 0x0152, 0x0153, 0x0154, 0x0155
+EDITS_LAST = 1
+MAX_EDITS_PER_BATCH = 65536
+CITY_APPLYING, CITY_READY, CITY_CLOSED = 0, 1, 2
+
+
+@dataclass
+class CityOpen:
+    open_seq: int
+    save_id: uuid.UUID
+    city_name: str
+    edit_count: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).uuid(self.save_id).string(self.city_name).u32(self.edit_count).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CityOpen":
+        r = Reader(p)
+        return CityOpen(r.u32(), r.uuid(), r.string(), r.u32())
+
+
+@dataclass
+class BlockEdits:
+    open_seq: int
+    flags: int
+    palette: list  # of str
+    edits: list  # each: (x, y, z, state_index)
+
+    def encode(self) -> bytes:
+        if len(set(self.palette)) != len(self.palette):
+            raise ValueError("palette has duplicates")
+        if len(self.edits) > MAX_EDITS_PER_BATCH:
+            raise ValueError("too many edits in one batch")
+        w = Writer().u32(self.open_seq).u8(self.flags).u16(len(self.palette))
+        for st in self.palette:
+            w.string(st)
+        w.u32(len(self.edits))
+        for x, y, z, i in self.edits:
+            if not 0 <= i < len(self.palette):
+                raise ValueError("state index out of range")
+            w.i32(x).i32(y).i32(z).u16(i)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "BlockEdits":
+        r = Reader(p)
+        seq, flags, n = r.u32(), r.u8(), r.u16()
+        palette = [r.string() for _ in range(n)]
+        if len(set(palette)) != len(palette):
+            raise ProtocolError("palette has duplicates")
+        count = r.u32()
+        if count > MAX_EDITS_PER_BATCH:
+            raise ProtocolError("too many edits in one batch")
+        edits = []
+        for _ in range(count):
+            e = (r.i32(), r.i32(), r.i32(), r.u16())
+            if e[3] >= n:
+                raise ProtocolError("state index out of range")
+            edits.append(e)
+        return BlockEdits(seq, flags, palette, edits)
+
+
+@dataclass
+class CityClose:
+    open_seq: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CityClose":
+        return CityClose(Reader(p).u32())
+
+
+@dataclass
+class EditSync:
+    """EDIT_SYNC and EDIT_SYNC_ACK share this layout."""
+    open_seq: int
+    token: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).u32(self.token).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "EditSync":
+        r = Reader(p)
+        return EditSync(r.u32(), r.u32())
+
+
+@dataclass
+class CityState:
+    open_seq: int
+    state: int
+    applied_count: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).u8(self.state).u32(self.applied_count).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CityState":
+        r = Reader(p)
+        return CityState(r.u32(), r.u8(), r.u32())
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.4
+# `minecraft-skylines` application protocol, version 1.5
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 4`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 5`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -275,3 +275,90 @@ a placement fills its neighbour across the hit face). Sent when it changes; late
 | f32 × 3 | `minX`, `minY`, `minZ` | Minecraft coordinates |
 | f32 × 3 | `maxX`, `maxY`, `maxZ` | |
 | u8 | `kind` | 0 existing block, 1 virtual block at host geometry |
+
+## Milestone 4 messages (minor 5): per-city block edits
+
+The city save is the authority for everything the player built or broke: the host keeps the city's
+**edit set** (Minecraft block position → block state) and writes it into the save; Minecraft's world
+is a cache rebuilt from it whenever a city opens. Loading an older save, Save As forks and quitting
+without saving therefore behave for blocks exactly as they do for the rest of the city.
+
+An edit is a block position (Minecraft block coordinates, `i32 × 3`) and a block state in
+Minecraft's block-state syntax as produced by the guest's canonical serializer, for example
+`minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]`. The state
+`minecraft:air` means "back to the world's base" (in 1.5 the base is void, so the host removes the
+position from its edit set). Hosts treat state strings as opaque.
+
+A city is **open** on the guest between `CITY_OPEN` and the next `CITY_CLOSE` (or link loss). Every
+open has a host-chosen `openSeq` (strictly increasing within a host process); messages carrying an
+`openSeq` other than the current one are stale and are dropped by both sides.
+
+### `0x0150 CITY_OPEN` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | |
+| uuid | `saveId` | the city's pairing id (never all zero) |
+| string | `cityName` | for logs and the guest's UI |
+| u32 | `editCount` | number of edits the host will send in `BLOCK_EDITS` batches for this open |
+
+Followed by `BLOCK_EDITS` batches with this `openSeq` totalling `editCount` edits, the last one
+with `flags` bit 0 set (also when `editCount` is 0: one empty batch with bit 0). Sent when a paired
+city is loaded and the link is up, and again after every reconnect; an open replaces any earlier
+one without a `CITY_CLOSE`.
+
+The guest then makes its world match: every position it may have changed before (its own
+persistent record of touched positions, kept across Minecraft restarts) that is not in the edit
+set goes back to air; every edit is applied. It applies without block updates to neighbours or
+physics (the result must equal the snapshot), and it does not record its own applications as
+player edits. When everything is applied or queued for chunks that are not loaded, it sends
+`CITY_STATE` ready and starts recording.
+
+### `0x0151 BLOCK_EDITS` (both directions)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | |
+| u8 | `flags` | bit 0 `LAST` (host → guest: last batch of the `CITY_OPEN` snapshot; guest → host: 0) |
+| u16 | `paletteCount` | |
+| string × `paletteCount` | `palette` | block states used in this batch, no duplicates |
+| u32 | `editCount` | at most 65536 per batch |
+| per edit: i32 × 3, u16 | `x`, `y`, `z`, `state` | `state` indexes `palette` (out of range is a protocol error) |
+
+Guest → host: the player's (and the world's: fluids, falling blocks, fire) block changes since the
+last batch, latest state per position, at most one batch per server tick. The host applies them to
+its edit set in order. A position may appear once per batch.
+
+### `0x0152 CITY_CLOSE` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the open being closed |
+
+The city was unloaded (or the host stopped using Minecraft for it). The guest stops recording,
+sends any edits still pending (with the closing `openSeq`, before acting on the close), reverts its
+world to empty as for a `CITY_OPEN` with no edits, and sends `CITY_STATE` closed.
+
+### `0x0153 EDIT_SYNC` (host → guest) and `0x0154 EDIT_SYNC_ACK` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | |
+| u32 | `token` | echoed in the ack |
+
+The save barrier. The guest answers with `EDIT_SYNC_ACK` carrying the same fields after it has sent,
+in `BLOCK_EDITS`, every edit it recorded before it received the `EDIT_SYNC` (TCP order then
+guarantees the host has those batches before the ack). A guest whose open does not match acks
+anyway, so the host never waits for nothing. Hosts wait a bounded time (CS1: 2 s) and save what
+they have on timeout.
+
+### `0x0155 CITY_STATE` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | |
+| u8 | `state` | 0 applying, 1 ready (applied, recording), 2 closed |
+| u32 | `appliedCount` | edits applied so far for this open |
+
+Sent on every state change. The host enters player mode for a paired city only after `ready`.
+

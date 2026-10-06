@@ -142,6 +142,26 @@ def frames() -> list[dict]:
         "maxX": 0.0, "maxY": 0.0, "maxZ": 0.0, "kind": 0},
         sb.BlockSelection(False, (0.0,) * 6, 0).encode())
 
+    # ---- 1.5 (milestone 4, per-city block edits)
+    add("city_open", sb.CITY_OPEN, {"openSeq": 3, "saveId": str(SAVE_ID), "cityName": "New Tokyo", "editCount": 2},
+        sb.CityOpen(3, SAVE_ID, "New Tokyo", 2).encode())
+    stairs = "minecraft:oak_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]"
+    be = sb.BlockEdits(3, sb.EDITS_LAST, ["minecraft:stone", stairs], [(10, 64, -21, 0), (-30000000, -64, 29999999, 1)])
+    add("block_edits_snapshot_last", sb.BLOCK_EDITS, {"openSeq": 3, "flags": 1,
+        "palette": ["minecraft:stone", stairs],
+        "edits": [{"x": 10, "y": 64, "z": -21, "state": 0}, {"x": -30000000, "y": -64, "z": 29999999, "state": 1}]},
+        be.encode())
+    add("block_edits_empty_last", sb.BLOCK_EDITS, {"openSeq": 4, "flags": 1, "palette": [], "edits": []},
+        sb.BlockEdits(4, sb.EDITS_LAST, [], []).encode())
+    add("block_edits_guest_air", sb.BLOCK_EDITS, {"openSeq": 3, "flags": 0, "palette": ["minecraft:air"],
+        "edits": [{"x": 10, "y": 64, "z": -21, "state": 0}]},
+        sb.BlockEdits(3, 0, ["minecraft:air"], [(10, 64, -21, 0)]).encode())
+    add("city_close", sb.CITY_CLOSE, {"openSeq": 3}, sb.CityClose(3).encode())
+    add("edit_sync", sb.EDIT_SYNC, {"openSeq": 3, "token": 4294967295}, sb.EditSync(3, 0xFFFFFFFF).encode())
+    add("edit_sync_ack", sb.EDIT_SYNC_ACK, {"openSeq": 3, "token": 4294967295}, sb.EditSync(3, 0xFFFFFFFF).encode())
+    add("city_state_ready", sb.CITY_STATE, {"openSeq": 3, "state": 1, "appliedCount": 2},
+        sb.CityState(3, sb.CITY_READY, 2).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
@@ -159,6 +179,9 @@ def invalid_frames() -> list[dict]:
         bad("bool_out_of_range", sb.frame(sb.WELCOME, b"\x02" + sb.Welcome(True, 0, "", "x", 1, 0, "", "", 1, 1, 1).encode()[1:]), "bool must be 0 or 1"),
         bad("string_overruns", sb.frame(sb.GOODBYE, b"\x00\x00\xFF\x00abc"), "string length past payload end"),
         bad("invalid_utf8", sb.frame(sb.GOODBYE, b"\x00\x00\x02\x00\xC3\x28"), "string not UTF-8"),
+        bad("block_edits_index_out_of_range", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(1).string("minecraft:stone").u32(1).i32(0).i32(0).i32(0).u16(1).bytes()), "state index >= paletteCount"),
+        bad("block_edits_duplicate_palette", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(2).string("minecraft:stone").string("minecraft:stone").u32(0).bytes()), "palette has duplicates"),
+        bad("block_edits_too_many", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(0).u32(65537).bytes()), "editCount > 65536"),
         bad("unknown_bridge_type", sb.frame(0x0042, b""), "types below 0x0100 are reserved"),
     ]
 
