@@ -203,7 +203,8 @@ public final class SectionExporter {
 					for (int x = 0; x < 16; x++) {
 						pos.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
 						BlockState state = chunk.getBlockState(pos);
-						if (state.isAir()) {
+						// CS1 draws its own city: shadow blocks (docs/plans/survival.md) are never sent.
+						if (state.isAir() || dev.mcskylines.shadow.ShadowCells.INSTANCE.contains(pos.getX(), pos.getY(), pos.getZ())) {
 							continue;
 						}
 						FluidState fluid = state.getFluidState();

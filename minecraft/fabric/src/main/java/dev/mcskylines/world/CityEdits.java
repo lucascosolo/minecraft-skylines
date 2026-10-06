@@ -15,6 +15,9 @@ import dev.mcskylines.protocol.GuestStatus;
 import dev.mcskylines.protocol.LightSources;
 import dev.mcskylines.protocol.PlayerData;
 import dev.mcskylines.protocol.RespawnRequest;
+import dev.mcskylines.protocol.TreeFelled;
+import dev.mcskylines.shadow.ShadowMaterials;
+import dev.mcskylines.shadow.ShadowWorld;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -81,6 +84,39 @@ public final class CityEdits {
 	private final EditRecorder<BlockState> recorder = new EditRecorder<>();
 	private boolean applying;
 	private final Long2IntOpenHashMap lamps = new Long2IntOpenHashMap(); // our light blocks: position to level
+	private final ShadowWorld shadow = new ShadowWorld();
+	private final ShadowWorld.Host shadowHost = new ShadowWorld.Host() {
+		@Override
+		public boolean playerOwns(long key) {
+			return open != null && open.snapshot.containsKey(key) || lamps.containsKey(key);
+		}
+
+		@Override
+		public boolean chunkReady(long chunkKey) {
+			return !pending.containsKey(chunkKey)
+				&& level.getChunkSource().getChunkNow(BlockKey.chunkX(chunkKey), BlockKey.chunkZ(chunkKey)) != null;
+		}
+
+		@Override
+		public boolean holds(long key, String block) {
+			Optional<BlockState> s = parse(block);
+			return s.isPresent() && level.getBlockState(new BlockPos(BlockKey.x(key), BlockKey.y(key), BlockKey.z(key))) == s.get();
+		}
+
+		@Override
+		public void place(long key, String block) {
+			BlockState s = block == null ? Blocks.AIR.defaultBlockState() : parse(block).orElse(null);
+			if (s == null) {
+				return;
+			}
+			level.setBlock(new BlockPos(BlockKey.x(key), BlockKey.y(key), BlockKey.z(key)), s, APPLY_FLAGS);
+			if (block == null) {
+				touched.remove(key);
+			} else {
+				touched.add(key);
+			}
+		}
+	};
 
 	private static final class Open {
 		final CityOpen msg;
@@ -189,6 +225,7 @@ public final class CityEdits {
 
 	private void onOpen(CityOpen o) {
 		lamps.clear();
+		shadow.reset();
 		flushRecorded();
 		stopRecording();
 		open = new Open(o, appMinor >= 11);
@@ -240,6 +277,7 @@ public final class CityEdits {
 		stopRecording();
 		flushRecorded();
 		lamps.clear();
+		shadow.reset();
 		LOG.info(PREFIX + "CITY_CLOSE {}; reverting the city world to empty", Integer.toUnsignedString(c.openSeq()));
 		open = null;
 		pairedSaveId = GuestStatus.NO_SAVE;
@@ -301,6 +339,7 @@ public final class CityEdits {
 
 	private void onLinkDown() {
 		lamps.clear();
+		shadow.reset();
 		stopRecording();
 		recorder.clear();
 		open = null;
@@ -343,6 +382,7 @@ public final class CityEdits {
 			send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.APPLYING, 0).encode());
 		}
 		lamps.clear();
+		shadow.reset();
 		targetApplied = false;
 		pending.clear();
 		parsed.clear();
@@ -397,6 +437,14 @@ public final class CityEdits {
 			}
 		}
 		flushRecorded();
+		if (open != null && open.ready) {
+			applying = true;
+			try {
+				shadow.tick(shadowHost);
+			} finally {
+				applying = false;
+			}
+		}
 		if (++playerCheckTicks >= PLAYER_CHECK_TICKS) {
 			playerCheckTicks = 0;
 			sendPlayer();
@@ -494,6 +542,7 @@ public final class CityEdits {
 		}
 		open.ready = true;
 		recording = this;
+		shadow.start(ShadowMaterials.seed(open.msg.saveId()));
 		send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.READY, target.size()).encode());
 	}
 
@@ -511,7 +560,14 @@ public final class CityEdits {
 		}
 		long key = BlockKey.pack(pos.getX(), pos.getY(), pos.getZ());
 		touched.add(key);
-		recorder.record(key, state);
+		// A shadow cell the player emptied stays empty: plain air means "no edit" to the host, so it is saved as cave air.
+		boolean filled = shadow.wouldFill(key);
+		recorder.record(key, filled && state.isAir() ? Blocks.CAVE_AIR.defaultBlockState() : state);
+		int felled = filled ? shadow.playerChanged(key, state.isAir()) : -1;
+		if (felled != -1 && appMinor >= 12 && open != null && open.ready) {
+			LOG.info(PREFIX + "tree {} felled", Integer.toUnsignedString(felled));
+			send(AppProtocol.TREE_FELLED, new TreeFelled(open.seq(), felled).encode());
+		}
 	}
 
 	private void applyTarget() {

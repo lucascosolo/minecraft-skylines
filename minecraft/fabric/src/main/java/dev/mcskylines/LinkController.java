@@ -35,6 +35,8 @@ import dev.mcskylines.render.SelectionExporter;
 import dev.mcskylines.render.SkyExporter;
 import dev.mcskylines.world.CityClock;
 import dev.mcskylines.world.CityEdits;
+import dev.mcskylines.shadow.ShadowWorld;
+import dev.mcskylines.protocol.Trees;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
@@ -208,6 +210,7 @@ final class LinkController {
 				playerMode.onLinkDown(mc);
 				DynamicObstacleStore.INSTANCE.clear();
 				HostWater.clear();
+				ShadowWorld.clearTrees();
 				overlay.linkDown();
 				city.linkDown();
 				clock.linkDown();
@@ -219,12 +222,21 @@ final class LinkController {
 					: "Disconnected from Cities: Skylines (" + lastDisconnect + ")");
 			}
 			case BridgeEvent.Message m -> {
-				if (m.type() == AppProtocol.COLLISION_REGION || m.type() == AppProtocol.COLLISION_RESET) {
+				if (m.type() == AppProtocol.COLLISION_REGION || m.type() == AppProtocol.COLLISION_RESET
+						|| m.type() == AppProtocol.TREES) {
 					try {
 						if (m.type() == AppProtocol.COLLISION_REGION) {
-							CollisionStore.INSTANCE.accept(CollisionRegion.decode(m.payload()));
+							CollisionRegion region = CollisionRegion.decode(m.payload());
+							if (CollisionStore.INSTANCE.accept(region)) {
+								ShadowWorld.regionChanged(region.regionX(), region.regionZ());
+							}
+						} else if (m.type() == AppProtocol.TREES) {
+							if (peer != null && peer.appMinor() >= 12) {
+								ShadowWorld.acceptTrees(Trees.decode(m.payload()));
+							}
 						} else {
 							CollisionStore.INSTANCE.accept(CollisionReset.decode(m.payload()));
+							ShadowWorld.clearTrees();
 						}
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed collision message: {}", e.getMessage());
