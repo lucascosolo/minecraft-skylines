@@ -104,10 +104,10 @@ namespace Skylines.Host.Tests
         }
 
         [Fact]
-        public void OverlayModeDefaultsToZero()
+        public void OverlayModeDefaultsToTheOverlayDefault()
         {
             LaunchConfig c = LaunchConfig.Parse("command = x\n");
-            Assert.Equal(0, c.OverlayMode);
+            Assert.Equal(Skylines.Host.Overlay.OverlayMode.Default, c.OverlayMode);
             Assert.Empty(c.Problems);
         }
 
@@ -126,11 +126,11 @@ namespace Skylines.Host.Tests
         [InlineData("5")]
         [InlineData("x")]
         [InlineData("-1")]
-        public void BadOverlayModeIsOneProblemAndStaysZero(string value)
+        public void BadOverlayModeIsOneProblemAndStaysTheDefault(string value)
         {
             LaunchConfig c = LaunchConfig.Parse("command = x\noverlay_mode = " + value + "\n");
             Assert.Single(c.Problems);
-            Assert.Equal(0, c.OverlayMode);
+            Assert.Equal(Skylines.Host.Overlay.OverlayMode.Default, c.OverlayMode);
         }
 
         [Fact]

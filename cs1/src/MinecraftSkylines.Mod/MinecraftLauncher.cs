@@ -75,7 +75,7 @@ namespace MinecraftSkylines.Mod
         /// <summary>launch.cfg <c>overlay_mode</c>; 0 without a usable launch.cfg.</summary>
         public int OverlayMode
         {
-            get { Load(); return _config == null ? 0 : _config.OverlayMode; }
+            get { Load(); return _config == null ? Skylines.Host.Overlay.OverlayMode.Default : _config.OverlayMode; }
         }
 
         /// <summary>True when launch.cfg's args contain <paramref name="arg"/> (e.g. -PmcskylinesDebugCommands).</summary>

@@ -72,7 +72,7 @@ namespace Skylines.Host
         public int BlockMaterial;
 
         /// <summary>Overlay drawing mode, 0-4 (an in-game brightness experiment knob; see <c>Skylines.Host.Overlay.OverlayMode</c>).</summary>
-        public int OverlayMode;
+        public int OverlayMode = Skylines.Host.Overlay.OverlayMode.Default;
 
         /// <summary>Problems found while parsing (unknown keys, bad numbers, missing command).</summary>
         public readonly List<string> Problems = new List<string>();

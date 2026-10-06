@@ -41,9 +41,9 @@ namespace Skylines.Host.Tests
         }
 
         [Fact]
-        public void DefaultIsZero()
+        public void DefaultIsThree_PremultipliedLinear_OwnersPick()
         {
-            Assert.Equal(0, OverlayMode.Default);
+            Assert.Equal(3, OverlayMode.Default);
         }
     }
 }

@@ -10,7 +10,7 @@ namespace Skylines.Host.Overlay
         public const int Count = 5;
 
         /// <summary>Mode used until the owner picks one.</summary>
-        public const int Default = 0;
+        public const int Default = 3; // premultiplied, linear texture: the owner picked 3 (or 4) in game, 2026-10-06
 
         /// <summary>True for 0 to Count - 1.</summary>
         public static bool IsValid(int mode)
