@@ -26,6 +26,7 @@ import dev.mcskylines.player.PlayerMode;
 import dev.mcskylines.protocol.Viewport;
 import dev.mcskylines.render.OverlayExporter;
 import dev.mcskylines.render.SectionExporter;
+import dev.mcskylines.render.SelectionExporter;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
@@ -43,6 +44,7 @@ final class LinkController {
 	private final PlayerMode playerMode = new PlayerMode();
 	private final SectionExporter sections;
 	private final OverlayExporter overlay;
+	private final SelectionExporter selection;
 	private int exportErrors;
 	private int overlayErrors;
 	private static final boolean DEBUG_COMMANDS = Boolean.getBoolean("mcskylines.debugCommands");
@@ -65,6 +67,7 @@ final class LinkController {
 		this.guest = guest;
 		this.sections = new SectionExporter(guest);
 		this.overlay = new OverlayExporter(guest);
+		this.selection = new SelectionExporter(guest);
 	}
 
 	/** Start of every frame: input and look arrive at host frame rate, not tick rate. */
@@ -99,6 +102,9 @@ final class LinkController {
 					LOG.error(PREFIX + "overlay export failed", e);
 				}
 			}
+		}
+		if (peer.appMinor() >= 4) {
+			selection.frame(mc, playerMode.active());
 		}
 	}
 
@@ -159,6 +165,7 @@ final class LinkController {
 					sentStatus = null;
 					playerMode.onLinkUp(mc);
 					sections.linkUp();
+					selection.linkUp();
 					if (peer != null) {
 						chat(mc, "Connected to " + peer.peerName() + " (" + peer.peerVersion() + ")");
 					}

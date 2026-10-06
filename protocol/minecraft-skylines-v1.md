@@ -265,12 +265,13 @@ into yaw/pitch, and sends mouse buttons, wheel and keys as before plus cursor po
 
 ### `0x0134 BLOCK_SELECTION` (guest → host)
 
-The box Minecraft would outline under the crosshair (a block, or the cell a placement would fill when
-the crosshair hits host geometry). Sent when it changes; latest value wins.
+The box Minecraft outlines under the crosshair: a real block (kind 0), or, when the crosshair hits host
+geometry, the 1x1x1 cell just behind the hit surface (kind 1, the "virtual block" vanilla would outline;
+a placement fills its neighbour across the hit face). Sent when it changes; latest value wins.
 
 | Type | Field | Notes |
 |---|---|---|
 | bool | `visible` | false = no outline |
 | f32 × 3 | `minX`, `minY`, `minZ` | Minecraft coordinates |
 | f32 × 3 | `maxX`, `maxY`, `maxZ` | |
-| u8 | `kind` | 0 block outline (existing block), 1 placement preview (empty cell on host geometry) |
+| u8 | `kind` | 0 existing block, 1 virtual block at host geometry |

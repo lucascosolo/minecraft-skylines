@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 3;
+        public const ushort Minor = 4;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -33,6 +33,8 @@ namespace MinecraftSkylines.Protocol
         public const ushort SectionMeshType = 0x0132;
         /// <summary>Message type of SECTIONS_CLEAR (guest to host, minor 2); empty payload.</summary>
         public const ushort SectionsClearType = 0x0133;
+        /// <summary>Message type of <see cref="BlockSelection"/> (guest to host, minor 4).</summary>
+        public const ushort BlockSelectionType = 0x0134;
         /// <summary>Message type of <see cref="DebugCommand"/> (host to guest, minor 2).</summary>
         public const ushort DebugCommandType = 0x01F0;
         /// <summary>Message type of <see cref="Viewport"/> (host to guest, minor 3).</summary>

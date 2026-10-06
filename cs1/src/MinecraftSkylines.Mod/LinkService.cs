@@ -34,6 +34,7 @@ namespace MinecraftSkylines.Mod
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
         private static BlockRenderer s_blocks;
+        private static SelectionOutline s_selection;
         private static OverlayLink s_gui;
         private static SelfTestController s_selfTest;
         private static MinecraftLauncher s_launcher;
@@ -81,6 +82,7 @@ namespace MinecraftSkylines.Mod
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;
+            s_selection = new SelectionOutline(() => s_player != null && s_player.IsActive);
             s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, s_gui, () => s_guest, ModVersion);
             s_autoload = new SaveAutoloader(s_log, s_launcher.Autoload);
             s_fixture = new FixtureBuilder(s_log);
@@ -148,6 +150,7 @@ namespace MinecraftSkylines.Mod
             s_player.Exit(why, s_host, true);
             s_player.Viewer.Dispose();
             s_blocks.Dispose();
+            s_selection.Dispose();
             s_gui.Dispose();
             s_probe.RestoreAll(why, true);
             s_host.Shutdown(GoodbyeCodes.ShuttingDown, why);
@@ -157,6 +160,7 @@ namespace MinecraftSkylines.Mod
             s_overlay = null;
             s_player = null;
             s_blocks = null;
+            s_selection = null;
             s_gui = null;
             s_selfTest = null;
             s_autoload = null;
@@ -353,6 +357,7 @@ namespace MinecraftSkylines.Mod
                     s_guest = null;
                     s_player.SetGuestFlags(0);
                     s_gui.OnDisconnect();
+                    s_selection.Hide();
                     s_player.Exit("link lost: " + s_lastDisconnect, s_host, false);
                     break;
                 case BridgeEventKind.Message:
@@ -398,6 +403,17 @@ namespace MinecraftSkylines.Mod
                     else if (e.MessageType == AppProtocol.OverlayStopType)
                     {
                         s_gui.OnStop();
+                    }
+                    else if (e.MessageType == AppProtocol.BlockSelectionType)
+                    {
+                        try
+                        {
+                            s_selection.Set(BlockSelection.Decode(e.Payload));
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad BLOCK_SELECTION ignored: " + ex.Message);
+                        }
                     }
                     else if (e.MessageType >= AppProtocol.BlockAtlasType && e.MessageType <= AppProtocol.SectionsClearType)
                     {

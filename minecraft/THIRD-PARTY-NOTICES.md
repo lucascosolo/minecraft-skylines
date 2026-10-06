@@ -43,6 +43,9 @@ Each file carries an attribution header. All under `fabric/src/` and adapted (pa
 - `main/java/dev/mcskylines/collision/SkyTri.java` from `dev/skycraft/world/SkyTri.java` (flags are our protocol's; digging and material fields removed).
 - `main/java/dev/mcskylines/collision/PlayerCollider.java` from `dev/skycraft/client/SkyCollider.java`.
 - `main/java/dev/mcskylines/mixin/EntityCollideMixin.java` from `dev/skycraft/client/mixin/EntityCollideMixin.java`.
+- `main/java/dev/mcskylines/collision/SkyRay.java` and `test/java/dev/mcskylines/collision/SkyRayTest.java` from `dev/skycraft/world/SkyRay.java` and its test (stair-helper skip removed; placement goes in the neighbour across the dominant face, vanilla-style, instead of SkyCraft's sunk cell; `faceLocation` added).
+- `main/java/dev/mcskylines/collision/SkyClip.java` from `dev/skycraft/world/SkyClip.java` (crosshair pick only; projectile and dug-wall paths removed).
+- `main/java/dev/mcskylines/mixin/EntityPickMixin.java` from `dev/skycraft/mixin/EntityPickMixin.java`.
 - `main/java/dev/mcskylines/mixin/MinecraftServerFlightMixin.java` from `dev/skycraft/mixin/MinecraftServerFlightMixin.java`.
 - `main/java/dev/mcskylines/mixin/PlayerEdgeMixin.java` from `dev/skycraft/mixin/PlayerEdgeMixin.java`.
 - `test/java/dev/mcskylines/collision/TriColliderTest.java` from `dev/skycraft/world/TriColliderTest.java`.

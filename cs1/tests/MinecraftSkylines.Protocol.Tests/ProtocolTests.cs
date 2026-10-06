@@ -214,6 +214,19 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(ulong.Parse(f.GetProperty("generation").GetString()), m.Generation);
                         return m.Encode();
                     }
+                case AppProtocol.BlockSelectionType:
+                    {
+                        BlockSelection m = BlockSelection.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("visible").GetBoolean(), m.Visible);
+                        Assert.Equal(f.GetProperty("minX").GetSingle(), m.MinX);
+                        Assert.Equal(f.GetProperty("minY").GetSingle(), m.MinY);
+                        Assert.Equal(f.GetProperty("minZ").GetSingle(), m.MinZ);
+                        Assert.Equal(f.GetProperty("maxX").GetSingle(), m.MaxX);
+                        Assert.Equal(f.GetProperty("maxY").GetSingle(), m.MaxY);
+                        Assert.Equal(f.GetProperty("maxZ").GetSingle(), m.MaxZ);
+                        Assert.Equal(f.GetProperty("kind").GetByte(), m.Kind);
+                        return m.Encode();
+                    }
                 case AppProtocol.DebugCommandType:
                     {
                         DebugCommand m = DebugCommand.Decode(frame.Payload);
@@ -368,7 +381,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(3, AppProtocol.Minor);
+            Assert.Equal(4, AppProtocol.Minor);
             Assert.Equal(0x0140, AppProtocol.ViewportType);
             Assert.Equal(0x0141, AppProtocol.OverlayOfferType);
             Assert.Equal(0x0142, AppProtocol.OverlayStopType);
@@ -377,6 +390,7 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Equal(0x0131, AppProtocol.AtlasRegionType);
             Assert.Equal(0x0132, AppProtocol.SectionMeshType);
             Assert.Equal(0x0133, AppProtocol.SectionsClearType);
+            Assert.Equal(0x0134, AppProtocol.BlockSelectionType);
             Assert.Equal(0x01F0, AppProtocol.DebugCommandType);
             Assert.Equal(8u, HostStatusFlags.PlayerMode);
             Assert.Equal(2u, GuestStatusFlags.ScreenOpen);

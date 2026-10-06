@@ -248,7 +248,7 @@ class AppVectorsTest {
     void constants() {
         assertEquals("minecraft-skylines", AppProtocol.NAME);
         assertEquals(1, AppProtocol.MAJOR);
-        assertEquals(3, AppProtocol.MINOR);
+        assertEquals(4, AppProtocol.MINOR);
         assertEquals(0x0100, AppProtocol.HOST_STATUS);
         assertEquals(0x0101, AppProtocol.GUEST_STATUS);
         assertEquals(0x0130, AppProtocol.BLOCK_ATLAS);
@@ -396,5 +396,50 @@ class AppVectorsTest {
         DebugCommand got = DebugCommand.decode(p);
         assertEquals(new DebugCommand(v.getAsJsonObject("fields").get("command").getAsString()), got);
         assertArrayEquals(p, got.encode());
+    }
+
+    private static BlockSelection blockSelectionFrom(JsonObject f) {
+        return new BlockSelection(f.get("visible").getAsBoolean(), f.get("minX").getAsFloat(),
+                f.get("minY").getAsFloat(), f.get("minZ").getAsFloat(), f.get("maxX").getAsFloat(),
+                f.get("maxY").getAsFloat(), f.get("maxZ").getAsFloat(), f.get("kind").getAsInt());
+    }
+
+    @Test
+    void blockSelection() throws Exception {
+        JsonObject v = vector("block_selection");
+        byte[] p = payload(v);
+        BlockSelection expected = blockSelectionFrom(v.getAsJsonObject("fields"));
+        BlockSelection got = BlockSelection.decode(p);
+        assertEquals(expected, got);
+        assertEquals(BlockSelection.KIND_PLACEMENT, got.kind());
+        assertTrue(got.visible());
+        assertArrayEquals(p, got.encode());
+    }
+
+    @Test
+    void blockSelectionHidden() throws Exception {
+        JsonObject v = vector("block_selection_hidden");
+        byte[] p = payload(v);
+        BlockSelection got = BlockSelection.decode(p);
+        assertEquals(blockSelectionFrom(v.getAsJsonObject("fields")), got);
+        assertEquals(BlockSelection.HIDDEN, got);
+        assertFalse(got.visible());
+        assertEquals(BlockSelection.KIND_BLOCK, got.kind());
+        assertArrayEquals(p, got.encode());
+        assertArrayEquals(p, BlockSelection.HIDDEN.encode());
+    }
+
+    @Test
+    void blockSelectionTruncated() throws Exception {
+        byte[] p = payload(vector("block_selection"));
+        assertThrows(ProtocolException.class, () -> BlockSelection.decode(Arrays.copyOf(p, p.length - 1)));
+    }
+
+    @Test
+    void blockSelectionConstants() {
+        assertEquals(0, BlockSelection.KIND_BLOCK);
+        assertEquals(1, BlockSelection.KIND_PLACEMENT);
+        assertEquals(0x0134, AppProtocol.BLOCK_SELECTION);
+        assertEquals(4, AppProtocol.MINOR);
     }
 }

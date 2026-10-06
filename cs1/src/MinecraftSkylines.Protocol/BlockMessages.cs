@@ -182,4 +182,36 @@ namespace MinecraftSkylines.Protocol
             return m;
         }
     }
+
+    /// <summary>0x0134 BLOCK_SELECTION (guest to host, minor 4): the box Minecraft outlines under the crosshair.</summary>
+    public sealed class BlockSelection
+    {
+        /// <summary><see cref="Kind"/>: the outline of an existing block.</summary>
+        public const byte KindBlock = 0;
+        /// <summary><see cref="Kind"/>: a grid cell on host geometry.</summary>
+        public const byte KindPlacement = 1;
+
+        /// <summary>False: no outline.</summary>
+        public bool Visible;
+        /// <summary>The box in Minecraft coordinates.</summary>
+        public float MinX, MinY, MinZ, MaxX, MaxY, MaxZ;
+        /// <summary><see cref="KindBlock"/> or <see cref="KindPlacement"/>.</summary>
+        public byte Kind;
+
+        /// <summary>Encodes the payload.</summary>
+        public byte[] Encode()
+        {
+            return new PayloadWriter().Bool(Visible).F32(MinX).F32(MinY).F32(MinZ).F32(MaxX).F32(MaxY).F32(MaxZ).U8(Kind).ToArray();
+        }
+
+        /// <summary>Decodes a payload; throws <see cref="ProtocolException"/> if it is malformed.</summary>
+        public static BlockSelection Decode(byte[] payload)
+        {
+            var r = new PayloadReader(payload);
+            return new BlockSelection
+            {
+                Visible = r.Bool(), MinX = r.F32(), MinY = r.F32(), MinZ = r.F32(), MaxX = r.F32(), MaxY = r.F32(), MaxZ = r.F32(), Kind = r.U8(),
+            };
+        }
+    }
 }
