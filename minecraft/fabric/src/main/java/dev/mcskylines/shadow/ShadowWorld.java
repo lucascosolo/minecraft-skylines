@@ -117,6 +117,31 @@ public final class ShadowWorld {
 	 * The player changed a cell (recorded as an edit). Returns the CS1 tree id whose last generated log this was, or -1.
 	 * Digging at the bottom of the filled crust deepens the surrounding columns.
 	 */
+	/** The generated tree a standing log belongs to, or -1. Server thread. */
+	public int treeOfLog(long key) {
+		Chunk c = chunks.get(BlockKey.chunkKey(key));
+		return c == null ? -1 : c.logs.getOrDefault(key, -1);
+	}
+
+	/** Every cell of generated tree {@code treeId} (logs and leaves) that is still a shadow block. Server thread. */
+	public it.unimi.dsi.fastutil.longs.LongArrayList treeCells(int treeId) {
+		it.unimi.dsi.fastutil.longs.LongArrayList out = new it.unimi.dsi.fastutil.longs.LongArrayList();
+		for (List<Trees.Tree> list : TREES.values()) {
+			for (Trees.Tree t : list) {
+				if (t.id() != treeId) {
+					continue;
+				}
+				TreeLayout.blocks(t.kind(), t.x(), t.y(), t.z(), t.height(), t.radius(), (x, y, z, block) -> {
+					if (BlockKey.fits(x, y, z) && ShadowCells.INSTANCE.contains(x, y, z)) {
+						out.add(BlockKey.pack(x, y, z));
+					}
+				});
+				return out;
+			}
+		}
+		return out;
+	}
+
 	public int playerChanged(long key, boolean nowAir) {
 		Chunk c = chunks.get(BlockKey.chunkKey(key));
 		if (c == null || !c.planned.contains(key)) {

@@ -61,10 +61,14 @@ public final class ShadowMaterials {
 		return y < 0 ? "minecraft:deepslate" : "minecraft:stone";
 	}
 
-	/** The plant on a grass-topped column: short grass on about a fifth of them, tall grass on about one in fifty. */
+	/**
+	 * The plant on a grass-topped column: grass on every one, tall on about one in fifty. CS1 draws grass on all of its
+	 * grassy ground, so any spot the player punches there breaks grass (owner, 2026-10-06: "the grass above the ground
+	 * in CS1 isn't showing an outline or breaking when I punch it").
+	 */
 	public static String plant(long seed, int x, int z) {
 		double u = unit(seed, x, 0, z, 17);
-		return u < 0.02 ? "minecraft:tall_grass" : u < 0.22 ? "minecraft:short_grass" : null;
+		return u < 0.02 ? "minecraft:tall_grass" : "minecraft:short_grass";
 	}
 
 	static double unit(long seed, int x, int y, int z, int salt) {

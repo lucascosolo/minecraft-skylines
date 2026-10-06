@@ -53,6 +53,7 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 			.withLogger(msg -> LOG.info(PREFIX + "bridge: {}", msg)));
 		CityEdits city = new CityEdits(guest);
 		LinkController link = new LinkController(guest, city);
+		dev.mcskylines.world.TreeFeller.register(city);
 		MinecraftSkylinesClient.link = link;
 		ServerLifecycleEvents.SERVER_STARTED.register(DevWorld::configureIfOurs);
 		ServerLifecycleEvents.SERVER_STARTED.register(city::attach);
