@@ -29,7 +29,6 @@ namespace Skylines.Host.Rendering
         /// </summary>
         public const float SlopeDrop = 0.05f;
 
-        private const float Step = 4f;
         private const int MaxVertices = 60000;
         private const float GridCell = 64f;       // NetManager.InitializeSegment: (int)(x / 64f + 135f)
         private const int GridSize = 270;         // NetManager.NODEGRID_RESOLUTION
@@ -42,7 +41,8 @@ namespace Skylines.Host.Rendering
         private readonly ShellMesh _shell = new ShellMesh();
         private readonly HashSet<ushort> _nodes = new HashSet<ushort>();
         private readonly HashSet<NetInfo> _warned = new HashSet<NetInfo>();
-        private readonly float[] _ring = new float[3 * 16];
+        private readonly List<TunnelSection> _sections = new List<TunnelSection>();
+        private readonly List<TunnelSection> _mouths = new List<TunnelSection>();
         private Mesh _mesh;
         private Material _concrete;
         private Texture2D _ownTexture, _xys, _aci;
@@ -199,44 +199,13 @@ namespace Skylines.Host.Rendering
             if (!drawn && _warned.Add(ground)) _log.Warn("tunnels: no segment mesh of '" + ground.name + "' matches tunnel segment flags " + seg.m_flags);
         }
 
-        // NetNode.RefreshBendData and NetNode.RenderSegments for a bend between two tunnel or slope segments.
-        private void BendRoad(ushort nodeId, ref NetNode node, NetSegment[] segs, NetInfo ground, out Bezier3D left, out Bezier3D right)
+        // NetNode.RefreshBendData and NetNode.RenderSegments for the joint piece between two tunnel or slope segments.
+        private void JointRoad(ushort nodeId, ref NetNode node, Bezier3 l, Bezier3 r, NetInfo ground)
         {
-            Vector3 c1 = Vector3.zero, c2 = Vector3.zero, c3 = Vector3.zero, c4 = Vector3.zero;
-            Vector3 d1 = Vector3.zero, d2 = Vector3.zero, d3 = Vector3.zero, d4 = Vector3.zero;
-            bool first = false;
-            int found = 0;
-            for (int i = 0; i < 8; i++)
-            {
-                ushort sid = node.GetSegment(i);
-                if (sid == 0) continue;
-                bool isFirst = ++found == 1;
-                bool start = segs[sid].m_startNode == nodeId;
-                bool invert = (segs[sid].m_flags & NetSegment.Flags.Invert) != 0;
-                bool smooth;
-                if ((!isFirst && !first) || (isFirst && start == invert))
-                {
-                    segs[sid].CalculateCorner(sid, true, start, false, out c1, out d1, out smooth);
-                    segs[sid].CalculateCorner(sid, true, start, true, out c2, out d2, out smooth);
-                    first = true;
-                }
-                else
-                {
-                    segs[sid].CalculateCorner(sid, true, start, true, out c3, out d3, out smooth);
-                    segs[sid].CalculateCorner(sid, true, start, false, out c4, out d4, out smooth);
-                }
-            }
-            Vector3 m1, m2, m3, m4;
-            NetSegment.CalculateMiddlePoints(c1, -d1, c3, -d3, true, true, out m1, out m2);
-            NetSegment.CalculateMiddlePoints(c2, -d2, c4, -d4, true, true, out m3, out m4);
-            left = ToCore(new Bezier3(c1, m1, m2, c3));
-            right = ToCore(new Bezier3(c2, m3, m4, c4));
-            if (ground == null) return;
-
             Vector3 pos = node.m_position;
             float vScale = ground.m_netAI.GetVScale();
-            Matrix4x4 leftM = NetSegment.CalculateControlMatrix(c1, m1, m2, c3, c2, m3, m4, c4, pos, vScale);
-            Matrix4x4 rightM = NetSegment.CalculateControlMatrix(c2, m3, m4, c4, c1, m1, m2, c3, pos, vScale);
+            Matrix4x4 leftM = NetSegment.CalculateControlMatrix(l.a, l.b, l.c, l.d, r.a, r.b, r.c, r.d, pos, vScale);
+            Matrix4x4 rightM = NetSegment.CalculateControlMatrix(r.a, r.b, r.c, r.d, l.a, l.b, l.c, l.d, pos, vScale);
             Vector4 loc = RenderManager.GetColorLocation(NodeHolder + nodeId);
             var objectIndex = new Vector4(loc.x, loc.y, loc.x, loc.y);
             Color objectColor = ground.m_netAI.GetObjectColor(nodeId, ref node);
@@ -289,10 +258,20 @@ namespace Skylines.Host.Rendering
 
         private long DrawNode(ushort nodeId, ref NetNode node, NetSegment[] segs, long sig)
         {
-            if ((node.m_flags & NetNode.Flags.Underground) == 0) return sig;
-            int count = 0;
-            float clearance = 0f, sumY = 0f;
-            NetInfo tunnelInfo = null;
+            if ((node.m_flags & NetNode.Flags.Underground) == 0 || (node.m_flags & NetNode.Flags.Middle) != 0) return sig;
+            float clearance;
+            if (NetGeometry.UndergroundJoint(nodeId, ref node, segs, out clearance))
+            {
+                Bezier3 l, r;
+                NetGeometry.JointEdges(nodeId, ref node, segs, out l, out r);
+                sig = Mix(Mix(Mix(sig, nodeId), l), r);
+                NetInfo ground = Ground(TunnelInfoAt(ref node, segs));
+                if (ground != null) JointRoad(nodeId, ref node, l, r, ground);
+                AddShell(ToCore(l), ToCore(r), clearance, true);
+                return sig;
+            }
+            if ((node.m_flags & NetNode.Flags.Junction) == 0) return sig;
+            _mouths.Clear();
             for (int i = 0; i < 8; i++)
             {
                 ushort sid = node.GetSegment(i);
@@ -300,35 +279,35 @@ namespace Skylines.Host.Rendering
                 NetInfo info = segs[sid].Info;
                 NetGeometry.Kind kind = NetGeometry.Classify(info);
                 if (kind != NetGeometry.Kind.Tunnel && kind != NetGeometry.Kind.Slope) return sig;
-                clearance = Mathf.Max(clearance, NetGeometry.Clearance(info));
-                if (kind == NetGeometry.Kind.Tunnel || tunnelInfo == null) tunnelInfo = info;
-                if (count < 16)
+                Bezier3 l, r;
+                segs[sid].GenerateBezier(sid, nodeId, out l, out r);
+                sig = Mix(Mix(sig, l), r);
+                if (NetGeometry.Profile(ToCore(l), ToCore(r), NetGeometry.Clearance(info), kind == NetGeometry.Kind.Tunnel, _sections) > 0)
                 {
-                    Bezier3 l, r;
-                    segs[sid].GenerateBezier(sid, nodeId, out l, out r);
-                    foreach (Vector3 c in new[] { l.a, r.a })
-                    {
-                        _ring[3 * count] = c.x; _ring[3 * count + 1] = c.y; _ring[3 * count + 2] = c.z;
-                        sumY += c.y;
-                        count++;
-                    }
+                    _mouths.Add(_sections[0]);
                 }
             }
-            if (count == 0) return sig;
             sig = Mix(sig, nodeId);
-            for (int i = 0; i < 3 * count; i++) sig = Mix(sig, _ring[i]);
-            if ((node.m_flags & NetNode.Flags.Bend) != 0 && count == 4)
-            {
-                Bezier3D left, right;
-                BendRoad(nodeId, ref node, segs, Ground(tunnelInfo), out left, out right);
-                AddShell(left, right, clearance, true);
-            }
-            else if ((node.m_flags & NetNode.Flags.Junction) != 0 && _shell.VertexCount < MaxVertices)
+            if (_shell.VertexCount < MaxVertices)
             {
                 Vector3 p = node.m_position;
-                TunnelShell.Junction(p.x, sumY / count, p.z, _ring, count, clearance, NetGeometry.CeilingThickness, TileMetres, _shell);
+                TunnelShell.Junction(p.x, p.z, _mouths, NetGeometry.CeilingThickness, TileMetres, _shell);
             }
             return sig;
+        }
+
+        // The tunnel info among the node's segments, else its slope's: the ground road surface drawn on a joint.
+        private static NetInfo TunnelInfoAt(ref NetNode node, NetSegment[] segs)
+        {
+            NetInfo found = null;
+            for (int i = 0; i < 8; i++)
+            {
+                ushort sid = node.GetSegment(i);
+                if (sid == 0) continue;
+                NetInfo info = segs[sid].Info;
+                if (found == null || NetGeometry.Classify(info) == NetGeometry.Kind.Tunnel) found = info;
+            }
+            return found;
         }
 
         private void AddShell(Bezier3D left, Bezier3D right, float clearance, bool tunnel)
@@ -339,7 +318,8 @@ namespace Skylines.Host.Rendering
                 _capWarned = true;
                 return;
             }
-            TunnelShell.Segment(left, right, clearance, tunnel, Step, NetGeometry.TunnelWallWidth, NetGeometry.CeilingThickness, TileMetres, _shell);
+            NetGeometry.Profile(left, right, clearance, tunnel, _sections);
+            TunnelShell.Segment(_sections, NetGeometry.CeilingThickness, TileMetres, _shell);
         }
 
         private void Upload()

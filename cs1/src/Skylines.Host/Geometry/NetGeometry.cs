@@ -73,6 +73,10 @@ namespace Skylines.Host.Geometry
 
         private readonly HashSet<ushort> _nodes = new HashSet<ushort>();
         private readonly float[] _ring = new float[3 * 16];
+        private readonly List<TunnelSection> _sections = new List<TunnelSection>();
+        private readonly float[] _tops = new float[16];
+        private static readonly Func<float, float, float> s_ground =
+            (x, z) => Singleton<TerrainManager>.instance.SampleDetailHeightSmooth(new Vector3(x, 0f, z));
 
         /// <summary>Number of segments emitted by the last <see cref="Emit"/>.</summary>
         public int LastSegmentCount { get; private set; }
@@ -370,7 +374,8 @@ namespace Skylines.Host.Geometry
             Strip.Between(l, r, StripStep, depth, deck ? BridgeDeckFlag : RoadSurfaceFlag, into);
             if (kind == Kind.Tunnel || kind == Kind.Slope)
             {
-                Tube(l, r, Clearance(info), kind == Kind.Tunnel, into);
+                Profile(l, r, Clearance(info), kind == Kind.Tunnel, _sections);
+                Tube(l, r, _sections, kind == Kind.Tunnel, Clearance(info), into);
                 if (kind == Kind.Slope) PortalShapes.EmitCollision(id, ref seg, info, TunnelFlag, into);
             }
             else
@@ -458,30 +463,115 @@ namespace Skylines.Host.Geometry
             return new Vector2(a.x - b.x, a.z - b.z).magnitude;
         }
 
-        // Walls inside each edge and a ceiling slab whose top is `clearance` above the floor, per StripStep interval. A
-        // tunnel is closed throughout; on a slope the walls stop at the portal's ground level (the slope's higher end)
-        // and the ceiling covers only the intervals deep enough for its top to stay at or below that level.
-        private static void Tube(Bezier3D l, Bezier3D r, float clearance, bool tunnel, TriangleBuffer into)
+        /// <summary>Length of one tunnel interval, in metres; shared with the drawn shell.</summary>
+        public const float ProfileStep = StripStep;
+
+        /// <summary>
+        /// The cross-sections of a tunnel or slope piece between drawn edges <paramref name="l"/> and <paramref name="r"/>
+        /// (<see cref="TunnelProfile.Build"/> with walls <see cref="TunnelWallWidth"/> thick and tunnel ceilings kept under
+        /// CS1's terrain), which the collision and the drawn shell both follow.
+        /// </summary>
+        public static int Profile(Bezier3D l, Bezier3D r, float clearance, bool tunnel, List<TunnelSection> into)
         {
-            float dx = l.Dx - l.Ax, dy = l.Dy - l.Ay, dz = l.Dz - l.Az;
-            int n = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(dx * dx + dy * dy + dz * dz) / StripStep));
+            return TunnelProfile.Build(l, r, clearance, tunnel, ProfileStep, TunnelWallWidth, tunnel ? s_ground : null, into);
+        }
+
+        // Per interval of the profile: walls inside each edge up to the ceiling and a level ceiling slab whose top is the
+        // section's Top. On a slope's open intervals the walls stop at the portal's ground level (the higher end).
+        private static void Tube(Bezier3D l, Bezier3D r, List<TunnelSection> sections, bool tunnel, float clearance, TriangleBuffer into)
+        {
+            int n = sections.Count - 1;
             float ground = Mathf.Max((l.Ay + r.Ay) * 0.5f, (l.Dy + r.Dy) * 0.5f);
             for (int k = 0; k < n; k++)
             {
                 float t0 = k / (float)n, t1 = (k + 1) / (float)n;
                 Bezier3D lk = l.Cut(t0, t1), rk = r.Cut(t0, t1);
+                TunnelSection a = sections[k], b = sections[k + 1];
                 float floorTop = Mathf.Max((lk.Ay + rk.Ay) * 0.5f, (lk.Dy + rk.Dy) * 0.5f);
-                float wall = tunnel ? clearance : Mathf.Min(clearance, ground - floorTop);
+                float wall = a.Covered ? Mathf.Max(a.Top - Mathf.Min(lk.Ay, rk.Ay), b.Top - Mathf.Min(lk.Dy, rk.Dy))
+                    : tunnel ? clearance : Mathf.Min(clearance, ground - floorTop);
                 if (wall > 0.5f)
                 {
                     Slab(lk, rk, TunnelWallWidth, wall, wall, TunnelFlag, into);
                     Slab(rk, lk, TunnelWallWidth, wall, wall, TunnelFlag, into);
                 }
-                if (tunnel || floorTop + clearance <= ground)
+                if (a.Covered)
                 {
-                    Strip.Between(Lift(lk, clearance), Lift(rk, clearance), StripStep, CeilingThickness, TunnelFlag, into);
+                    Strip.Between(Line(a.Lx, a.Top, a.Lz, b.Lx, b.Top, b.Lz), Line(a.Rx, a.Top, a.Rz, b.Rx, b.Top, b.Rz), StripStep,
+                        CeilingThickness, TunnelFlag, into);
                 }
             }
+        }
+
+        private static Bezier3D Line(float x0, float y0, float z0, float x1, float y1, float z1)
+        {
+            float dx = (x1 - x0) / 3f, dy = (y1 - y0) / 3f, dz = (z1 - z0) / 3f;
+            return new Bezier3D
+            {
+                Ax = x0, Ay = y0, Az = z0, Bx = x0 + dx, By = y0 + dy, Bz = z0 + dz,
+                Cx = x1 - dx, Cy = y1 - dy, Cz = z1 - dz, Dx = x1, Dy = y1, Dz = z1,
+            };
+        }
+
+        /// <summary>
+        /// Whether the node is underground and joins exactly two tunnel or slope segments (a bend, or a 2-segment
+        /// junction such as slope to tunnel), which one joint piece closes; <paramref name="clearance"/> is the larger
+        /// of the two segments' <see cref="Clearance"/>.
+        /// </summary>
+        public static bool UndergroundJoint(ushort nodeId, ref NetNode node, NetSegment[] segs, out float clearance)
+        {
+            clearance = 0f;
+            if ((node.m_flags & NetNode.Flags.Underground) == 0 || (node.m_flags & NetNode.Flags.Middle) != 0) return false;
+            int count = 0;
+            for (int i = 0; i < 8; i++)
+            {
+                ushort sid = node.GetSegment(i);
+                if (sid == 0) continue;
+                Kind kind = Classify(segs[sid].Info);
+                if (kind != Kind.Tunnel && kind != Kind.Slope) return false;
+                clearance = Mathf.Max(clearance, Clearance(segs[sid].Info));
+                count++;
+            }
+            return count == 2;
+        }
+
+        /// <summary>
+        /// The drawn edges across a node joining exactly two segments, from the first segment's trimmed end corners to the
+        /// second's, as <c>NetNode.RefreshBendData</c> builds a bend (<c>CalculateCorner</c> with height offset, then
+        /// <c>NetSegment.CalculateMiddlePoints</c> with the corner directions negated). False unless two segments connect.
+        /// </summary>
+        public static bool JointEdges(ushort nodeId, ref NetNode node, NetSegment[] segs, out Bezier3 left, out Bezier3 right)
+        {
+            Vector3 c1 = Vector3.zero, c2 = Vector3.zero, c3 = Vector3.zero, c4 = Vector3.zero;
+            Vector3 d1 = Vector3.zero, d2 = Vector3.zero, d3 = Vector3.zero, d4 = Vector3.zero;
+            bool first = false;
+            int found = 0;
+            for (int i = 0; i < 8; i++)
+            {
+                ushort sid = node.GetSegment(i);
+                if (sid == 0) continue;
+                bool isFirst = ++found == 1;
+                bool start = segs[sid].m_startNode == nodeId;
+                bool invert = (segs[sid].m_flags & NetSegment.Flags.Invert) != 0;
+                bool smooth;
+                if ((!isFirst && !first) || (isFirst && start == invert))
+                {
+                    segs[sid].CalculateCorner(sid, true, start, false, out c1, out d1, out smooth);
+                    segs[sid].CalculateCorner(sid, true, start, true, out c2, out d2, out smooth);
+                    first = true;
+                }
+                else
+                {
+                    segs[sid].CalculateCorner(sid, true, start, true, out c3, out d3, out smooth);
+                    segs[sid].CalculateCorner(sid, true, start, false, out c4, out d4, out smooth);
+                }
+            }
+            Vector3 m1, m2, m3, m4;
+            NetSegment.CalculateMiddlePoints(c1, -d1, c3, -d3, true, true, out m1, out m2);
+            NetSegment.CalculateMiddlePoints(c2, -d2, c4, -d4, true, true, out m3, out m4);
+            left = new Bezier3(c1, m1, m2, c3);
+            right = new Bezier3(c2, m3, m4, c4);
+            return found == 2;
         }
 
         private static Bezier3D ToCore(Bezier3 c, float lift)
@@ -499,6 +589,21 @@ namespace Skylines.Host.Geometry
         {
             NetNode node = nodes[nodeId];
             if ((node.m_flags & NetNode.Flags.Middle) != 0) return;
+            float jointClearance;
+            if (UndergroundJoint(nodeId, ref node, segs, out jointClearance))
+            {
+                Bezier3 jl, jr;
+                JointEdges(nodeId, ref node, segs, out jl, out jr);
+                Bezier3D l = ToCore(jl, 0f), r = ToCore(jr, 0f);
+                if (!(Mathf.Max(l.Ax, l.Dx, r.Ax, r.Dx) < minX || Mathf.Min(l.Ax, l.Dx, r.Ax, r.Dx) > maxX
+                    || Mathf.Max(l.Az, l.Dz, r.Az, r.Dz) < minZ || Mathf.Min(l.Az, l.Dz, r.Az, r.Dz) > maxZ))
+                {
+                    Strip.Between(l, r, StripStep, GroundRoadDepth, RoadSurfaceFlag, into);
+                    Profile(l, r, jointClearance, true, _sections);
+                    Tube(l, r, _sections, true, jointClearance, into);
+                }
+                return;
+            }
             int count = 0;
             float radius = 0f, sumY = 0f;
             bool allBridge = true;
@@ -512,12 +617,19 @@ namespace Skylines.Host.Geometry
                 Kind kind = Classify(info);
                 if (kind == Kind.Skip) continue;
                 if (kind != Kind.Bridge) allBridge = false;
-                if (kind == Kind.Tunnel) ceiling = Mathf.Max(ceiling, Clearance(info));
                 if (info.m_halfWidth > radius) radius = info.m_halfWidth;
                 Bezier3 left, right;
                 segs[sid].GenerateBezier(sid, nodeId, out left, out right);
+                float top = 0f;
+                if (kind == Kind.Tunnel || kind == Kind.Slope)
+                {
+                    Profile(ToCore(left, 0f), ToCore(right, 0f), Clearance(info), kind == Kind.Tunnel, _sections);
+                    if (_sections.Count > 0) top = _sections[0].Top;
+                    if (kind == Kind.Tunnel) ceiling = Mathf.Max(ceiling, Clearance(info));
+                }
                 foreach (Vector3 c in new[] { left.a, right.a })
                 {
+                    _tops[count] = top;
                     _ring[3 * count] = c.x; _ring[3 * count + 1] = c.y; _ring[3 * count + 2] = c.z;
                     count++;
                     sumY += c.y;
@@ -539,8 +651,13 @@ namespace Skylines.Host.Geometry
             Disc.Polygon(p.x, y, p.z, _ring, count, thickness, flags, into);
             if (ceiling > 0f)
             {
-                for (int i = 0; i < count; i++) _ring[3 * i + 1] += ceiling;
-                Disc.Polygon(p.x, y + ceiling, p.z, _ring, count, CeilingThickness, TunnelFlag, into);
+                float mean = 0f;
+                for (int i = 0; i < count; i++)
+                {
+                    _ring[3 * i + 1] = Mathf.Max(_tops[i], _ring[3 * i + 1] + ceiling);
+                    mean += _ring[3 * i + 1] / count;
+                }
+                Disc.Polygon(p.x, mean, p.z, _ring, count, CeilingThickness, TunnelFlag, into);
             }
         }
 

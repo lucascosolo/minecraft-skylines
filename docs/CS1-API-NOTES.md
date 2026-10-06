@@ -247,3 +247,15 @@ Water surface (`Skylines.Host.Terrain.WaterSampler`, WATER_SURFACE, minor 10), A
   `surface - ground` is the water depth. Depth under 0.05 m is sent as no water (shore smoothing film).
 - `Singleton<TerrainManager>.instance` (ColossalFramework). Compile-verified against refs `Assembly-CSharp.dll` by the
   `Skylines.Host` build. Not yet verified in game.
+
+## Tunnel joints and ceiling (2026-10-06, verified against the decompile; compiles against the real assemblies; not seen in game)
+
+- `NetNode.Flags.Junction` is also set on a node of only two segments when they cannot form a bend or middle node
+  (NetNode.cs:2245-2272, `flag6`). Evidence: node 13180 'Basic Road Tunnel' "Junction, Underground" joins
+  'Basic Road Slope' 21340 and 'Basic Road Tunnel' 27581 (render dump 2026-10-06). Such nodes, and bends, are closed by
+  one joint piece (`NetGeometry.UndergroundJoint`, `JointEdges`): the edges `NetNode.RefreshBendData` builds
+  (NetNode.cs:2569-2600) from `NetSegment.CalculateCorner(ushort, bool heightOffset, bool start, bool leftSide, out Vector3,
+  out Vector3, out bool)` and `NetSegment.CalculateMiddlePoints`, drawn with `NetSegment.CalculateControlMatrix`.
+- Tunnel ceilings sit `TunnelProfile.Headroom` (8 m) above the higher road edge, capped inside a tunnel segment at
+  `TerrainManager.SampleDetailHeightSmooth(Vector3)` minus 1 m but never below `Clearance(info)`: CS1 keeps terrain at
+  least `m_maxHeight` above a non-slope tunnel (`TerrainModify.Heights.SecondaryMin`, NetSegment.cs:1403-1477).
