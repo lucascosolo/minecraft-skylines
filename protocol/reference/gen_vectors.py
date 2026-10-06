@@ -177,6 +177,12 @@ def frames() -> list[dict]:
         sb.DynamicObstacles(obs).encode())
     add("dynamic_obstacles_empty", sb.DYNAMIC_OBSTACLES, {"obstacles": []}, sb.DynamicObstacles([]).encode())
 
+    # ---- 1.8 (lamp light)
+    lights = [sb.LightSource(120, 72, -2049, 15), sb.LightSource(-4, 8, 12, 1), sb.LightSource(8639, 1100, -8640, 9)]
+    add("light_sources", sb.LIGHT_SOURCES, {"lights": [
+        {"x": s.x, "y": s.y, "z": s.z, "level": s.level} for s in lights]}, sb.LightSources(lights).encode())
+    add("light_sources_empty", sb.LIGHT_SOURCES, {"lights": []}, sb.LightSources([]).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
@@ -197,6 +203,7 @@ def invalid_frames() -> list[dict]:
         bad("block_edits_index_out_of_range", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(1).string("minecraft:stone").u32(1).i32(0).i32(0).i32(0).u16(1).bytes()), "state index >= paletteCount"),
         bad("block_edits_duplicate_palette", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(2).string("minecraft:stone").string("minecraft:stone").u32(0).bytes()), "palette has duplicates"),
         bad("block_edits_too_many", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(0).u32(65537).bytes()), "editCount > 65536"),
+        bad("light_sources_level_zero", sb.frame(sb.LIGHT_SOURCES, sb.Writer().u16(1).i32(0).i32(64).i32(0).u8(0).bytes()), "light level outside 1..15"),
         bad("unknown_bridge_type", sb.frame(0x0042, b""), "types below 0x0100 are reserved"),
     ]
 

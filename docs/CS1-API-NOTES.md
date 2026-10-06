@@ -180,3 +180,13 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
   frames withheld by the Minecraft-mode slowdown to `m_dayTimeOffsetFrames` and `m_timeOffsetTicks` (both public fields,
   used each frame at SimulationManager.cs:664-674 and per step at :928).
 
+
+## Lamp light (2026-10-06, verified against the decompile; compiles against the real assemblies; not seen in game)
+
+`Skylines.Host.Geometry.ObstacleGeometry.CollectLights` (sent as LIGHT_SOURCES, protocol 1.8):
+- `LightEffect : EffectInfo : MonoBehaviour` (LightEffect.cs:6, EffectInfo.cs:5): public `Vector2 m_offRange` (default 1000, 1000), `int m_positionIndex` (-1 unless the light follows a vehicle's mesh position), `Vector3 m_position`. Range and intensity are the effect's Unity `Light` component (`GetComponent<Light>().range` / `.intensity`, read the same way in `RenderEffect` :125 and `CreateEffect` :210-220).
+- On/off (`RenderEffect` :139-142, batched `PopulateGroupData` :276-280, prop shader `PropInstance.cs:351`): threshold `t = m_offRange.x + new Randomizer(id.Index).Int32(100000) * 1e-5 * (m_offRange.y - m_offRange.x)`, intensity × `MathUtils.SmoothStep(t + 0.01, t - 0.01, lightSystem.DayLightIntensity)`, so a light is on while `DayLightIntensity < t + 0.01`. `Singleton<RenderManager>.instance.lightSystem` (RenderManager.cs:285), `LightSystem.DayLightIntensity` (LightSystem.cs:75, set by `SetDaylightIntensity` :217). Blinking (`m_blinkType`) and the camera fade distance are ignored: a blinking light counts as on.
+- `InstanceID.Index` = low 24 bits (InstanceID.cs:85). Ids per source: standalone prop `Prop = propID` (PropInstance.cs:1092); network-lane prop `NetSegment = segmentID` (NetLane.cs:1029); building prop `BuildingAI.GetPropRenderID` (BuildingAI.cs:444-456): `SetBuildingProp(building, propIndex)` = `0xE000000 | building | propIndex << 16` when `BuildingInfo.m_randomEffectTiming` (BuildingInfo.cs:263), else `Building = buildingID`.
+- Position: effect at `Matrix4x4.SetTRS(position, Quaternion.AngleAxis(angle * 57.29578, Vector3.down), scale) * effect.m_position` (PropInstance.cs:1110-1118 batched, :325-329 direct); the LightEffect's own `m_position` and `m_alignment` are not applied for props (their `SpawnArea` has no mesh data; normally zero).
+- Building props render effects only when the building is active or the prop is `m_alwaysActive` (PropInstance.cs:321, PropInfo.cs:102; `BuildingAI.RenderProps` passes `Building.Flags.Active`, BuildingAI.cs:463-466); standalone props pass `active: true` (PropInstance.cs:241-247).
+- `MultiEffect` sub-effects (MultiEffect.cs:6) are not searched; only direct `LightEffect`s of `PropInfo.m_effects`.

@@ -297,6 +297,22 @@ namespace MinecraftSkylines.Protocol.Tests
                         }
                         return m.Encode();
                     }
+                case AppProtocol.LightSourcesType:
+                    {
+                        LightSources m = LightSources.Decode(frame.Payload);
+                        JsonElement lights = f.GetProperty("lights");
+                        Assert.Equal(lights.GetArrayLength(), m.Lights.Length);
+                        int li = 0;
+                        foreach (JsonElement l in lights.EnumerateArray())
+                        {
+                            LightSource a = m.Lights[li++];
+                            Assert.Equal(l.GetProperty("x").GetInt32(), a.X);
+                            Assert.Equal(l.GetProperty("y").GetInt32(), a.Y);
+                            Assert.Equal(l.GetProperty("z").GetInt32(), a.Z);
+                            Assert.Equal(l.GetProperty("level").GetByte(), a.Level);
+                        }
+                        return m.Encode();
+                    }
                 case AppProtocol.CityCloseType:
                     {
                         CityClose m = CityClose.Decode(frame.Payload);
@@ -481,6 +497,17 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Throws<ProtocolException>(() => BlockEdits.Decode(FrameCodec.Decode(Hex(hex)).Payload));
         }
 
+        [Fact]
+        public void InvalidLightSourcesVectorRaisesProtocolException()
+        {
+            string hex = null;
+            using (JsonDocument d = Load("frames.json"))
+                foreach (JsonElement v in d.RootElement.GetProperty("invalid").EnumerateArray())
+                    if (v.GetProperty("name").GetString() == "light_sources_level_zero") hex = v.GetProperty("hex").GetString();
+            Assert.NotNull(hex);
+            Assert.Throws<ProtocolException>(() => LightSources.Decode(FrameCodec.Decode(Hex(hex)).Payload));
+        }
+
         private static byte[] SnapshotPayload()
         {
             return new BlockEdits
@@ -584,7 +611,8 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(7, AppProtocol.Minor);
+            Assert.Equal(8, AppProtocol.Minor);
+            Assert.Equal(0x0180, AppProtocol.LightSourcesType);
             Assert.Equal(0x0170, AppProtocol.DynamicObstaclesType);
             Assert.Equal(0x0140, AppProtocol.ViewportType);
             Assert.Equal(0x0141, AppProtocol.OverlayOfferType);

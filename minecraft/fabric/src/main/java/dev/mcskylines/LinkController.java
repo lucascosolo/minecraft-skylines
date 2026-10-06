@@ -234,8 +234,9 @@ final class LinkController {
 						LOG.warn(PREFIX + "ignoring malformed VIEWPORT: {}", e.getMessage());
 					}
 				} else if (m.type() == AppProtocol.CITY_OPEN || m.type() == AppProtocol.BLOCK_EDITS
-						|| m.type() == AppProtocol.CITY_CLOSE || m.type() == AppProtocol.EDIT_SYNC) {
-					if (peer != null && peer.appMinor() >= 5) {
+						|| m.type() == AppProtocol.CITY_CLOSE || m.type() == AppProtocol.EDIT_SYNC
+						|| m.type() == AppProtocol.LIGHT_SOURCES) {
+					if (peer != null && peer.appMinor() >= (m.type() == AppProtocol.LIGHT_SOURCES ? 8 : 5)) {
 						city.deliver(m.type(), m.payload());
 					}
 				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES) {

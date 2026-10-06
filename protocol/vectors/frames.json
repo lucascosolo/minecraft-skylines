@@ -609,6 +609,41 @@
       "hex": "02000000700100000000"
     },
     {
+      "name": "light_sources",
+      "type": 384,
+      "fields": {
+        "lights": [
+          {
+            "x": 120,
+            "y": 72,
+            "z": -2049,
+            "level": 15
+          },
+          {
+            "x": -4,
+            "y": 8,
+            "z": 12,
+            "level": 1
+          },
+          {
+            "x": 8639,
+            "y": 1100,
+            "z": -8640,
+            "level": 9
+          }
+        ]
+      },
+      "hex": "290000008001000003007800000048000000fff7ffff0ffcffffff080000000c00000001bf2100004c04000040deffff09"
+    },
+    {
+      "name": "light_sources_empty",
+      "type": 384,
+      "fields": {
+        "lights": []
+      },
+      "hex": "02000000800100000000"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {
@@ -663,6 +698,11 @@
       "name": "block_edits_too_many",
       "hex": "0b000000510100000100000000000001000100",
       "why": "editCount > 65536"
+    },
+    {
+      "name": "light_sources_level_zero",
+      "hex": "0f00000080010000010000000000400000000000000000",
+      "why": "light level outside 1..15"
     },
     {
       "name": "unknown_bridge_type",

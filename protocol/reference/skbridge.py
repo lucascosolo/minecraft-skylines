@@ -677,6 +677,42 @@ class DynamicObstacles:
         return DynamicObstacles([Obstacle(r.u8(), r.u32(), *[r.f32() for _ in range(10)]) for _ in range(n)])
 
 
+# ---- minecraft-skylines app protocol 1.8: lamp light ------------------------------------------
+LIGHT_SOURCES = 0x0180
+LIGHT_MAX_LEVEL = 15
+
+
+@dataclass
+class LightSource:
+    """A lit city light: the Minecraft block containing it and its Minecraft light level (1-15)."""
+    x: int
+    y: int
+    z: int
+    level: int
+
+
+@dataclass
+class LightSources:
+    lights: list
+
+    def encode(self) -> bytes:
+        w = Writer().u16(len(self.lights))
+        for s in self.lights:
+            w.i32(s.x).i32(s.y).i32(s.z).u8(s.level)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "LightSources":
+        r = Reader(p)
+        out = []
+        for _ in range(r.u16()):
+            s = LightSource(r.i32(), r.i32(), r.i32(), r.u8())
+            if not 1 <= s.level <= LIGHT_MAX_LEVEL:
+                raise ProtocolError(f"light level {s.level} outside 1..15")
+            out.append(s)
+        return LightSources(out)
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

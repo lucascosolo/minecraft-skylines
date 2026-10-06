@@ -39,6 +39,60 @@ namespace Skylines.Host.Geometry
         // Per prop info: its mesh's base footprint, or null when the mesh is missing or not CPU-readable.
         private readonly Dictionary<PropInfo, Obstacle.Footprint?> _footprints = new Dictionary<PropInfo, Obstacle.Footprint?>();
         private float _x0, _z0, _x1, _z1;
+        private List<PropLight> _lights; // set while CollectLights runs: AddProp collects lights instead of boxes
+        private float _daylight;
+
+        /// <summary>A prop light that is on: where the game draws it (CS1 coordinates) and its Unity light's range (m) and intensity.</summary>
+        public struct PropLight
+        {
+            /// <summary>CS1 world position of the light.</summary>
+            public Vector3 Position;
+            /// <summary>Unity <c>Light.range</c>, metres.</summary>
+            public float Range;
+            /// <summary>Unity <c>Light.intensity</c>.</summary>
+            public float Intensity;
+        }
+
+        /// <summary>
+        /// Appends every prop <c>LightEffect</c> inside the rectangle that is on now to <paramref name="into"/>: standalone, building
+        /// and network-lane props, placed as for collision. On/off is the game's rule (LightEffect.RenderEffect and the batched
+        /// PopulateGroupData): on while <c>LightSystem.DayLightIntensity</c> is below the light's off threshold, drawn from
+        /// <c>m_offRange</c> with <c>Randomizer(InstanceID.Index)</c>; building props only while the building is active.
+        /// </summary>
+        public void CollectLights(float minX, float minZ, float maxX, float maxZ, List<PropLight> into)
+        {
+            _x0 = minX; _z0 = minZ; _x1 = maxX; _z1 = maxZ;
+            _daylight = Singleton<RenderManager>.instance.lightSystem.DayLightIntensity;
+            _lights = into;
+            try
+            {
+                Props();
+                BuildingProps();
+                LaneProps();
+            }
+            finally
+            {
+                _lights = null;
+            }
+        }
+
+        private void AddLights(PropInfo info, Vector3 p, float angle, float scale, uint seed)
+        {
+            if (info.m_effects == null) return;
+            Matrix4x4 m = Matrix4x4.TRS(p, Quaternion.AngleAxis(angle * Mathf.Rad2Deg, Vector3.down), new Vector3(scale, scale, scale));
+            foreach (PropInfo.Effect e in info.m_effects)
+            {
+                var light = e.m_effect as LightEffect;
+                if (light == null || light.m_positionIndex >= 0) continue;
+                var r = new Randomizer(seed);
+                float off = light.m_offRange.x + r.Int32(100000u) * 1E-05f * (light.m_offRange.y - light.m_offRange.x);
+                if (_daylight >= off + 0.01f) continue; // MathUtils.SmoothStep(off + 0.01, off - 0.01, daylight) == 0
+                Light unity = light.GetComponent<Light>();
+                Vector3 at = m.MultiplyPoint(e.m_position);
+                if (unity == null || !Near(at, 0f)) continue;
+                _lights.Add(new PropLight { Position = at, Range = unity.range, Intensity = unity.intensity });
+            }
+        }
 
         /// <summary>Trees/bushes and props emitted (before clipping) by the last <see cref="Emit"/>.</summary>
         public int LastTreeCount { get; private set; }
@@ -84,14 +138,19 @@ namespace Skylines.Host.Geometry
 
         private void AddTree(TreeInfo info, Vector3 p, float scale)
         {
-            if (info == null || info.m_generatedInfo == null) return;
+            if (_lights != null || info == null || info.m_generatedInfo == null) return;
             Vector3 s = info.m_generatedInfo.m_size;
             if (!Near(p, 0.5f * Mathf.Max(s.x, s.z) * scale)) return;
             if (Obstacle.Tree(p.x, p.y, p.z, s.x, s.y, s.z, scale, VegetationFlag, _veg) > 0) LastTreeCount++;
         }
 
-        private void AddProp(PropInfo info, Vector3 p, float angle, float scale)
+        private void AddProp(PropInfo info, Vector3 p, float angle, float scale, uint lightSeed, bool active)
         {
+            if (_lights != null)
+            {
+                if (info != null && (active || info.m_alwaysActive)) AddLights(info, p, angle, scale, lightSeed);
+                return;
+            }
             // Decals and markers are flat or invisible; renderer-less props are effects only; water-map props float on water.
             if (info == null || info.m_isDecal || info.m_isMarker || !info.m_hasRenderer || info.m_requireWaterMap || info.m_generatedInfo == null) return;
             Vector3 c = info.m_generatedInfo.m_center, s = info.m_generatedInfo.m_size;
@@ -237,7 +296,7 @@ namespace Skylines.Host.Geometry
             PropInfo info = p.Info;
             if (info == null) return;
             var r = new Randomizer(id);
-            AddProp(info, p.Position, p.Angle, info.m_minScale + r.Int32(10000u) * (info.m_maxScale - info.m_minScale) * 0.0001f);
+            AddProp(info, p.Position, p.Angle, info.m_minScale + r.Int32(10000u) * (info.m_maxScale - info.m_minScale) * 0.0001f, id, true);
         }
 
         private void BuildingProps()
@@ -278,6 +337,7 @@ namespace Skylines.Host.Geometry
             byte park = dm.GetPark(parent != 0 ? buildings[parent].m_position : b.m_position);
             TerrainManager terrain = Singleton<TerrainManager>.instance;
             int length = b.Length;
+            bool active = (b.m_flags & Building.Flags.Active) != 0;
             for (int i = 0; i < info.m_props.Length; i++)
             {
                 BuildingInfo.Prop prop = info.m_props[i];
@@ -290,7 +350,9 @@ namespace Skylines.Host.Geometry
                 if (prop.m_finalProp != null)
                 {
                     PropInfo v = prop.m_finalProp.GetVariation(ref r, ref dm.m_districts.m_buffer[district], park);
-                    AddProp(v, pos, b.m_angle + prop.m_radAngle, v.m_minScale + r.Int32(10000u) * (v.m_maxScale - v.m_minScale) * 0.0001f);
+                    // BuildingAI.GetPropRenderID: InstanceID.SetBuildingProp(id, i) when m_randomEffectTiming, else Building = id.
+                    uint seed = info.m_randomEffectTiming ? ((uint)(id | (i << 16)) & 0xFFFFFFu) : id;
+                    AddProp(v, pos, b.m_angle + prop.m_radAngle, v.m_minScale + r.Int32(10000u) * (v.m_maxScale - v.m_minScale) * 0.0001f, seed, active);
                 }
                 else if (prop.m_finalTree != null)
                 {
@@ -343,13 +405,13 @@ namespace Skylines.Host.Geometry
             uint lane = seg.m_lanes;
             for (int k = 0; k < info.m_lanes.Length && lane != 0; k++)
             {
-                LaneProps(lane, ref lanes[lane], ref seg, info.m_lanes[k], startFlags, endFlags, startAngle, endAngle, invert, terrainY);
+                LaneProps(id, lane, ref lanes[lane], ref seg, info.m_lanes[k], startFlags, endFlags, startAngle, endAngle, invert, terrainY);
                 lane = lanes[lane].m_nextLane;
             }
         }
 
         // NetLane.RenderInstance (NetLane.cs:221-420), reproduced for positions, angles, scales and the Randomizer sequence.
-        private void LaneProps(uint laneID, ref NetLane lane, ref NetSegment seg, NetInfo.Lane laneInfo, NetNode.FlagsLong startFlags, NetNode.FlagsLong endFlags,
+        private void LaneProps(ushort segmentID, uint laneID, ref NetLane lane, ref NetSegment seg, NetInfo.Lane laneInfo, NetNode.FlagsLong startFlags, NetNode.FlagsLong endFlags,
             float startAngle, float endAngle, bool invert, bool terrainY)
         {
             NetLaneProps laneProps = laneInfo.m_laneProps;
@@ -412,7 +474,7 @@ namespace Skylines.Host.Geometry
                             }
                         }
                         angle += prop.m_angle * ((float)Math.PI / 180f);
-                        if (!v.m_requireHeightMap) AddProp(v, pos, angle, scale);
+                        if (!v.m_requireHeightMap) AddProp(v, pos, angle, scale, segmentID, true); // InstanceID { NetSegment = segmentID }
                     }
                 }
                 TreeInfo tree = prop.m_finalTree;

@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.7
+# `minecraft-skylines` application protocol, version 1.8
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 7`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 8`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -400,3 +400,31 @@ empty); the latest set replaces the previous one. Positions are where the host d
 The guest extrapolates each box by `velocity × age` between messages, drops the whole set when no message has arrived
 for 0.5 s or player mode ends, does not let the crosshair target the boxes, and pushes the player out of a box that
 moves into it along the box's horizontal velocity (along the shortest way out when it is not moving).
+
+
+## Minor 8: lamp light
+
+### `0x0180 LIGHT_SOURCES` (host → guest)
+
+The city's lights that are on near the player, so Minecraft's own light engine lights the player's hand, placed
+blocks and mobs. Sent about once a second while in player mode, each time with the **complete** set of lit lights
+whose position is within 64 m horizontally of the player's feet (possibly empty, e.g. by day); the latest set
+replaces the previous one.
+
+| Type | Field | Notes |
+|---|---|---|
+| u16 | `count` | |
+| per light: i32 × 3 | `x`, `y`, `z` | the Minecraft block containing the light; each position at most once |
+| u8 | `level` | Minecraft light level 1-15; anything else is a protocol error |
+
+The host decides which lights are on with the game's own rule and maps each light's range and intensity to a level
+(CS1: standalone, building and network-lane props' `LightEffect`s; level = clamp(ceil(range × min(intensity, 1)), 0, 15),
+0 not sent; see `docs/CS1-API-NOTES.md`).
+
+The guest keeps an invisible `minecraft:light[level=N]` block at each position while the city is open and ready
+(`CITY_STATE` ready), placed only where the block is air or one of its own lights, never over any other block, and
+only in loaded chunks (retried on the next set). Its lights not in the newest set go back to air where they are still
+its lights; a light the player has replaced is forgotten, not removed. These placements are applied like snapshot
+edits: never reported in `BLOCK_EDITS`, never part of the city's edit set, but recorded as touched positions, so the
+next `CITY_OPEN` (also after a Minecraft restart) or `CITY_CLOSE` reverts any left behind; the guest forgets its lights
+on either.
