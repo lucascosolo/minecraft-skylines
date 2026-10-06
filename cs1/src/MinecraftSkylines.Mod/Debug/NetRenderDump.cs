@@ -111,6 +111,8 @@ namespace MinecraftSkylines.Mod.Diagnostics
             foreach (NetInfo info in infos) AppendInfo(sb, info);
             sb.Append(NetGeometry.DescribePavementSteps(c)).Append('\n');
             int vehicles = AppendVehicles(sb, c);
+            AppendLife(sb, c);
+            AppendDecals(sb, c);
             sb.Append("===== net render dump end: ").Append(segCount).Append(" segments, ").Append(nodeCount).Append(" nodes, ")
                 .Append(infos.Count).Append(" infos, ").Append(vehicles).Append(" underground vehicles =====");
             return sb.ToString();
@@ -200,6 +202,108 @@ namespace MinecraftSkylines.Mod.Diagnostics
                     .Append(", undergroundLodMaterial ").Append(info == null ? "?" : MaterialText(info.m_undergroundLodMaterial)).Append('\n');
             }
             return n;
+        }
+
+        // Owner, 2026-10-06: "like a ghost town" with traffic and voices audible. Counts what the simulation has near the
+        // camera (all vehicles and citizen instances within Radius) and whether it is paused.
+        private static void AppendLife(StringBuilder sb, Vector3 c)
+        {
+            SimulationManager sim = Singleton<SimulationManager>.instance;
+            sb.Append("simulation: paused ").Append(sim.SimulationPaused).Append(", forced paused ").Append(sim.ForcedSimulationPaused)
+                .Append(", speed ").Append(sim.SelectedSimulationSpeed).Append(", frame ").Append(sim.m_currentFrameIndex)
+                .Append(", reference frame ").Append(sim.m_referenceFrameIndex).Append('\n');
+            Vehicle[] vs = Singleton<VehicleManager>.instance.m_vehicles.m_buffer;
+            int created = 0, spawned = 0, under = 0, shown = 0;
+            for (int i = 1; i < vs.Length; i++)
+            {
+                if ((vs[i].m_flags & Vehicle.Flags.Created) == 0) continue;
+                Vector3 p = vs[i].GetLastFramePosition();
+                if (new Vector2(p.x - c.x, p.z - c.z).sqrMagnitude > Radius * Radius) continue;
+                created++;
+                if ((vs[i].m_flags & Vehicle.Flags.Spawned) != 0) spawned++;
+                if ((vs[i].m_flags & Vehicle.Flags.Underground) != 0) under++;
+                if (shown++ < 5)
+                {
+                    VehicleInfo info = vs[i].Info;
+                    sb.Append("vehicle ").Append(i).Append(" '").Append(info == null ? "?" : info.name).Append("' at (").Append(Fmt(p))
+                        .Append("), flags ").Append(vs[i].m_flags).Append(", maxRenderDistance ").Append(info == null ? 0f : info.m_maxRenderDistance)
+                        .Append(", material ").Append(info == null ? "?" : MaterialText(info.m_material)).Append('\n');
+                }
+            }
+            sb.Append("vehicles within ").Append(Radius).Append(" m: ").Append(created).Append(" created, ").Append(spawned).Append(" spawned, ")
+                .Append(under).Append(" underground\n");
+            CitizenInstance[] cs = Singleton<CitizenManager>.instance.m_instances.m_buffer;
+            int people = 0, character = 0, inside = 0, below = 0;
+            shown = 0;
+            for (int i = 1; i < cs.Length; i++)
+            {
+                if ((cs[i].m_flags & CitizenInstance.Flags.Created) == 0) continue;
+                CitizenInstance.Frame f = cs[i].GetLastFrameData();
+                Vector3 p = f.m_position;
+                if (new Vector2(p.x - c.x, p.z - c.z).sqrMagnitude > Radius * Radius) continue;
+                people++;
+                if ((cs[i].m_flags & CitizenInstance.Flags.Character) != 0) character++;
+                if (f.m_insideBuilding) inside++;
+                if (f.m_underground) below++;
+                if (shown++ < 5)
+                {
+                    CitizenInfo info = cs[i].Info;
+                    sb.Append("citizen instance ").Append(i).Append(" '").Append(info == null ? "?" : info.name).Append("' at (").Append(Fmt(p))
+                        .Append("), flags ").Append(cs[i].m_flags).Append(", inside building ").Append(f.m_insideBuilding)
+                        .Append(", lodRenderDistance ").Append(info == null ? 0f : info.m_lodRenderDistance)
+                        .Append(", maxRenderDistance ").Append(info == null ? 0f : info.m_maxRenderDistance).Append('\n');
+                }
+            }
+            sb.Append("citizen instances within ").Append(Radius).Append(" m: ").Append(people).Append(" created, ").Append(character)
+                .Append(" with a character, ").Append(inside).Append(" inside buildings, ").Append(below).Append(" underground\n");
+        }
+
+        // Owner, 2026-10-06: brick paving in front of houses vanishes when walked on. Lists decal props within 25 m with their
+        // mesh height and whether the eye is inside their box.
+        private static void AppendDecals(StringBuilder sb, Vector3 eye)
+        {
+            PropInstance[] ps = Singleton<PropManager>.instance.m_props.m_buffer;
+            int n = 0;
+            for (int i = 1; i < ps.Length && n < 20; i++)
+            {
+                if ((ps[i].m_flags & 1) == 0) continue;
+                PropInfo info = ps[i].Info;
+                if (info == null || !info.m_isDecal) continue;
+                Vector3 p = ps[i].Position;
+                if (new Vector2(p.x - eye.x, p.z - eye.z).sqrMagnitude > 25f * 25f) continue;
+                n++;
+                AppendDecal(sb, "decal prop " + i, info, p);
+            }
+            BuildingManager bm = Singleton<BuildingManager>.instance;
+            Building[] bs = bm.m_buildings.m_buffer;
+            for (int i = 1; i < bs.Length && n < 40; i++)
+            {
+                if ((bs[i].m_flags & Building.Flags.Created) == 0) continue;
+                BuildingInfo info = bs[i].Info;
+                if (info == null || info.m_props == null) continue;
+                Vector3 bp = bs[i].m_position;
+                if (new Vector2(bp.x - eye.x, bp.z - eye.z).sqrMagnitude > 60f * 60f) continue;
+                foreach (BuildingInfo.Prop prop in info.m_props)
+                {
+                    PropInfo pi = prop.m_finalProp;
+                    if (pi == null || !pi.m_isDecal) continue;
+                    Vector3 p = bs[i].CalculatePosition(prop.m_position);
+                    if (new Vector2(p.x - eye.x, p.z - eye.z).sqrMagnitude > 25f * 25f) continue;
+                    if (n++ >= 40) break;
+                    AppendDecal(sb, "building " + i + " decal", pi, p);
+                }
+            }
+            sb.Append("decals within 25 m listed: ").Append(n).Append('\n');
+        }
+
+        private static void AppendDecal(StringBuilder sb, string what, PropInfo info, Vector3 p)
+        {
+            Mesh m = info.m_mesh;
+            Bounds b = m != null ? m.bounds : new Bounds();
+            sb.Append(what).Append(" '").Append(info.name).Append("' at (").Append(Fmt(p)).Append("), mesh y ")
+                .Append(b.min.y.ToString("0.00")).Append("..").Append(b.max.y.ToString("0.00")).Append(", size x ").Append(b.size.x.ToString("0.0"))
+                .Append(" z ").Append(b.size.z.ToString("0.0")).Append(", material ").Append(MaterialText(info.m_material))
+                .Append(", queue ").Append(info.m_material == null ? 0 : info.m_material.renderQueue).Append('\n');
         }
 
         private static string MaskText(Camera cam)
