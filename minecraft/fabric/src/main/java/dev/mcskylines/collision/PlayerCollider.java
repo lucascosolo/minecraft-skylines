@@ -31,7 +31,10 @@ public final class PlayerCollider {
 		// A vehicle or citizen that moved into the player pushes it out; the rest are solid like the city.
 		double pushX = 0, pushZ = 0;
 		for (ObstacleBox o : DynamicObstacleStore.INSTANCE.current(System.nanoTime())) {
-			if (o.overlaps(fx, fy, fz, radius, height)) {
+			// Pushed out only when the feet are in the lower half of the box (really beside it). Landing on a roof or
+			// hood dips the feet a little into the box, which used to shove the player off sideways (owner, 2026-10-06:
+			// "When I jump onto the car, I slide off like it's a sheer edge").
+			if (o.overlaps(fx, fy, fz, radius, height) && fy < o.y) {
 				double[] p = o.pushOut(fx, fy, fz, radius, height);
 				pushX += p[0];
 				pushZ += p[1];

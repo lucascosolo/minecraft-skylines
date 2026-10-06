@@ -60,7 +60,9 @@ public final class SkyExporter {
 			texturesSent = sendTextures(mc);
 		}
 		long now = System.currentTimeMillis();
-		if (now - lastSentMs < INTERVAL_MS) {
+		// lastSentMs starts at Long.MIN_VALUE ("never"); now - MIN_VALUE overflows to a negative number, which read as
+		// "too soon" for ever, so no SKY_STATE was ever sent (owner, 2026-10-06: still the vanilla CS1 sky).
+		if (lastSentMs != Long.MIN_VALUE && now - lastSentMs < INTERVAL_MS) {
 			return;
 		}
 		lastSentMs = now;
