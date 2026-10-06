@@ -103,6 +103,49 @@ namespace Skylines.Host.Geometry
             foreach (ushort n in _nodes) EmitJunction(n, segs, nodes, minX, minZ, maxX, maxZ, into);
         }
 
+        /// <summary>How far past a tunnel slope's drawn edges its terrain hole may reach, in metres.</summary>
+        public const float PortalMargin = 2f;
+
+        private readonly StripFootprint _portals = new StripFootprint(PortalMargin);
+
+        /// <summary>
+        /// The xz footprint, grown by <see cref="PortalMargin"/>, of every tunnel slope (portal ramp, <see cref="Kind.Slope"/>)
+        /// segment near the rectangle: the only places where terrain the game clipped is left out of the collision.
+        /// Ordinary roads and buildings clip the terrain under them too, but their own collision does not cover the whole
+        /// cut on bends and embankments. The returned instance is reused by the next call.
+        /// </summary>
+        public StripFootprint PortalFootprint(float minX, float minZ, float maxX, float maxZ)
+        {
+            NetManager nm = Singleton<NetManager>.instance;
+            NetSegment[] segs = nm.m_segments.m_buffer;
+            ushort[] grid = nm.m_segmentGrid;
+            _portals.Clear();
+            float x0 = minX - PortalMargin, z0 = minZ - PortalMargin, x1 = maxX + PortalMargin, z1 = maxZ + PortalMargin;
+            for (int cz = Cell(minZ - GridMargin); cz <= Cell(maxZ + GridMargin); cz++)
+            {
+                for (int cx = Cell(minX - GridMargin); cx <= Cell(maxX + GridMargin); cx++)
+                {
+                    ushort id = grid[cz * GridSize + cx];
+                    int guard = 0;
+                    while (id != 0 && guard++ < NetManager.MAX_SEGMENT_COUNT)
+                    {
+                        NetSegment seg = segs[id];
+                        Bounds b = seg.m_bounds;
+                        if ((seg.m_flags & NetSegment.Flags.Created) != 0 && (seg.m_flags & NetSegment.Flags.Deleted) == 0
+                            && !(b.max.x < x0 || b.min.x > x1 || b.max.z < z0 || b.min.z > z1) && Classify(seg.Info) == Kind.Slope)
+                        {
+                            Bezier3 left, right;
+                            seg.GenerateBezier(id, seg.m_startNode, out left, out right);
+                            float length = Vector3.Distance(left.a, left.d);
+                            _portals.Add(ToCore(left, 0f), ToCore(right, 0f), Mathf.Max(1, Mathf.CeilToInt(length / StripStep)));
+                        }
+                        id = seg.m_nextGridSegment;
+                    }
+                }
+            }
+            return _portals;
+        }
+
         private static int Cell(float v)
         {
             return Mathf.Clamp((int)(v / GridCell + 135f), 0, GridSize - 1);

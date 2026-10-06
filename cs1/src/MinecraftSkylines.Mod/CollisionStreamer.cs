@@ -28,6 +28,7 @@ namespace MinecraftSkylines.Mod
         private readonly NetGeometry _net = new NetGeometry();
         private readonly BuildingGeometry _buildings = new BuildingGeometry();
         private readonly TriangleBuffer _buffer = new TriangleBuffer();
+        private readonly TriangleBuffer _spawnTris = new TriangleBuffer();
         private int _regionsSent;
         private long _trianglesSent;
         private double _lastBuildMs;
@@ -127,26 +128,71 @@ namespace MinecraftSkylines.Mod
 
         /// <summary>
         /// Builds one region's collision in CS1 coordinates into <paramref name="into"/>: terrain (with holes where the
-        /// game clipped its surface), then roads, then buildings when <paramref name="buildings"/> is given. If roads or
-        /// buildings throw, the region keeps its terrain only and the exception is returned (else null). The streamer and
+        /// game clipped its surface inside a tunnel slope's footprint, <see cref="NetGeometry.PortalFootprint"/>), then roads, then buildings when <paramref name="buildings"/> is given. If roads or
+        /// buildings throw, the region keeps its terrain only and the exception is returned (else null); if the portal
+        /// footprint throws, the terrain has no holes and that exception is returned. The streamer and
         /// the self-test both build through here.
         /// </summary>
         public static Exception BuildCs(TerrainSampler terrain, NetGeometry net, BuildingGeometry buildings, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
         {
             into.Clear();
-            Heightfield.Triangulate(terrain.AsFunc(), terrain.HoleFunc(TerrainStep), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, into);
+            Exception failed = null;
+            StripFootprint portals = null;
+            try { portals = net.PortalFootprint(minX, minZ, maxX, maxZ); }
+            catch (Exception e) { failed = e; }
+            Heightfield.Triangulate(terrain.AsFunc(), terrain.HoleFunc(TerrainStep, portals), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, into);
             int terrainOnly = into.Count;
             try
             {
                 net.Emit(minX, minZ, maxX, maxZ, into);
                 if (buildings != null) buildings.Emit(terrain, minX, minZ, maxX, maxZ, into);
-                return null;
+                return failed;
             }
             catch (Exception e)
             {
                 into.Truncate(terrainOnly);
                 return e;
             }
+        }
+
+        /// <summary>Metres above the terrain the spawn probe starts, the lowest normal y counted as floor, and the gap left above it.</summary>
+        public const float SpawnProbeHeight = 60f, WalkableNormalY = 0.7f, SpawnClearance = 0.05f;
+
+        /// <summary>
+        /// Feet height for a spawn at CS1 (x, z): the collision of its region and the 8 around it is built as it will be
+        /// streamed (<see cref="BuildCs(TerrainSampler, NetGeometry, BuildingGeometry, float, float, float, float, TriangleBuffer)"/>),
+        /// a vertical ray from terrain + <see cref="SpawnProbeHeight"/> picks the highest walkable surface not inside a
+        /// building (<see cref="VerticalRay.HighestWalkable"/>), and the feet go <see cref="SpawnClearance"/> above it;
+        /// terrain + <see cref="SpawnClearance"/> when nothing is hit. <paramref name="how"/> describes the choice for the log.
+        /// </summary>
+        public float SpawnFeetY(float x, float z, out string how)
+        {
+            float ground = _terrain.Height(x, z);
+            _spawnTris.Clear();
+            int rx, rz;
+            RegionOfCs(x, z, out rx, out rz);
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    float minX, minZ, maxX, maxZ;
+                    RegionRectCs(rx + dx, rz + dz, out minX, out minZ, out maxX, out maxZ);
+                    Exception e = BuildCs(_terrain, _net, _buildings, minX, minZ, maxX, maxZ, _buffer);
+                    if (e != null) _log.Error("spawn probe region (" + (rx + dx) + "," + (rz + dz) + ")", e);
+                    float[] p = _buffer.Positions;
+                    ushort[] f = _buffer.Flags;
+                    for (int i = 0, o = 0; i < _buffer.Count; i++, o += 9)
+                        _spawnTris.Add(p[o], p[o + 1], p[o + 2], p[o + 3], p[o + 4], p[o + 5], p[o + 6], p[o + 7], p[o + 8], f[i]);
+                }
+            }
+            float y;
+            if (VerticalRay.HighestWalkable(_spawnTris, x, z, ground + SpawnProbeHeight, WalkableNormalY, BuildingGeometry.BuildingFlag, out y))
+            {
+                how = "surface at y " + y.ToString("0.00") + " (terrain " + ground.ToString("0.00") + ", " + _spawnTris.Count + " tris probed)";
+                return y + SpawnClearance;
+            }
+            how = "no walkable surface hit, terrain y " + ground.ToString("0.00") + " (" + _spawnTris.Count + " tris probed)";
+            return ground + SpawnClearance;
         }
 
         // Returns false when the region should be retried on a later frame (the frame could not be queued,

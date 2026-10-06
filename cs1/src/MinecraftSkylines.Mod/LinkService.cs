@@ -110,6 +110,7 @@ namespace MinecraftSkylines.Mod
             s_pump.LateUpdated += () => s_blocks.LateUpdate(s_cityReady);
             s_pump.Gui += s_player.OnGui;
             s_pump.Updated += s_player.Viewer.Update;
+            s_pump.Updated += new NetRenderDump(s_log, () => s_player != null && s_player.IsOn).Update;
             s_pump.Quitting += () => Stop("game exiting");
 
             var options = new HostOptions

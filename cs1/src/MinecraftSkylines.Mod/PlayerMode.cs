@@ -52,6 +52,7 @@ namespace MinecraftSkylines.Mod
         private readonly List<InputEvent> _escEvents = new List<InputEvent>();
         private bool _swallowModeKeyUp;
         private bool _swallowUndergroundKeyUp;
+        private bool _swallowDumpKeyUp;
         private bool _guestScreenOpen;
         private bool _screenMode;
         private int _cursorX = -1, _cursorY = -1;
@@ -310,6 +311,7 @@ namespace MinecraftSkylines.Mod
             _escEvents.Clear();
             _swallowModeKeyUp = false;
             _swallowUndergroundKeyUp = false;
+            _swallowDumpKeyUp = false;
             Guard("restore underground view", () => _underground.End());
             Guard("restore camera", () =>
             {
@@ -418,9 +420,13 @@ namespace MinecraftSkylines.Mod
                 if (blocked != null) throw new InvalidOperationException("shortcut blocker: " + blocked);
                 _input.Begin();
 
-                Vector3 target = _camera.CityTarget;
-                target.y = TerrainManager.instance.SampleDetailHeightSmooth(target);
-                if (feet.HasValue) target = feet.Value;
+                Vector3 target = feet.HasValue ? feet.Value : _camera.CityTarget;
+                if (!feet.HasValue)
+                {
+                    string how;
+                    target.y = _streamer.SpawnFeetY(target.x, target.z, out how);
+                    _log.Info("player mode: spawn on " + how);
+                }
                 _spawnFeet = target;
                 try { _log.Info("player mode: " + _streamer.DescribeNearestGround(target)); }
                 catch (Exception e) { _log.Error("nearest road diagnostics", e); }
@@ -480,26 +486,10 @@ namespace MinecraftSkylines.Mod
                     _escEvents.Clear();
                     continue;
                 }
-                if (c.Code == (int)KeyCode.N && (c.Kind == CapturedKind.KeyDown || c.Kind == CapturedKind.KeyUp))
-                {
-                    // Ctrl+Shift+N cycles the underground mode and must not reach Minecraft, key-up included.
-                    if (c.Kind == CapturedKind.KeyDown && CtrlShiftHeld()) _swallowUndergroundKeyUp = true;
-                    if (_swallowUndergroundKeyUp)
-                    {
-                        if (c.Kind == CapturedKind.KeyUp) _swallowUndergroundKeyUp = false;
-                        continue;
-                    }
-                }
-                if (c.Code == (int)KeyCode.O && (c.Kind == CapturedKind.KeyDown || c.Kind == CapturedKind.KeyUp))
-                {
-                    // Ctrl+Shift+O cycles the overlay mode (OverlayLink) and must not reach Minecraft, key-up included.
-                    if (c.Kind == CapturedKind.KeyDown && CtrlShiftHeld()) _swallowModeKeyUp = true;
-                    if (_swallowModeKeyUp)
-                    {
-                        if (c.Kind == CapturedKind.KeyUp) _swallowModeKeyUp = false;
-                        continue;
-                    }
-                }
+                // Ctrl+Shift+N (underground mode), O (overlay mode, OverlayLink) and D (NetRenderDump) are ours and must
+                // not reach Minecraft, key-up included.
+                if (Swallowed(c, KeyCode.N, ref _swallowUndergroundKeyUp) || Swallowed(c, KeyCode.O, ref _swallowModeKeyUp)
+                    || Swallowed(c, KeyCode.D, ref _swallowDumpKeyUp)) continue;
                 switch (c.Kind)
                 {
                     case CapturedKind.KeyDown:
@@ -522,6 +512,16 @@ namespace MinecraftSkylines.Mod
             McLook look = _look.ToMc();
             var msg = new InputMsg { Yaw = (float)look.Yaw, Pitch = (float)look.Pitch, Events = _events.ToArray() };
             host.Send(AppProtocol.InputType, msg.Encode());
+        }
+
+        // True when the event belongs to a Ctrl+Shift+key press (its key-down with Ctrl+Shift held through its key-up).
+        private static bool Swallowed(CapturedEvent c, KeyCode key, ref bool swallowing)
+        {
+            if (c.Code != (int)key || (c.Kind != CapturedKind.KeyDown && c.Kind != CapturedKind.KeyUp)) return false;
+            if (c.Kind == CapturedKind.KeyDown && CtrlShiftHeld()) swallowing = true;
+            if (!swallowing) return false;
+            if (c.Kind == CapturedKind.KeyUp) swallowing = false;
+            return true;
         }
 
         // True when the press leaves Minecraft mode; otherwise queues the press for Minecraft.

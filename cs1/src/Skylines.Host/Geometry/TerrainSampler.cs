@@ -1,5 +1,6 @@
 using System;
 using ColossalFramework;
+using Skylines.Core.Geometry;
 using Skylines.Host.Terrain;
 using UnityEngine;
 
@@ -29,13 +30,16 @@ namespace Skylines.Host.Geometry
         }
 
         /// <summary>
-        /// Skip test for <c>Heightfield.Triangulate</c>: a terrain cell of edge <paramref name="step"/> is dropped when the
-        /// surface is clipped at its centre and at all four corners, so a hole never reaches past the game's own cut.
+        /// Skip test for <c>Heightfield.Triangulate</c>: a terrain cell of edge <paramref name="step"/> is dropped only when its
+        /// centre lies inside <paramref name="portals"/> (tunnel slope footprints) and the surface is clipped at its centre and
+        /// at all four corners, so a hole never reaches past the game's own cut. Null when nothing can be dropped.
         /// </summary>
-        public Func<float, float, bool> HoleFunc(float step)
+        public Func<float, float, bool> HoleFunc(float step, StripFootprint portals)
         {
+            if (portals == null || portals.Count == 0) return null;
             float h = step * 0.5f;
-            return (x, z) => IsClipped(x, z) && IsClipped(x - h, z - h) && IsClipped(x + h, z - h) && IsClipped(x - h, z + h) && IsClipped(x + h, z + h);
+            return (x, z) => portals.Contains(x, z) && IsClipped(x, z) && IsClipped(x - h, z - h) && IsClipped(x + h, z - h)
+                && IsClipped(x - h, z + h) && IsClipped(x + h, z + h);
         }
 
         /// <summary>The sampler as a delegate for <c>Skylines.Core.Geometry.Heightfield</c>.</summary>
