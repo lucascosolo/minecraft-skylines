@@ -36,7 +36,7 @@ namespace Skylines.Host.Geometry
 
         private readonly TriangleBuffer _veg = new TriangleBuffer();
         private readonly TriangleBuffer _props = new TriangleBuffer();
-        // Per prop info: its mesh's base footprint, or null when the mesh is missing or not CPU-readable.
+        // Per prop info: its mesh's base footprint (readable, else from the built-in mesh cache), or null when neither has it.
         private readonly Dictionary<PropInfo, Obstacle.Footprint?> _footprints = new Dictionary<PropInfo, Obstacle.Footprint?>();
         private float _x0, _z0, _x1, _z1;
         private List<PropLight> _lights; // set while CollectLights runs: AddProp collects lights instead of boxes
@@ -181,6 +181,8 @@ namespace Skylines.Host.Geometry
             try
             {
                 Mesh mesh = info.m_mesh;
+                Vector3[] cachedVertices = null;
+                int[] cachedTriangles;
                 float lamp = LampOffset(info);
                 if (lamp >= LampReach)
                 {
@@ -189,9 +191,9 @@ namespace Skylines.Host.Geometry
                     cached = new Obstacle.Footprint { MinX = -0.1f, MaxX = 0.1f, MinZ = -0.1f, MaxZ = 0.1f };
                     why = "lamp " + lamp.ToString("0.0") + " m from the pivot: post at the pivot";
                 }
-                else if (mesh != null && mesh.isReadable)
+                else if (mesh != null && (mesh.isReadable || BuiltInMeshes.TryGet(mesh, out cachedVertices, out cachedTriangles)))
                 {
-                    Vector3[] v = mesh.vertices;
+                    Vector3[] v = mesh.isReadable ? mesh.vertices : cachedVertices;
                     var xyz = new float[v.Length * 3];
                     for (int i = 0; i < v.Length; i++)
                     {
@@ -203,12 +205,12 @@ namespace Skylines.Host.Geometry
                     if (Obstacle.BaseFootprint(xyz, v.Length, out f))
                     {
                         cached = f;
-                        why = "mesh base x " + f.MinX.ToString("0.00") + ".." + f.MaxX.ToString("0.00") + ", z " + f.MinZ.ToString("0.00") + ".." + f.MaxZ.ToString("0.00");
+                        why = (mesh.isReadable ? "" : "cached built-in ") + "mesh base x " + f.MinX.ToString("0.00") + ".." + f.MaxX.ToString("0.00") + ", z " + f.MinZ.ToString("0.00") + ".." + f.MaxZ.ToString("0.00");
                     }
                 }
                 else if (mesh != null)
                 {
-                    why = "mesh not readable";
+                    why = "mesh not readable, not in the built-in mesh cache";
                 }
             }
             catch (Exception e)

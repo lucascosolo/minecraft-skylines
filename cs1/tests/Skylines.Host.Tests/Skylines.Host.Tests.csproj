@@ -18,6 +18,8 @@
     <Compile Include="..\..\src\Skylines.Host\Saves\BackupVerifier.cs" Link="BackupVerifier.cs" />
     <Compile Include="..\..\src\Skylines.Host\Saves\FileSnapshot.cs" Link="FileSnapshot.cs" />
     <Compile Include="..\..\src\Skylines.Host\Ui\DragGesture.cs" Link="DragGesture.cs" />
+    <Compile Include="..\..\src\Skylines.Host\Geometry\MeshCache.cs" Link="MeshCache.cs" />
+    <None Include="..\..\..\tools\tests\data\meshes-golden.bin" Link="Data\meshes-golden.bin" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

@@ -29,6 +29,11 @@ step "protocol: conformance suite validated against the Python reference peer"
 (cd protocol/reference && python3 conformance.py --junit "${REPORTS}/protocol/ref-host.xml" host -- python3 ref_peer.py | tail -1)
 (cd protocol/reference && python3 conformance.py --junit "${REPORTS}/protocol/ref-guest.xml" guest -- python3 ref_peer.py | tail -1)
 
+step "tools: mesh cache writer tests (UnityPy venv when present; the tests need only the standard library)"
+PY_TOOLS="$HOME/.cache/minecraft-skylines/tools/unitypy-venv/bin/python"
+[ -x "${PY_TOOLS}" ] || PY_TOOLS=python3
+"${PY_TOOLS}" -m unittest discover -s tools/tests 2>&1 | tail -1
+
 step "cs1: build (net35 + net10.0) and unit tests"
 "${DOTNET}" build cs1/MinecraftSkylines.sln -c Release -m:1 -nologo -v quiet
 "${DOTNET}" test cs1/MinecraftSkylines.sln -c Release --no-build -m:1 -nologo \
