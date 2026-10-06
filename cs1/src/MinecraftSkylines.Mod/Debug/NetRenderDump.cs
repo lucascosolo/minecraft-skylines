@@ -4,6 +4,7 @@ using System.Text;
 using ColossalFramework;
 using ColossalFramework.Math;
 using ColossalFramework.UI;
+using Skylines.Core.Geometry;
 using Skylines.Host;
 using Skylines.Host.Geometry;
 using UnityEngine;
@@ -113,6 +114,7 @@ namespace MinecraftSkylines.Mod.Diagnostics
             int vehicles = AppendVehicles(sb, c);
             AppendLife(sb, c);
             AppendDecals(sb, c);
+            AppendProps(sb, c);
             sb.Append("===== net render dump end: ").Append(segCount).Append(" segments, ").Append(nodeCount).Append(" nodes, ")
                 .Append(infos.Count).Append(" infos, ").Append(vehicles).Append(" underground vehicles =====");
             return sb.ToString();
@@ -302,6 +304,23 @@ namespace MinecraftSkylines.Mod.Diagnostics
                 }
             }
             sb.Append("decals within 25 m listed: ").Append(n).Append('\n');
+        }
+
+        // Owner, 2026-10-06: trash cans outside houses have no collision. Every prop the collision builder considers within
+        // 8 m of the eye, with its outcome (collides, too flat, decal, marker...).
+        private static void AppendProps(StringBuilder sb, Vector3 eye)
+        {
+            var obstacles = new ObstacleGeometry();
+            var lines = new List<string>();
+            obstacles.Trace = (name, p, outcome) =>
+            {
+                if (new Vector2(p.x - eye.x, p.z - eye.z).sqrMagnitude <= 8f * 8f && lines.Count < 60)
+                    lines.Add("prop '" + name + "' at (" + Fmt(p) + "): " + outcome);
+            };
+            try { obstacles.Emit(eye.x - 8f, eye.z - 8f, eye.x + 8f, eye.z + 8f, new TriangleBuffer()); }
+            catch (Exception e) { lines.Add("prop scan failed: " + e.GetType().Name + ": " + e.Message); }
+            foreach (string l in lines) sb.Append(l).Append('\n');
+            sb.Append("props within 8 m considered for collision: ").Append(lines.Count).Append('\n');
         }
 
         private static void AppendDecal(StringBuilder sb, string what, PropInfo info, Vector3 p)

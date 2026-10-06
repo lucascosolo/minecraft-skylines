@@ -10,6 +10,7 @@ using Skylines.Bridge;
 using Skylines.Core.Input;
 using Skylines.Core.Motion;
 using Skylines.Host;
+using Skylines.Host.Geometry;
 using Skylines.Host.Camera;
 using Skylines.Host.Input;
 using UnityEngine;
@@ -290,6 +291,14 @@ namespace MinecraftSkylines.Mod
             float d = _streamer.Viewer.NearestSurface(eye, ClipPreset.NearProbeRadius);
             Blocks.BlockRenderer blocks = Blocks.BlockRenderer.Current;
             if (blocks != null) d = Mathf.Min(d, blocks.NearestSurface(eye, Mathf.Min(ClipPreset.NearProbeRadius, d)));
+            // People and cars too (owner, 2026-10-06: "if I get close and look at a pedestrian, parts of them begin to vanish").
+            foreach (MovingObject o in ObstacleLink.LastSent)
+            {
+                Vector3 local = Quaternion.Euler(0f, -o.HeadingDeg, 0f) * (eye - o.Center);
+                Vector3 h = o.HalfExtents;
+                var outside = new Vector3(Mathf.Max(Mathf.Abs(local.x) - h.x, 0f), Mathf.Max(Mathf.Abs(local.y) - h.y, 0f), Mathf.Max(Mathf.Abs(local.z) - h.z, 0f));
+                d = Mathf.Min(d, outside.magnitude);
+            }
             return d;
         }
 

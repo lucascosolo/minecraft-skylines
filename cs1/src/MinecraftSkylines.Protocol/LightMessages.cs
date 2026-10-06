@@ -48,13 +48,20 @@ namespace MinecraftSkylines.Protocol
     public static class LightLevels
     {
         /// <summary>
-        /// clamp(ceil(range * min(intensity, 1)), 0, 15): Minecraft light falls by one level per block (taxicab), so a level
-        /// equal to the range in metres reaches at most as far as the host's light. 0 for a NaN or non-positive input.
+        /// Levels added to every lit lamp: the light block sits in the lamp head several metres up, and Minecraft light
+        /// falls off one level per block, so without it the player below was only dimly lit (owner, 2026-10-06: "the
+        /// lamp light could be a bit brighter").
+        /// </summary>
+        public const int Boost = 4;
+
+        /// <summary>
+        /// clamp(ceil(range * min(intensity, 1)) + <see cref="Boost"/>, 0, 15): Minecraft light falls by one level per block
+        /// (taxicab). 0 for a NaN or non-positive input.
         /// </summary>
         public static int FromRange(float range, float intensity)
         {
             if (!(range > 0f) || !(intensity > 0f)) return 0;
-            return Math.Min(LightSources.MaxLevel, (int)Math.Ceiling(range * Math.Min(intensity, 1f)));
+            return Math.Min(LightSources.MaxLevel, (int)Math.Ceiling(range * Math.Min(intensity, 1f)) + Boost);
         }
 
         /// <summary>One entry per position with the highest level, level-0 entries dropped, sorted by X, then Z, then Y.</summary>

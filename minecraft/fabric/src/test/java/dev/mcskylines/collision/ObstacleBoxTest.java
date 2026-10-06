@@ -68,7 +68,8 @@ class ObstacleBoxTest {
 
 	@Test
 	void trianglesAreTwelveOutwardFacingAndSpanTheCorners() {
-		ObstacleBox b = new ObstacleBox(1, 1, 10, 5, 20, -90, 1, 0.5, 2, 0, 0, 0);
+		// Kind 2 (citizen) is always one box; a car this size would get the hood/cabin/boot profile.
+		ObstacleBox b = new ObstacleBox(2, 1, 10, 5, 20, -90, 1, 0.5, 2, 0, 0, 0);
 		List<SkyTri> tris = new ArrayList<>();
 		b.triangles(tris);
 		assertEquals(12, tris.size());
@@ -165,5 +166,32 @@ class ObstacleBoxTest {
 		double s = Math.sqrt(0.5);
 		double[] got = b.pushOut(-2.0 * s, 1, 2.0 * s, R, H); // 2.0 along L: depth 0.3
 		assertArrayEquals(new double[] {-0.31 * s, 0.31 * s}, got, EPS);
+	}
+
+	@Test
+	void carGetsLowHoodAndBootEitherSideOfTheCabin() {
+		// A 4.5 m long, 1.5 m tall car standing on y = 0, length along z (yaw 0).
+		ObstacleBox car = new ObstacleBox(1, 3, 0, 0.75, 0, 0, 0.9, 0.75, 2.25, 0, 0, 0);
+		List<SkyTri> tris = new ArrayList<>();
+		car.triangles(tris);
+		assertEquals(36, tris.size());
+		double hood = ObstacleBox.CAR_END_HEIGHT * 1.5; // top of hood and boot above the ground
+		double cabinStart = 2.25 - 2 * ObstacleBox.CAR_END_SHARE * 2.25;
+		for (SkyTri t : tris) {
+			double[][] vs = {{t.ax, t.ay, t.az}, {t.bx, t.by, t.bz}, {t.cx, t.cy, t.cz}};
+			for (double[] v : vs) {
+				if (Math.abs(v[2]) > cabinStart + 1e-4) {
+					assertTrue(v[1] <= hood + 1e-4, "hood and boot stay low: y " + v[1] + " at z " + v[2]);
+				}
+				assertTrue(v[1] >= -1e-4 && v[1] <= 1.5 + 1e-4, "within the car's height");
+				assertTrue(Math.abs(v[2]) <= 2.25 + 1e-4, "within the car's length");
+			}
+		}
+		List<SkyTri> bus = new ArrayList<>();
+		new ObstacleBox(1, 4, 0, 1.6, 0, 0, 1.25, 1.6, 6, 0, 0, 0).triangles(bus);
+		assertEquals(12, bus.size(), "a bus (3.2 m tall) stays one box");
+		List<SkyTri> parked = new ArrayList<>();
+		new ObstacleBox(3, 5, 0, 0.75, 0, 0, 0.9, 0.75, 2.25, 0, 0, 0).triangles(parked);
+		assertEquals(36, parked.size(), "parked cars get the profile too");
 	}
 }

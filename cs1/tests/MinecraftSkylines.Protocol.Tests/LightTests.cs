@@ -47,11 +47,11 @@ namespace MinecraftSkylines.Protocol.Tests
         }
 
         [Theory]
-        [InlineData(10f, 2f, 10)]
-        [InlineData(10f, 0.5f, 5)]
-        [InlineData(0.2f, 1f, 1)]
+        [InlineData(10f, 2f, 14)]
+        [InlineData(10f, 0.5f, 9)]
+        [InlineData(0.2f, 1f, 5)]
         [InlineData(40f, 1f, 15)]
-        [InlineData(10f, 1f, 10)]
+        [InlineData(10f, 1f, 14)]
         [InlineData(0f, 1f, 0)]
         [InlineData(5f, 0f, 0)]
         [InlineData(-3f, 1f, 0)]

@@ -144,6 +144,9 @@ namespace Skylines.Host.Geometry
             if (Obstacle.Tree(p.x, p.y, p.z, s.x, s.y, s.z, scale, VegetationFlag, _veg) > 0) LastTreeCount++;
         }
 
+        /// <summary>Debug (Ctrl+Shift+D): when set, every prop considered by <see cref="Emit"/> is reported (name, position, outcome).</summary>
+        public Action<string, Vector3, string> Trace;
+
         private void AddProp(PropInfo info, Vector3 p, float angle, float scale, uint lightSeed, bool active)
         {
             if (_lights != null)
@@ -152,9 +155,17 @@ namespace Skylines.Host.Geometry
                 return;
             }
             // Decals and markers are flat or invisible; renderer-less props are effects only; water-map props float on water.
-            if (info == null || info.m_isDecal || info.m_isMarker || !info.m_hasRenderer || info.m_requireWaterMap || info.m_generatedInfo == null) return;
+            if (info == null || info.m_isDecal || info.m_isMarker || !info.m_hasRenderer || info.m_requireWaterMap || info.m_generatedInfo == null)
+            {
+                if (Trace != null && info != null)
+                    Trace(info.name, p, info.m_isDecal ? "decal" : info.m_isMarker ? "marker" : !info.m_hasRenderer ? "no renderer"
+                        : info.m_requireWaterMap ? "floats on water" : "no generated info");
+                return;
+            }
             Vector3 c = info.m_generatedInfo.m_center, s = info.m_generatedInfo.m_size;
             if (!Near(p, (Mathf.Abs(c.x) + Mathf.Abs(c.z) + Mathf.Max(s.x, s.z)) * scale)) return;
+            if (Trace != null)
+                Trace(info.name, p, "height " + (s.y * scale).ToString("0.00") + " m" + (s.y * scale < Obstacle.MinPropHeight ? ": too flat, skipped" : ": collides"));
             if (Obstacle.Prop(p.x, p.y, p.z, angle, c.x, c.y, c.z, s.x, s.y, s.z, scale, BaseFootprint(info), PropFlag, _props) > 0) LastPropCount++;
         }
 

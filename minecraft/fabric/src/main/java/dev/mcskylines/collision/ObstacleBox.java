@@ -49,10 +49,34 @@ public final class ObstacleBox {
 				halfLength, vx, vy, vz);
 	}
 
-	/** Appends the box's 12 triangles, each wound so {@code (b-a)x(c-a)} points out of the box. */
+	/** Cars at most this tall (m) and at least this long get a car profile instead of one box. */
+	static final double CAR_MAX_HEIGHT = 2.2, CAR_MIN_LENGTH = 3.4;
+	/** Car profile: each end (hood, boot) takes this share of the length at this share of the height. */
+	static final double CAR_END_SHARE = 0.3, CAR_END_HEIGHT = 0.55;
+
+	/**
+	 * Appends the obstacle's triangles, each wound so {@code (b-a)x(c-a)} points out of it: one box, or for a car (a
+	 * vehicle up to {@link #CAR_MAX_HEIGHT} tall and {@link #CAR_MIN_LENGTH} long) a low hood and boot either side of a
+	 * full-height cabin, so the hood can be jumped onto (owner, 2026-10-06: "cars with low hoods that look like I ought to
+	 * be able to jump on them just have a rectangular collision box"). The profile is symmetric, so it does not depend on
+	 * which end is the front.
+	 */
 	public void triangles(List<SkyTri> out) {
+		boolean car = (kind == 1 || kind == 3) && 2 * halfHeight <= CAR_MAX_HEIGHT && 2 * halfLength >= CAR_MIN_LENGTH;
+		if (!car) {
+			box(x, y, z, halfWidth, halfHeight, halfLength, out);
+			return;
+		}
+		double endHalf = CAR_END_SHARE * halfLength, endHeightHalf = CAR_END_HEIGHT * halfHeight;
+		double bottom = y - halfHeight, endY = bottom + endHeightHalf, offset = halfLength - endHalf;
+		box(x + lx * offset, endY, z + lz * offset, halfWidth, endHeightHalf, endHalf, out);
+		box(x - lx * offset, endY, z - lz * offset, halfWidth, endHeightHalf, endHalf, out);
+		box(x, y, z, halfWidth, halfHeight, halfLength - 2 * endHalf, out);
+	}
+
+	private void box(double cx, double cy, double cz, double hw, double hh, double hl, List<SkyTri> out) {
 		double[][] axes = {{wx, 0, wz}, {0, 1, 0}, {lx, 0, lz}};
-		double[] half = {halfWidth, halfHeight, halfLength};
+		double[] half = {hw, hh, hl};
 		for (int k = 0; k < 3; k++) {
 			int i = (k + 1) % 3, j = (k + 2) % 3;
 			for (int s = -1; s <= 1; s += 2) {
@@ -60,7 +84,7 @@ public final class ObstacleBox {
 				double[][] signs = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
 				for (int c = 0; c < 4; c++) {
 					for (int d = 0; d < 3; d++) {
-						double centre = d == 0 ? x : d == 1 ? y : z;
+						double centre = d == 0 ? cx : d == 1 ? cy : cz;
 						q[3 * c + d] = (float) (centre + s * half[k] * axes[k][d] + signs[c][0] * half[i] * axes[i][d]
 								+ signs[c][1] * half[j] * axes[j][d]);
 					}

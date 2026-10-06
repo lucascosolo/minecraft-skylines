@@ -418,7 +418,7 @@ replaces the previous one.
 | u8 | `level` | Minecraft light level 1-15; anything else is a protocol error |
 
 The host decides which lights are on with the game's own rule and maps each light's range and intensity to a level
-(CS1: standalone, building and network-lane props' `LightEffect`s; level = clamp(ceil(range × min(intensity, 1)), 0, 15),
+(CS1: standalone, building and network-lane props' `LightEffect`s; level = clamp(ceil(range × min(intensity, 1)) + 4, 0, 15) (the 4 makes up for the lamp head being several blocks above the player),
 0 not sent; see `docs/CS1-API-NOTES.md`).
 
 The guest keeps an invisible `minecraft:light[level=N]` block at each position while the city is open and ready
