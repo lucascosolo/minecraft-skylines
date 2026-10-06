@@ -255,10 +255,19 @@ namespace Skylines.Host.Geometry
 
         // Height of the raised pavement above each drawn edge: the game's own pedestrian lane curves (NetLane.m_bezier;
         // lane y = curve y + Lane.m_verticalOffset, NetAI.cs:512) lying within the pavement beside that edge, minus the
-        // edge height (curve y + m_surfaceLevel). 0 where there is no raised pavement.
+        // edge height (curve y + m_surfaceLevel). 0 where there is no raised pavement or it falls outside PavementStep's window.
         private static void PavementLifts(ref NetSegment seg, NetInfo info, Bezier3 left, Bezier3 right, out float liftL, out float liftR)
         {
-            liftL = liftR = 0f;
+            RawPavementLifts(ref seg, info, left, right, null, out liftL, out liftR);
+            liftL = PavementStep.Keep(liftL);
+            liftR = PavementStep.Keep(liftR);
+        }
+
+        // The highest pedestrian-lane lift beside each edge, NaN when no pedestrian lane is beside it; each pedestrian lane
+        // is described into `log` when given.
+        private static void RawPavementLifts(ref NetSegment seg, NetInfo info, Bezier3 left, Bezier3 right, System.Text.StringBuilder log, out float liftL, out float liftR)
+        {
+            liftL = liftR = float.NaN;
             if (!(info.m_pavementWidth > 0f) || info.m_lanes == null) return;
             NetLane[] lanes = Singleton<NetManager>.instance.m_lanes.m_buffer;
             Vector3 lm = left.Position(0.5f), rm = right.Position(0.5f);
@@ -269,16 +278,22 @@ namespace Skylines.Host.Geometry
                 {
                     Vector3 p = lanes[lane].m_bezier.Position(0.5f);
                     float dl = XZ(p, lm), dr = XZ(p, rm);
-                    if (Mathf.Min(dl, dr) <= info.m_pavementWidth + 1f)
+                    bool beside = Mathf.Min(dl, dr) <= info.m_pavementWidth + 1f;
+                    if (beside)
                     {
-                        if (dl < dr) liftL = Mathf.Max(liftL, p.y - lm.y);
-                        else liftR = Mathf.Max(liftR, p.y - rm.y);
+                        if (dl < dr) liftL = float.IsNaN(liftL) ? p.y - lm.y : Mathf.Max(liftL, p.y - lm.y);
+                        else liftR = float.IsNaN(liftR) ? p.y - rm.y : Mathf.Max(liftR, p.y - rm.y);
+                    }
+                    if (log != null)
+                    {
+                        log.Append("; pedestrian lane ").Append(i).Append(" mid y ").Append(p.y.ToString("0.00")).Append(", ")
+                            .Append(dl.ToString("0.0")).Append(" m from left edge (y ").Append(lm.y.ToString("0.00")).Append("), ")
+                            .Append(dr.ToString("0.0")).Append(" m from right edge (y ").Append(rm.y.ToString("0.00")).Append(")")
+                            .Append(beside ? "" : ", not within m_pavementWidth + 1 m of either edge");
                     }
                 }
                 lane = lanes[lane].m_nextLane;
             }
-            if (liftL < 0.05f || liftL > 1.5f) liftL = 0f;
-            if (liftR < 0.05f || liftR > 1.5f) liftR = 0f;
         }
 
         private static float XZ(Vector3 a, Vector3 b)
@@ -407,19 +422,14 @@ namespace Skylines.Host.Geometry
             return ids;
         }
 
-        /// <summary>
-        /// One log line about the ground segment nearest to <paramref name="pos"/> within 64 m: its id and NetInfo, node
-        /// heights and height offsets, surface level, and at t = 0, 0.5, 1 the game's centre bezier y, the detail terrain
-        /// height and the top y of the collision we emit there (the mean of the two edge samples).
-        /// </summary>
-        public string DescribeNearestGround(Vector3 pos)
+        // The ground segment whose centre curve passes nearest to `pos` within 64 m (xz), 0 when none.
+        private static ushort NearestGround(Vector3 pos, out float bestD)
         {
             NetManager nm = Singleton<NetManager>.instance;
             NetSegment[] segs = nm.m_segments.m_buffer;
-            NetNode[] nodes = nm.m_nodes.m_buffer;
             ushort[] grid = nm.m_segmentGrid;
             ushort best = 0;
-            float bestD = 64f;
+            bestD = 64f;
             for (int cz = Cell(pos.z - GridMargin); cz <= Cell(pos.z + GridMargin); cz++)
             {
                 for (int cx = Cell(pos.x - GridMargin); cx <= Cell(pos.x + GridMargin); cx++)
@@ -442,6 +452,45 @@ namespace Skylines.Host.Geometry
                     }
                 }
             }
+            return best;
+        }
+
+        /// <summary>
+        /// One log line about the raised pavement of the ground segment nearest to <paramref name="pos"/>: every pedestrian
+        /// lane's mid height and distance to each drawn edge, and the step computed on each side with
+        /// <see cref="PavementStep.Verdict"/> (kept, or why it was dropped).
+        /// </summary>
+        public static string DescribePavementSteps(Vector3 pos)
+        {
+            float d;
+            ushort id = NearestGround(pos, out d);
+            if (id == 0) return "pavement: no ground segment within 64 m of (" + Fmt(pos) + ")";
+            NetSegment seg = Singleton<NetManager>.instance.m_segments.m_buffer[id];
+            NetInfo info = seg.Info;
+            Bezier3 left, right;
+            seg.GenerateBezier(id, seg.m_startNode, out left, out right);
+            var sb = new System.Text.StringBuilder();
+            sb.Append("pavement of nearest ground segment ").Append(id).Append(" ('").Append(info.name).Append("', ").Append(d.ToString("0.0"))
+                .Append(" m away): m_pavementWidth ").Append(info.m_pavementWidth.ToString("0.00")).Append(", m_surfaceLevel ").Append(info.m_surfaceLevel.ToString("0.00"));
+            float l, r;
+            RawPavementLifts(ref seg, info, left, right, sb, out l, out r);
+            if (!(info.m_pavementWidth > 0f)) sb.Append("; m_pavementWidth is 0, no pavement emitted");
+            sb.Append("; left step: ").Append(PavementStep.Verdict(l)).Append("; right step: ").Append(PavementStep.Verdict(r));
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// One log line about the ground segment nearest to <paramref name="pos"/> within 64 m: its id and NetInfo, node
+        /// heights and height offsets, surface level, and at t = 0, 0.5, 1 the game's centre bezier y, the detail terrain
+        /// height and the top y of the collision we emit there (the mean of the two edge samples).
+        /// </summary>
+        public string DescribeNearestGround(Vector3 pos)
+        {
+            NetManager nm = Singleton<NetManager>.instance;
+            NetSegment[] segs = nm.m_segments.m_buffer;
+            NetNode[] nodes = nm.m_nodes.m_buffer;
+            float bestD;
+            ushort best = NearestGround(pos, out bestD);
             if (best == 0) return "no ground segment within 64 m of (" + Fmt(pos) + ")";
 
             NetSegment s = segs[best];

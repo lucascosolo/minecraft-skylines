@@ -170,6 +170,8 @@ namespace MinecraftSkylines.Mod.Diagnostics
 
         private static Color ColorOf(ushort flags, float alpha)
         {
+            if ((flags & ObstacleGeometry.VegetationFlag) != 0) return new Color(0.05f, 0.45f, 0.1f, alpha);
+            if ((flags & ObstacleGeometry.PropFlag) != 0) return new Color(1f, 0.55f, 0.05f, alpha);
             if ((flags & NetGeometry.TunnelFlag) != 0) return new Color(1f, 0.1f, 1f, alpha);
             if ((flags & BuildingGeometry.BuildingFlag) != 0) return new Color(0.15f, 0.4f, 1f, alpha);
             if ((flags & (NetGeometry.BridgeDeckFlag | NetGeometry.RailingFlag)) != 0) return new Color(1f, 0.15f, 0.1f, alpha);

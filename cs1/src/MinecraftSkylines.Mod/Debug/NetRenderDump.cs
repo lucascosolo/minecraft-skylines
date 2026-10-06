@@ -5,6 +5,7 @@ using ColossalFramework;
 using ColossalFramework.Math;
 using ColossalFramework.UI;
 using Skylines.Host;
+using Skylines.Host.Geometry;
 using UnityEngine;
 using UInput = UnityEngine.Input;
 
@@ -14,7 +15,8 @@ namespace MinecraftSkylines.Mod.Diagnostics
     /// Ctrl+Shift+D (city camera and Minecraft mode): logs how the game renders the network around the camera, to find out
     /// how tunnels are drawn. Every segment and node within <see cref="Radius"/> m with its NetInfo's segment and node
     /// meshes, materials, shaders, render layers and flag filters; the main and UndergroundView camera culling masks; and
-    /// underground vehicles with their underground material. One delimited block in the mod log per press; nothing else
+    /// underground vehicles with their underground material; each NetInfo's surface level, widths and lanes; and the
+    /// raised-pavement step NetGeometry computes for the ground segment nearest the camera. One delimited block in the mod log per press; nothing else
     /// is written or changed.
     /// </summary>
     internal sealed class NetRenderDump
@@ -107,6 +109,7 @@ namespace MinecraftSkylines.Mod.Diagnostics
                     .Append(", y ").Append(p.y.ToString("0.00")).Append('\n');
             }
             foreach (NetInfo info in infos) AppendInfo(sb, info);
+            sb.Append(NetGeometry.DescribePavementSteps(c)).Append('\n');
             int vehicles = AppendVehicles(sb, c);
             sb.Append("===== net render dump end: ").Append(segCount).Append(" segments, ").Append(nodeCount).Append(" nodes, ")
                 .Append(infos.Count).Append(" infos, ").Append(vehicles).Append(" underground vehicles =====");
@@ -135,7 +138,20 @@ namespace MinecraftSkylines.Mod.Diagnostics
             sb.Append("info '").Append(info.name).Append("': class layer ").Append(info.m_class == null ? "?" : info.m_class.m_layer.ToString())
                 .Append(", prefab data layer ").Append(LayerText(info.m_prefabDataLayer)).Append(", net layers 0x").Append(info.m_netLayers.ToString("X8"))
                 .Append(" (").Append(MaskNames(info.m_netLayers)).Append("), clipTerrain ").Append(info.m_clipTerrain)
-                .Append(", flattenTerrain ").Append(info.m_flattenTerrain).Append('\n');
+                .Append(", flattenTerrain ").Append(info.m_flattenTerrain).Append(", surfaceLevel ").Append(info.m_surfaceLevel.ToString("0.00"))
+                .Append(", halfWidth ").Append(info.m_halfWidth.ToString("0.00")).Append(", pavementWidth ").Append(info.m_pavementWidth.ToString("0.00")).Append('\n');
+            if (info.m_lanes != null)
+            {
+                for (int k = 0; k < info.m_lanes.Length; k++)
+                {
+                    NetInfo.Lane l = info.m_lanes[k];
+                    if (l == null) continue;
+                    sb.Append("  lane[").Append(k).Append("] type ").Append(l.m_laneType).Append(", vehicles ").Append(l.m_vehicleType)
+                        .Append(", position ").Append(l.m_position.ToString("0.00")).Append(", width ").Append(l.m_width.ToString("0.00"))
+                        .Append(", verticalOffset ").Append(l.m_verticalOffset.ToString("0.00")).Append(", direction ").Append(l.m_direction)
+                        .Append(" (final ").Append(l.m_finalDirection).Append(")\n");
+                }
+            }
             if (info.m_segments != null)
             {
                 for (int k = 0; k < info.m_segments.Length; k++)

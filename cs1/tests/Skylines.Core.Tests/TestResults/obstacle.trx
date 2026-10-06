@@ -1,0 +1,154 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="a4fd6757-c41c-4523-8bc1-554e7ddff623" name="@lucas-pc 2026-10-06 08:50:30" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-06T08:50:30.9853632-05:00" queuing="2026-10-06T08:50:30.9853632-05:00" start="2026-10-06T08:50:30.5583648-05:00" finish="2026-10-06T08:50:31.0065458-05:00" />
+  <TestSettings name="default" id="0a1cb711-9313-496d-b61f-f8a3193cc46a">
+    <Deployment runDeploymentRoot="_lucas-pc_2026-10-06_08_50_30" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="e3160448-3bc5-47bf-bf2b-5e3fa41aef3b" testId="69068b35-108a-98ab-1800-0a10a757589e" testName="Skylines.Core.Tests.ObstacleTests.StreetLightBecomesPostAtPivot" computerName="lucas-pc" duration="00:00:00.0000512" startTime="2026-10-06T08:50:30.9611865-05:00" endTime="2026-10-06T08:50:30.9612085-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e3160448-3bc5-47bf-bf2b-5e3fa41aef3b" />
+    <UnitTestResult executionId="b6814699-4dc2-4df5-bb01-f2da006c6313" testId="93f050d1-77ca-0874-d56e-3b97b333dcc9" testName="Skylines.Core.Tests.ObstacleTests.KeepPassesInRange(raw: 0.0500000007)" computerName="lucas-pc" duration="00:00:00.0000458" startTime="2026-10-06T08:50:30.9539214-05:00" endTime="2026-10-06T08:50:30.9539479-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b6814699-4dc2-4df5-bb01-f2da006c6313" />
+    <UnitTestResult executionId="358dd52a-a004-4089-8e02-769d6978d601" testId="2255d6cd-60f5-9a7c-59af-0de0e6f62ddb" testName="Skylines.Core.Tests.ObstacleTests.HeightExactlyTallHeightIsABush" computerName="lucas-pc" duration="00:00:00.0000408" startTime="2026-10-06T08:50:30.9613994-05:00" endTime="2026-10-06T08:50:30.9614211-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="358dd52a-a004-4089-8e02-769d6978d601" />
+    <UnitTestResult executionId="36fbae49-fd0e-4c3d-b9d3-8a7e2c39b528" testId="77e8cac9-0762-9f67-0ade-9e662911825b" testName="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: NaN)" computerName="lucas-pc" duration="00:00:00.0000064" startTime="2026-10-06T08:50:30.9532777-05:00" endTime="2026-10-06T08:50:30.9533082-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="36fbae49-fd0e-4c3d-b9d3-8a7e2c39b528" />
+    <UnitTestResult executionId="d5be41bd-c8ac-43ac-9763-e442fadd3b57" testId="65fcd05a-0afe-2ee3-9500-72644fabfb71" testName="Skylines.Core.Tests.ObstacleTests.PropAppendsAfterExistingTriangles" computerName="lucas-pc" duration="00:00:00.0000999" startTime="2026-10-06T08:50:30.9615384-05:00" endTime="2026-10-06T08:50:30.9615592-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d5be41bd-c8ac-43ac-9763-e442fadd3b57" />
+    <UnitTestResult executionId="c4b73b1c-f9a7-4200-a242-7285f29c9e9c" testId="ce2a5c8b-75b3-3e3e-9d8d-708262b9ab2f" testName="Skylines.Core.Tests.ObstacleTests.KeepPassesInRange(raw: 1.5)" computerName="lucas-pc" duration="00:00:00.0000064" startTime="2026-10-06T08:50:30.9540688-05:00" endTime="2026-10-06T08:50:30.9540905-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="c4b73b1c-f9a7-4200-a242-7285f29c9e9c" />
+    <UnitTestResult executionId="11695110-0f8d-4879-ad58-57baaa312e6a" testId="84fed62b-3149-bed4-54db-9986b7072e29" testName="Skylines.Core.Tests.ObstacleTests.BushUsesScaledFootprint" computerName="lucas-pc" duration="00:00:00.0058420" startTime="2026-10-06T08:50:30.9541547-05:00" endTime="2026-10-06T08:50:30.9541763-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="11695110-0f8d-4879-ad58-57baaa312e6a" />
+    <UnitTestResult executionId="bcb3c766-83b3-4078-a61b-aa1142a59a7c" testId="d4a29cdd-8bff-96eb-2b82-421908c019fc" testName="Skylines.Core.Tests.ObstacleTests.BenchIsAxisAlignedBox" computerName="lucas-pc" duration="00:00:00.0000477" startTime="2026-10-06T08:50:30.9612580-05:00" endTime="2026-10-06T08:50:30.9612790-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bcb3c766-83b3-4078-a61b-aa1142a59a7c" />
+    <UnitTestResult executionId="164d2914-2df1-4655-836e-b625eb06ce63" testId="bcd9916b-ce3e-d0d8-d7d1-27c3958f60ee" testName="Skylines.Core.Tests.ObstacleTests.VerdictExplainsEachOutcome" computerName="lucas-pc" duration="00:00:00.0002718" startTime="2026-10-06T08:50:30.9613275-05:00" endTime="2026-10-06T08:50:30.9613481-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="164d2914-2df1-4655-836e-b625eb06ce63" />
+    <UnitTestResult executionId="611b4751-f1bc-4bc9-ad7f-451dfa6a2902" testId="1cab4532-778a-4b4c-0f0f-f86e3e75aa10" testName="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: 1.50999999)" computerName="lucas-pc" duration="00:00:00.0035491" startTime="2026-10-06T08:50:30.9393770-05:00" endTime="2026-10-06T08:50:30.9462968-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="611b4751-f1bc-4bc9-ad7f-451dfa6a2902" />
+    <UnitTestResult executionId="4a2d44b8-274b-4628-801b-8fe2d6a12e1d" testId="8cfcd934-c66e-5c48-bee1-d98ff4b473b1" testName="Skylines.Core.Tests.ObstacleTests.FlatPropIsSkipped" computerName="lucas-pc" duration="00:00:00.0000430" startTime="2026-10-06T08:50:30.9611136-05:00" endTime="2026-10-06T08:50:30.9611358-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4a2d44b8-274b-4628-801b-8fe2d6a12e1d" />
+    <UnitTestResult executionId="1d3db376-1349-4e58-964f-d4b4b0dc6658" testId="c68f045d-090f-064b-5d1b-71d680126335" testName="Skylines.Core.Tests.ObstacleTests.ZeroHeightTreeAddsNothing" computerName="lucas-pc" duration="00:00:00.0000335" startTime="2026-10-06T08:50:30.9622423-05:00" endTime="2026-10-06T08:50:30.9622641-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="1d3db376-1349-4e58-964f-d4b4b0dc6658" />
+    <UnitTestResult executionId="be909136-fa6d-4caa-b511-e256bf8f7c95" testId="fa8f1666-6036-128e-0589-b604e1ea4706" testName="Skylines.Core.Tests.ObstacleTests.RaisedMeshKeepsItsBottom" computerName="lucas-pc" duration="00:00:00.0000327" startTime="2026-10-06T08:50:30.9614697-05:00" endTime="2026-10-06T08:50:30.9614903-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="be909136-fa6d-4caa-b511-e256bf8f7c95" />
+    <UnitTestResult executionId="3ac681ec-8b0b-4557-8f43-43ee47c54d74" testId="4454e20e-06b2-e727-5c77-9a61d4d04a22" testName="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: 0)" computerName="lucas-pc" duration="00:00:00.0000014" startTime="2026-10-06T08:50:30.9533663-05:00" endTime="2026-10-06T08:50:30.9533898-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3ac681ec-8b0b-4557-8f43-43ee47c54d74" />
+    <UnitTestResult executionId="71b0e181-7677-4bc0-af4a-0e8003527751" testId="a31e552b-9062-cc33-2be8-230fb9c5a8b1" testName="Skylines.Core.Tests.ObstacleTests.TallTreeIsATrunk" computerName="lucas-pc" duration="00:00:00.0000418" startTime="2026-10-06T08:50:30.9623150-05:00" endTime="2026-10-06T08:50:30.9623361-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="71b0e181-7677-4bc0-af4a-0e8003527751" />
+    <UnitTestResult executionId="37ac524a-ff15-460e-ba7f-21b8e8b3657b" testId="12054471-7d6e-272d-434e-6ed1effb98b8" testName="Skylines.Core.Tests.ObstacleTests.TreeAppendsAfterExistingTriangles" computerName="lucas-pc" duration="00:00:00.0000701" startTime="2026-10-06T08:50:30.9621553-05:00" endTime="2026-10-06T08:50:30.9621827-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="37ac524a-ff15-460e-ba7f-21b8e8b3657b" />
+    <UnitTestResult executionId="279532b7-b472-41ce-8a15-b0b579b4b01f" testId="0127255d-43c4-eb34-2ec8-32c31ed502d1" testName="Skylines.Core.Tests.ObstacleTests.RotatedPropMovesCentreByLocalOffset" computerName="lucas-pc" duration="00:00:00.0002324" startTime="2026-10-06T08:50:30.9608228-05:00" endTime="2026-10-06T08:50:30.9608626-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="279532b7-b472-41ce-8a15-b0b579b4b01f" />
+    <UnitTestResult executionId="9c819676-e71a-4760-bb70-6aa3c8c237c4" testId="6c368cd0-0aee-1db8-2914-41b2825f6cda" testName="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: 0.0489999987)" computerName="lucas-pc" duration="00:00:00.0000011" startTime="2026-10-06T08:50:30.9534283-05:00" endTime="2026-10-06T08:50:30.9534511-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9c819676-e71a-4760-bb70-6aa3c8c237c4" />
+    <UnitTestResult executionId="0bfe278f-f551-4b89-ab76-da012273827d" testId="fef0751f-a2d0-ebc4-5e45-2a23f2d5d097" testName="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: -0.300000012)" computerName="lucas-pc" duration="00:00:00.0002022" startTime="2026-10-06T08:50:30.9527875-05:00" endTime="2026-10-06T08:50:30.9528504-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0bfe278f-f551-4b89-ab76-da012273827d" />
+    <UnitTestResult executionId="fbaf9d8c-c12a-4580-8cf4-792f83b84455" testId="a3fe2c9c-8479-31d1-fc8d-d9183fad2629" testName="Skylines.Core.Tests.ObstacleTests.TallCentredPropKeepsFullBox" computerName="lucas-pc" duration="00:00:00.0000636" startTime="2026-10-06T08:50:30.9610226-05:00" endTime="2026-10-06T08:50:30.9610484-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="fbaf9d8c-c12a-4580-8cf4-792f83b84455" />
+    <UnitTestResult executionId="0f8e60c4-e909-439c-80da-aff81febbf6f" testId="3f42bdfa-15fb-a800-7bf6-65a946163680" testName="Skylines.Core.Tests.ObstacleTests.KeepPassesInRange(raw: 0.5)" computerName="lucas-pc" duration="00:00:00.0001410" startTime="2026-10-06T08:50:30.9540076-05:00" endTime="2026-10-06T08:50:30.9540302-05:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="0f8e60c4-e909-439c-80da-aff81febbf6f" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: 0.0489999987)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="6c368cd0-0aee-1db8-2914-41b2825f6cda">
+      <Execution id="9c819676-e71a-4760-bb70-6aa3c8c237c4" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepDropsOutOfRange" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.HeightExactlyTallHeightIsABush" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="2255d6cd-60f5-9a7c-59af-0de0e6f62ddb">
+      <Execution id="358dd52a-a004-4089-8e02-769d6978d601" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="HeightExactlyTallHeightIsABush" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.StreetLightBecomesPostAtPivot" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="69068b35-108a-98ab-1800-0a10a757589e">
+      <Execution id="e3160448-3bc5-47bf-bf2b-5e3fa41aef3b" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="StreetLightBecomesPostAtPivot" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.VerdictExplainsEachOutcome" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="bcd9916b-ce3e-d0d8-d7d1-27c3958f60ee">
+      <Execution id="164d2914-2df1-4655-836e-b625eb06ce63" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="VerdictExplainsEachOutcome" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.RaisedMeshKeepsItsBottom" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="fa8f1666-6036-128e-0589-b604e1ea4706">
+      <Execution id="be909136-fa6d-4caa-b511-e256bf8f7c95" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="RaisedMeshKeepsItsBottom" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepPassesInRange(raw: 1.5)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="ce2a5c8b-75b3-3e3e-9d8d-708262b9ab2f">
+      <Execution id="c4b73b1c-f9a7-4200-a242-7285f29c9e9c" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepPassesInRange" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.BushUsesScaledFootprint" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="84fed62b-3149-bed4-54db-9986b7072e29">
+      <Execution id="11695110-0f8d-4879-ad58-57baaa312e6a" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="BushUsesScaledFootprint" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepPassesInRange(raw: 0.5)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="3f42bdfa-15fb-a800-7bf6-65a946163680">
+      <Execution id="0f8e60c4-e909-439c-80da-aff81febbf6f" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepPassesInRange" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.RotatedPropMovesCentreByLocalOffset" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="0127255d-43c4-eb34-2ec8-32c31ed502d1">
+      <Execution id="279532b7-b472-41ce-8a15-b0b579b4b01f" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="RotatedPropMovesCentreByLocalOffset" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.BenchIsAxisAlignedBox" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="d4a29cdd-8bff-96eb-2b82-421908c019fc">
+      <Execution id="bcb3c766-83b3-4078-a61b-aa1142a59a7c" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="BenchIsAxisAlignedBox" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.FlatPropIsSkipped" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="8cfcd934-c66e-5c48-bee1-d98ff4b473b1">
+      <Execution id="4a2d44b8-274b-4628-801b-8fe2d6a12e1d" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="FlatPropIsSkipped" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: 1.50999999)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="1cab4532-778a-4b4c-0f0f-f86e3e75aa10">
+      <Execution id="611b4751-f1bc-4bc9-ad7f-451dfa6a2902" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepDropsOutOfRange" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.PropAppendsAfterExistingTriangles" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="65fcd05a-0afe-2ee3-9500-72644fabfb71">
+      <Execution id="d5be41bd-c8ac-43ac-9763-e442fadd3b57" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="PropAppendsAfterExistingTriangles" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.ZeroHeightTreeAddsNothing" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="c68f045d-090f-064b-5d1b-71d680126335">
+      <Execution id="1d3db376-1349-4e58-964f-d4b4b0dc6658" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="ZeroHeightTreeAddsNothing" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: -0.300000012)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="fef0751f-a2d0-ebc4-5e45-2a23f2d5d097">
+      <Execution id="0bfe278f-f551-4b89-ab76-da012273827d" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepDropsOutOfRange" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.TreeAppendsAfterExistingTriangles" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="12054471-7d6e-272d-434e-6ed1effb98b8">
+      <Execution id="37ac524a-ff15-460e-ba7f-21b8e8b3657b" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="TreeAppendsAfterExistingTriangles" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: NaN)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="77e8cac9-0762-9f67-0ade-9e662911825b">
+      <Execution id="36fbae49-fd0e-4c3d-b9d3-8a7e2c39b528" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepDropsOutOfRange" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.TallCentredPropKeepsFullBox" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="a3fe2c9c-8479-31d1-fc8d-d9183fad2629">
+      <Execution id="fbaf9d8c-c12a-4580-8cf4-792f83b84455" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="TallCentredPropKeepsFullBox" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepPassesInRange(raw: 0.0500000007)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="93f050d1-77ca-0874-d56e-3b97b333dcc9">
+      <Execution id="b6814699-4dc2-4df5-bb01-f2da006c6313" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepPassesInRange" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.TallTreeIsATrunk" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="a31e552b-9062-cc33-2be8-230fb9c5a8b1">
+      <Execution id="71b0e181-7677-4bc0-af4a-0e8003527751" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="TallTreeIsATrunk" />
+    </UnitTest>
+    <UnitTest name="Skylines.Core.Tests.ObstacleTests.KeepDropsOutOfRange(raw: 0)" storage="/home/lucas/workspaces/minecraft-skylines/cs1/tests/skylines.core.tests/bin/release/net10.0/skylines.core.tests.dll" id="4454e20e-06b2-e727-5c77-9a61d4d04a22">
+      <Execution id="3ac681ec-8b0b-4557-8f43-43ee47c54d74" />
+      <TestMethod codeBase="/home/lucas/Workspaces/minecraft-skylines/cs1/tests/Skylines.Core.Tests/bin/Release/net10.0/Skylines.Core.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="Skylines.Core.Tests.ObstacleTests" name="KeepDropsOutOfRange" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="69068b35-108a-98ab-1800-0a10a757589e" executionId="e3160448-3bc5-47bf-bf2b-5e3fa41aef3b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="93f050d1-77ca-0874-d56e-3b97b333dcc9" executionId="b6814699-4dc2-4df5-bb01-f2da006c6313" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2255d6cd-60f5-9a7c-59af-0de0e6f62ddb" executionId="358dd52a-a004-4089-8e02-769d6978d601" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="77e8cac9-0762-9f67-0ade-9e662911825b" executionId="36fbae49-fd0e-4c3d-b9d3-8a7e2c39b528" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="65fcd05a-0afe-2ee3-9500-72644fabfb71" executionId="d5be41bd-c8ac-43ac-9763-e442fadd3b57" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ce2a5c8b-75b3-3e3e-9d8d-708262b9ab2f" executionId="c4b73b1c-f9a7-4200-a242-7285f29c9e9c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="84fed62b-3149-bed4-54db-9986b7072e29" executionId="11695110-0f8d-4879-ad58-57baaa312e6a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d4a29cdd-8bff-96eb-2b82-421908c019fc" executionId="bcb3c766-83b3-4078-a61b-aa1142a59a7c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bcd9916b-ce3e-d0d8-d7d1-27c3958f60ee" executionId="164d2914-2df1-4655-836e-b625eb06ce63" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1cab4532-778a-4b4c-0f0f-f86e3e75aa10" executionId="611b4751-f1bc-4bc9-ad7f-451dfa6a2902" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8cfcd934-c66e-5c48-bee1-d98ff4b473b1" executionId="4a2d44b8-274b-4628-801b-8fe2d6a12e1d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c68f045d-090f-064b-5d1b-71d680126335" executionId="1d3db376-1349-4e58-964f-d4b4b0dc6658" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fa8f1666-6036-128e-0589-b604e1ea4706" executionId="be909136-fa6d-4caa-b511-e256bf8f7c95" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4454e20e-06b2-e727-5c77-9a61d4d04a22" executionId="3ac681ec-8b0b-4557-8f43-43ee47c54d74" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a31e552b-9062-cc33-2be8-230fb9c5a8b1" executionId="71b0e181-7677-4bc0-af4a-0e8003527751" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="12054471-7d6e-272d-434e-6ed1effb98b8" executionId="37ac524a-ff15-460e-ba7f-21b8e8b3657b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0127255d-43c4-eb34-2ec8-32c31ed502d1" executionId="279532b7-b472-41ce-8a15-b0b579b4b01f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="6c368cd0-0aee-1db8-2914-41b2825f6cda" executionId="9c819676-e71a-4760-bb70-6aa3c8c237c4" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fef0751f-a2d0-ebc4-5e45-2a23f2d5d097" executionId="0bfe278f-f551-4b89-ab76-da012273827d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a3fe2c9c-8479-31d1-fc8d-d9183fad2629" executionId="fbaf9d8c-c12a-4580-8cf4-792f83b84455" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3f42bdfa-15fb-a800-7bf6-65a946163680" executionId="0f8e60c4-e909-439c-80da-aff81febbf6f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="21" executed="21" passed="21" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.0+05679a7ab5 (64-bit .NET 10.0.12)
+[xUnit.net 00:00:00.05]   Discovering: Skylines.Core.Tests
+[xUnit.net 00:00:00.11]   Discovered:  Skylines.Core.Tests
+[xUnit.net 00:00:00.14]   Starting:    Skylines.Core.Tests
+[xUnit.net 00:00:00.18]   Finished:    Skylines.Core.Tests
+</StdOut>
+    </Output>
+  </ResultSummary>
+</TestRun>

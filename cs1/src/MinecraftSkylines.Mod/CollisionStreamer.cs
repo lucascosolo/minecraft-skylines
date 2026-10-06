@@ -12,7 +12,7 @@ using UnityEngine;
 namespace MinecraftSkylines.Mod
 {
     /// <summary>
-    /// Streams terrain, roads, bridges, tunnels and buildings around the player to Minecraft as COLLISION_REGION frames. Regions are 16 x 16
+    /// Streams terrain, roads, bridges, tunnels, buildings, trees and props around the player to Minecraft as COLLISION_REGION frames. Regions are 16 x 16
     /// Minecraft blocks; each is built in CS1 coordinates over the matching CS1 rectangle, converted to Minecraft
     /// coordinates and sent nearest first. Main thread only.
     /// </summary>
@@ -27,6 +27,7 @@ namespace MinecraftSkylines.Mod
         private readonly TerrainSampler _terrain = new TerrainSampler();
         private readonly NetGeometry _net = new NetGeometry();
         private readonly BuildingGeometry _buildings = new BuildingGeometry();
+        private readonly ObstacleGeometry _obstacles = new ObstacleGeometry();
         private readonly TriangleBuffer _buffer = new TriangleBuffer();
         private readonly TriangleBuffer _spawnTris = new TriangleBuffer();
         private int _regionsSent;
@@ -135,6 +136,15 @@ namespace MinecraftSkylines.Mod
         /// </summary>
         public static Exception BuildCs(TerrainSampler terrain, NetGeometry net, BuildingGeometry buildings, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
         {
+            return BuildCs(terrain, net, buildings, null, minX, minZ, maxX, maxZ, into);
+        }
+
+        /// <summary>
+        /// As the overload above, then trees, bushes and props when <paramref name="obstacles"/> is given; if they throw, the
+        /// region keeps terrain, roads and buildings and the exception is returned.
+        /// </summary>
+        public static Exception BuildCs(TerrainSampler terrain, NetGeometry net, BuildingGeometry buildings, ObstacleGeometry obstacles, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
+        {
             into.Clear();
             Exception failed = null;
             StripFootprint portals = null;
@@ -146,11 +156,21 @@ namespace MinecraftSkylines.Mod
             {
                 net.Emit(minX, minZ, maxX, maxZ, into);
                 if (buildings != null) buildings.Emit(terrain, minX, minZ, maxX, maxZ, into);
-                return failed;
             }
             catch (Exception e)
             {
                 into.Truncate(terrainOnly);
+                return e;
+            }
+            int solid = into.Count;
+            try
+            {
+                if (obstacles != null) obstacles.Emit(minX, minZ, maxX, maxZ, into);
+                return failed;
+            }
+            catch (Exception e)
+            {
+                into.Truncate(solid);
                 return e;
             }
         }
@@ -177,7 +197,7 @@ namespace MinecraftSkylines.Mod
                 {
                     float minX, minZ, maxX, maxZ;
                     RegionRectCs(rx + dx, rz + dz, out minX, out minZ, out maxX, out maxZ);
-                    Exception e = BuildCs(_terrain, _net, _buildings, minX, minZ, maxX, maxZ, _buffer);
+                    Exception e = BuildCs(_terrain, _net, _buildings, _obstacles, minX, minZ, maxX, maxZ, _buffer);
                     if (e != null) _log.Error("spawn probe region (" + (rx + dx) + "," + (rz + dz) + ")", e);
                     float[] p = _buffer.Positions;
                     ushort[] f = _buffer.Flags;
@@ -207,10 +227,10 @@ namespace MinecraftSkylines.Mod
                 var clock = Stopwatch.StartNew();
                 float minX, minZ, maxX, maxZ;
                 RegionRectCs(rx, rz, out minX, out minZ, out maxX, out maxZ);
-                Exception roads = BuildCs(_terrain, _net, _buildings, minX, minZ, maxX, maxZ, _buffer);
+                Exception roads = BuildCs(_terrain, _net, _buildings, _obstacles, minX, minZ, maxX, maxZ, _buffer);
                 if (roads != null)
                 {
-                    _log.Error("collision region (" + rx + "," + rz + "): roads or buildings failed to build, sending terrain only", roads);
+                    _log.Error("collision region (" + rx + "," + rz + "): roads, buildings, trees or props failed to build, sending what built", roads);
                 }
                 Viewer.Store(key, minX, minZ, maxX, maxZ, _buffer, csFeet);
                 region = CollisionConversion.ToRegion(_buffer, _planner.Epoch, rx, rz);
