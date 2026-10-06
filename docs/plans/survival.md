@@ -17,6 +17,18 @@ material available including some ores buried in the ground. we need trees to ge
 4. **Creatures and dropped items drawn in CS1** (needed before hostile mobs).
 5. **City-survival links** (trade with shops, city problems as dangers, resource depletion), then the Ender Dragon.
 
+## The shadow world (foundation for trees, mining and mobs)
+
+Owner (2026-10-06): mobs need physical Minecraft terrain to walk and pathfind on. Minecraft's world near the player
+gets real blocks for the whole city, rebuilt from the streamed collision (whose triangles are already tagged terrain,
+road, building, vegetation, prop): ground blocks under CS1's terrain (material rules below), a paved layer under roads
+and pavements, invisible solid blocks filling buildings (so mobs path around them), logs and leaves where CS1 trees
+stand. CS1 never draws these and they are never saved: only the player's changes (placed, dug, felled) go into the
+city's edit set. The player keeps the smooth triangle collision; mobs, fluids, spawning and pathfinding use the blocks.
+CS1's lit lamps (light blocks, protocol 1.8) keep lit streets free of hostile spawns. Built chunk by chunk around the
+player on the guest. Approximation: 1 m steps against CS1's smooth ground (slabs/stairs later).
+Order change: trees come as part of this (real logs/leaves), before mining's hole drawing.
+
 ## Material rules for mining
 
 - What you break depends on where it is: the top block follows CS1's ground surface (grass on grass, sand on beaches
