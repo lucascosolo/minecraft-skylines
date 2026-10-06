@@ -102,7 +102,7 @@ the guest holds for that region.
 | i32 | `regionX`, `regionZ` | `floor(x / 16)`, `floor(z / 16)` |
 | u32 | `triCount` | 0 = the region is known to be empty |
 | per triangle: f32 × 9 | `ax ay az bx by bz cx cy cz` | absolute coordinates; counter-clockwise seen from the solid side's outward normal, i.e. `(b-a)×(c-a)` points out of the solid (up for ground) |
-| u16 | `flags` | bit 0 terrain, bit 1 road surface, bit 2 bridge deck, bit 3 building, bit 4 railing (informational; the guest treats it as solid like any other), bits 8-15 reserved |
+| u16 | `flags` | bit 0 terrain, bit 1 road surface, bit 2 bridge deck, bit 3 building (an oriented box per building), bit 4 railing, bit 5 tunnel wall or ceiling (bits 1-5 informational; the guest treats every triangle as solid), bits 8-15 reserved. Terrain triangles are omitted where the game clipped its terrain surface (tunnel portals, clip-terrain buildings and roads), so the guest can walk into tunnel portals |
 
 A triangle may extend past its region's bounds; the guest files it under the region it arrived in.
 

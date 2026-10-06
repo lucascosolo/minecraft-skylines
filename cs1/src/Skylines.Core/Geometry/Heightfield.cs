@@ -11,6 +11,15 @@ namespace Skylines.Core.Geometry
         /// </summary>
         public static void Triangulate(Func<float, float, float> sampleHeight, float minX, float minZ, float maxX, float maxZ, float step, ushort flags, TriangleBuffer into)
         {
+            Triangulate(sampleHeight, null, minX, minZ, maxX, maxZ, step, flags, into);
+        }
+
+        /// <summary>
+        /// As the other overload, but a cell for which <paramref name="skipCell"/> (called with the cell centre x, z)
+        /// returns true adds no triangles. A null <paramref name="skipCell"/> skips nothing.
+        /// </summary>
+        public static void Triangulate(Func<float, float, float> sampleHeight, Func<float, float, bool> skipCell, float minX, float minZ, float maxX, float maxZ, float step, ushort flags, TriangleBuffer into)
+        {
             if (!(step > 0)) throw new ArgumentOutOfRangeException("step");
             if (maxX < minX) throw new ArgumentOutOfRangeException("maxX");
             if (maxZ < minZ) throw new ArgumentOutOfRangeException("maxZ");
@@ -33,6 +42,7 @@ namespace Skylines.Core.Geometry
                 for (int j = 0; j < nz; j++)
                 {
                     float x0 = xs[i], x1 = xs[i + 1], z0 = zs[j], z1 = zs[j + 1];
+                    if (skipCell != null && skipCell((x0 + x1) * 0.5f, (z0 + z1) * 0.5f)) continue;
                     float y00 = ys[i * (nz + 1) + j], y01 = ys[i * (nz + 1) + j + 1];
                     float y10 = ys[(i + 1) * (nz + 1) + j], y11 = ys[(i + 1) * (nz + 1) + j + 1];
                     into.Add(x0, y00, z0, x0, y01, z1, x1, y11, z1, flags);

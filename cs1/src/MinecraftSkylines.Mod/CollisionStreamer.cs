@@ -12,7 +12,7 @@ using UnityEngine;
 namespace MinecraftSkylines.Mod
 {
     /// <summary>
-    /// Streams terrain, roads and bridges around the player to Minecraft as COLLISION_REGION frames. Regions are 16 x 16
+    /// Streams terrain, roads, bridges, tunnels and buildings around the player to Minecraft as COLLISION_REGION frames. Regions are 16 x 16
     /// Minecraft blocks; each is built in CS1 coordinates over the matching CS1 rectangle, converted to Minecraft
     /// coordinates and sent nearest first. Main thread only.
     /// </summary>
@@ -26,6 +26,7 @@ namespace MinecraftSkylines.Mod
         private readonly RegionStreamPlanner _planner;
         private readonly TerrainSampler _terrain = new TerrainSampler();
         private readonly NetGeometry _net = new NetGeometry();
+        private readonly BuildingGeometry _buildings = new BuildingGeometry();
         private readonly TriangleBuffer _buffer = new TriangleBuffer();
         private int _regionsSent;
         private long _trianglesSent;
@@ -118,19 +119,27 @@ namespace MinecraftSkylines.Mod
             rz = (int)Math.Floor(-z / RegionSize);
         }
 
-        /// <summary>
-        /// Builds one region's collision in CS1 coordinates into <paramref name="into"/>: terrain, then roads. If the
-        /// roads throw, the region keeps its terrain only and the exception is returned (else null). The streamer and
-        /// the self-test both build through here.
-        /// </summary>
+        /// <summary>Builds one region without buildings (see the other overload).</summary>
         public static Exception BuildCs(TerrainSampler terrain, NetGeometry net, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
         {
+            return BuildCs(terrain, net, null, minX, minZ, maxX, maxZ, into);
+        }
+
+        /// <summary>
+        /// Builds one region's collision in CS1 coordinates into <paramref name="into"/>: terrain (with holes where the
+        /// game clipped its surface), then roads, then buildings when <paramref name="buildings"/> is given. If roads or
+        /// buildings throw, the region keeps its terrain only and the exception is returned (else null). The streamer and
+        /// the self-test both build through here.
+        /// </summary>
+        public static Exception BuildCs(TerrainSampler terrain, NetGeometry net, BuildingGeometry buildings, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
+        {
             into.Clear();
-            Heightfield.Triangulate(terrain.AsFunc(), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, into);
+            Heightfield.Triangulate(terrain.AsFunc(), terrain.HoleFunc(TerrainStep), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, into);
             int terrainOnly = into.Count;
             try
             {
                 net.Emit(minX, minZ, maxX, maxZ, into);
+                if (buildings != null) buildings.Emit(terrain, minX, minZ, maxX, maxZ, into);
                 return null;
             }
             catch (Exception e)
@@ -152,10 +161,10 @@ namespace MinecraftSkylines.Mod
                 var clock = Stopwatch.StartNew();
                 float minX, minZ, maxX, maxZ;
                 RegionRectCs(rx, rz, out minX, out minZ, out maxX, out maxZ);
-                Exception roads = BuildCs(_terrain, _net, minX, minZ, maxX, maxZ, _buffer);
+                Exception roads = BuildCs(_terrain, _net, _buildings, minX, minZ, maxX, maxZ, _buffer);
                 if (roads != null)
                 {
-                    _log.Error("collision region (" + rx + "," + rz + "): roads failed to build, sending terrain only", roads);
+                    _log.Error("collision region (" + rx + "," + rz + "): roads or buildings failed to build, sending terrain only", roads);
                 }
                 Viewer.Store(key, minX, minZ, maxX, maxZ, _buffer, csFeet);
                 region = CollisionConversion.ToRegion(_buffer, _planner.Epoch, rx, rz);

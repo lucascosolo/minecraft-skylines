@@ -83,6 +83,30 @@ namespace Skylines.Core.Geometry
             }
         }
 
+        /// <summary>
+        /// The curve <paramref name="distance"/> in from <paramref name="edge"/> towards <paramref name="other"/>: each control
+        /// point moved by the fraction distance / width (width = distance between the chord midpoints of the two curves),
+        /// raised by <paramref name="lift"/>. False when the curves are not more than <paramref name="distance"/> apart.
+        /// </summary>
+        public static bool Inset(Bezier3D edge, Bezier3D other, float distance, float lift, out Bezier3D inset)
+        {
+            inset = edge;
+            float mx = (other.Ax + other.Dx - edge.Ax - edge.Dx) * 0.5f;
+            float my = (other.Ay + other.Dy - edge.Ay - edge.Dy) * 0.5f;
+            float mz = (other.Az + other.Dz - edge.Az - edge.Dz) * 0.5f;
+            float width = (float)Math.Sqrt(mx * mx + my * my + mz * mz);
+            if (!(width > distance)) return false;
+            float f = distance / width;
+            inset = new Bezier3D
+            {
+                Ax = edge.Ax + (other.Ax - edge.Ax) * f, Ay = edge.Ay + (other.Ay - edge.Ay) * f + lift, Az = edge.Az + (other.Az - edge.Az) * f,
+                Bx = edge.Bx + (other.Bx - edge.Bx) * f, By = edge.By + (other.By - edge.By) * f + lift, Bz = edge.Bz + (other.Bz - edge.Bz) * f,
+                Cx = edge.Cx + (other.Cx - edge.Cx) * f, Cy = edge.Cy + (other.Cy - edge.Cy) * f + lift, Cz = edge.Cz + (other.Cz - edge.Cz) * f,
+                Dx = edge.Dx + (other.Dx - edge.Dx) * f, Dy = edge.Dy + (other.Dy - edge.Dy) * f + lift, Dz = edge.Dz + (other.Dz - edge.Dz) * f,
+            };
+            return true;
+        }
+
         private static double Length(Bezier3D c)
         {
             double len = 0, px = c.Ax, py = c.Ay, pz = c.Az;
