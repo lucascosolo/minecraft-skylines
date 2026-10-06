@@ -22,6 +22,13 @@ material available including some ores buried in the ground. we need trees to ge
    drawn in CS1 from any camera: each entity type's model (cuboids and texture) sent once like the block atlas, then
    per entity ~20 Hz position, orientation and part rotations, animated and drawn by CS1 in its own scene (no image
    streaming, no lag). Dropped items, arrows, minecarts the same way.
+4b. **Citizens are villagers to mobs** (owner, 2026-10-06: "CS1 npcs will be villagers to the Minecraft mobs and they
+   will be triggered to panic when targeted by mobs, and they will be capable of actually being killed by them too").
+   CS1 citizens near the simulated area get invisible villager proxies in Minecraft that follow them (positions as
+   already sent for collision); hostile mobs target them with vanilla AI; being targeted or hit sets CS1's own panic
+   (CitizenInstance.Flags.Panicking) so the citizen flees CS1-style; the proxy's death kills the citizen through CS1's
+   own death path (hearses, mourning, population). Optional toggle: zombie kills convert citizens into zombie
+   villagers. Behind its own setting, only in Minecraft-enabled (backed-up) cities; deaths are permanent city changes.
 5. **City-survival links** (trade with shops, city problems as dangers, resource depletion), then the Ender Dragon.
 
 ## The shadow world (foundation for trees, mining and mobs)
