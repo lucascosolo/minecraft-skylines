@@ -153,6 +153,17 @@ namespace Skylines.Host.Geometry
                 matches++;
                 found = e;
             }
+            if (matches == 0)
+            {
+                // CS1 replaces the bounds of net segment meshes with a 128 m box when it loads them
+                // (NetInfo.InitSegmentInfo, NetInfo.cs:1568), so those match by name and vertex count alone.
+                foreach (Entry e in list)
+                {
+                    if (e.Name != name) continue;
+                    matches++;
+                    found = e;
+                }
+            }
             if (matches != 1) return false;
             try
             {

@@ -72,6 +72,17 @@ namespace Skylines.Host.Tests
         }
 
         [Fact]
+        public void NameAndVertexCountMatchWhenTheGameReplacedTheBounds()
+        {
+            // CS1 gives net segment meshes a 128 m box at load (NetInfo.InitSegmentInfo); the name still identifies them.
+            MeshCache c = MeshCache.Open(GoldenPath);
+            float[] pos; int[] idx;
+            Assert.True(c.TryGet("Golden Box", 4, 0f, 10f, 0f, 64f, 40f, 64f, out pos, out idx));
+            Assert.Equal(BoxPos, pos);
+            Assert.False(c.TryGet("Not In Cache", 4, 0f, 10f, 0f, 64f, 40f, 64f, out pos, out idx));
+        }
+
+        [Fact]
         public void AmbiguousUnknownNameFails()
         {
             MeshCache c = MeshCache.Open(GoldenPath);
@@ -106,8 +117,10 @@ namespace Skylines.Host.Tests
         {
             MeshCache c = MeshCache.Open(GoldenPath);
             float[] pos; int[] idx;
-            Assert.False(c.TryGet("Golden Box", 4, 0.51f, 1f, -0.25f, 1.5f, 1f, 2f, out pos, out idx));
-            Assert.False(c.TryGet("Golden Box", 4, 0.5f, 1f, -0.25f, 1.5f, 1f, 2.01f, out pos, out idx));
+            // A different name: outside the tolerance only the bounds could match, and they do not
+            // (the same name would match by name alone, see NameAndVertexCountMatchWhenTheGameReplacedTheBounds).
+            Assert.False(c.TryGet("Other Box", 4, 0.51f, 1f, -0.25f, 1.5f, 1f, 2f, out pos, out idx));
+            Assert.False(c.TryGet("Other Box", 4, 0.5f, 1f, -0.25f, 1.5f, 1f, 2.01f, out pos, out idx));
             Assert.True(c.TryGet("Golden Box", 4, 0.5005f, 1f, -0.25f, 1.5f, 1f, 2f, out pos, out idx));
             Assert.True(c.TryGet("Golden Box", 4, 0.5f, 1f, -0.25f, 1.5f, 1f, 1.9995f, out pos, out idx));
         }
