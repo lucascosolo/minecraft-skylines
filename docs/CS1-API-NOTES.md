@@ -219,3 +219,15 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
   Minecraft mode (`PrefabCollection<PropInfo>.LoadedCount/GetLoaded`, PrefabCollection.cs:38-43) and restores it on exit.
 - Sky fallback: CS1 ships without Unity's Particles shaders; sun, moon and clouds use the shader of
   `UIView.GetAView().defaultAtlas.material` instead.
+
+Water surface (`Skylines.Host.Terrain.WaterSampler`, WATER_SURFACE, minor 10), Assembly-CSharp `TerrainManager`
+(decompile `TerrainManager.cs`):
+- `public float SampleRawHeightSmoothWithWater(Vector3 worldPos, bool timeLerp, float waterOffset)` (line 1413): the
+  drawn surface, terrain plus water (bicubic over the 1081 x 1081 raw grid, 16 m cells), metres. `timeLerp: true` reads
+  the double-buffered surface heights through `GetSurfaceHeight(int, int, uint heightFrame, float time, float)` without
+  `WaterSimulation.BeginRead`; the game itself calls it so from the main thread (`AudioManager` listener height, line 952
+  of its file). `timeLerp: false` takes the simulation's read lock.
+- `public float SampleRawHeightSmooth(Vector3 worldPos)` (line 1399): the terrain alone, same smoothing, so
+  `surface - ground` is the water depth. Depth under 0.05 m is sent as no water (shore smoothing film).
+- `Singleton<TerrainManager>.instance` (ColossalFramework). Compile-verified against refs `Assembly-CSharp.dll` by the
+  `Skylines.Host` build. Not yet verified in game.

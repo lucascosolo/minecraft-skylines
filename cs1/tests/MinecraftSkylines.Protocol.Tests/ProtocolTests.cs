@@ -345,6 +345,16 @@ namespace MinecraftSkylines.Protocol.Tests
                         }
                         return m.Encode();
                     }
+                case AppProtocol.WaterSurfaceType:
+                    {
+                        WaterSurface m = WaterSurface.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("originX").GetInt32(), m.OriginX);
+                        Assert.Equal(f.GetProperty("originZ").GetInt32(), m.OriginZ);
+                        Assert.Equal(f.GetProperty("size").GetUInt16(), m.Size);
+                        AssertFloats(f.GetProperty("surface"), m.Surface);
+                        AssertFloats(f.GetProperty("bottom"), m.Bottom);
+                        return m.Encode();
+                    }
                 case AppProtocol.CityCloseType:
                     {
                         CityClose m = CityClose.Decode(frame.Payload);
@@ -674,7 +684,8 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(9, AppProtocol.Minor);
+            Assert.Equal(10, AppProtocol.Minor);
+            Assert.Equal(0x01A0, AppProtocol.WaterSurfaceType);
             Assert.Equal(0x0190, AppProtocol.SkyStateType);
             Assert.Equal(0x0191, AppProtocol.SkyTexturesType);
             Assert.Equal(0x0180, AppProtocol.LightSourcesType);
