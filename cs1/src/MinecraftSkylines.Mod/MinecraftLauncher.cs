@@ -84,6 +84,12 @@ namespace MinecraftSkylines.Mod
             get { Load(); return _config == null ? LaunchConfig.DefaultUndergroundMode : _config.UndergroundMode; }
         }
 
+        /// <summary>launch.cfg <c>clip_preset</c>; the default without a usable launch.cfg.</summary>
+        public int ClipPreset
+        {
+            get { Load(); return _config == null ? LaunchConfig.DefaultClipPreset : _config.ClipPreset; }
+        }
+
         /// <summary>True when launch.cfg's args contain <paramref name="arg"/> (e.g. -PmcskylinesDebugCommands).</summary>
         public bool HasArg(string arg)
         {

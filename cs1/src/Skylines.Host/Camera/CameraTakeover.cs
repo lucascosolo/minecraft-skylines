@@ -40,6 +40,9 @@ namespace Skylines.Host.Camera
         /// <summary>The controller's ground target (where the city camera looks), read at acquire.</summary>
         public Vector3 CityTarget { get { return _targetPosition; } }
 
+        /// <summary>The camera's far clip plane at acquire (the city view's).</summary>
+        public float CityFar { get { return _far; } }
+
         /// <summary>The camera's world rotation at acquire.</summary>
         public Quaternion CityRotation { get { return _rotation; } }
 
@@ -118,6 +121,17 @@ namespace Skylines.Host.Camera
                 _camera.fieldOfView = fovDeg;
             }
             _camera.nearClipPlane = nearClip;
+        }
+
+        /// <summary>Sets the clip planes for this frame; <see cref="Release"/> restores the recorded ones. No-op unless active.</summary>
+        public void SetClip(float nearClip, float farClip)
+        {
+            if (!Active || _camera == null || farClip <= nearClip)
+            {
+                return;
+            }
+            _camera.nearClipPlane = nearClip;
+            _camera.farClipPlane = farClip;
         }
 
         /// <summary>Restores everything <see cref="Acquire"/> recorded. Idempotent; never throws.</summary>

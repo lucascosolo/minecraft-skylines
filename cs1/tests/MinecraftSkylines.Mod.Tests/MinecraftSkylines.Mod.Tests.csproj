@@ -9,6 +9,7 @@
     <Compile Include="..\..\src\MinecraftSkylines.Mod\ScreenInput.cs" Link="ScreenInput.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\PlayerLook.cs" Link="PlayerLook.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\Underground\UndergroundMode.cs" Link="UndergroundMode.cs" />
+    <Compile Include="..\..\src\MinecraftSkylines.Mod\Render\ClipPreset.cs" Link="ClipPreset.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\SelfTestCore.cs" Link="SelfTestCore.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\FixturePlan.cs" Link="FixturePlan.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\UnattendedPolicy.cs" Link="UnattendedPolicy.cs" />
