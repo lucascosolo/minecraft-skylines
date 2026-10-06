@@ -61,6 +61,7 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		ServerLifecycleEvents.AFTER_SAVE.register((server, flush, force) -> city.afterSave(server, flush));
 		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> city.chunkUnloading(level));
 		ServerTickEvents.END_SERVER_TICK.register(city::serverTick);
+		ServerTickEvents.END_SERVER_TICK.register(dev.mcskylines.world.AnimalSpawner::tick);
 		// The city's player (survival unless its own data says otherwise; creative only via DEBUG_COMMAND /gamemode).
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> city.playerJoined(server));
 		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> city.respawned(newPlayer, alive));

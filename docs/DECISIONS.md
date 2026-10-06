@@ -166,3 +166,12 @@ city). Not drawn yet: anything submitted as custom geometry (arrows, fishing lin
 entities (falling blocks, minecarts' contents), name tags, shadows, fire; player skins and other textures that are not
 resource-pack files.
 
+
+## 2026-10-06: passive animals spawn in the city world
+
+The city world turns `SPAWN_MOBS` on (hostile `SPAWN_MONSTERS` stays off) and `dev.mcskylines.world.AnimalSpawner` tries 3
+spawns per player every 5 s, 24-48 m away, by context (`AnimalChoice`): CS1 water -> cod/salmon/squid; shadow grass
+within 12 m of a host tree -> rabbit/fox/wolf; grass with no paving or building among 8 samples 12 m around -> horse,
+llama, cow, sheep; other grass -> cow/pig/sheep/chicken. Vanilla caps (`MobCategory.getMaxInstancesPerChunk` within 128
+blocks of the player) and, on land, vanilla spawn rules apply. CS1 zoning (parks, farm land) is not sent to the guest,
+so "open grass" stands in for it. Animals live in the Minecraft cache world; persisting them per city is open.

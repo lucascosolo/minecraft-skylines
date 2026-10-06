@@ -83,6 +83,23 @@ public final class ShadowWorld {
 		TREES.clear();
 	}
 
+	/** Any thread: a host tree (TREES) stands within {@code radius} m of x, z (horizontally). */
+	public static boolean treeNear(double x, double z, double radius) {
+		int c0x = (int) Math.floor((x - radius) / 16), c1x = (int) Math.floor((x + radius) / 16);
+		int c0z = (int) Math.floor((z - radius) / 16), c1z = (int) Math.floor((z + radius) / 16);
+		for (int cx = c0x; cx <= c1x; cx++) {
+			for (int cz = c0z; cz <= c1z; cz++) {
+				for (Trees.Tree t : TREES.getOrDefault(chunkKey(cx, cz), List.of())) {
+					double dx = t.x() - x, dz = t.z() - z;
+					if (dx * dx + dz * dz <= radius * radius) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
 	static long chunkKey(int cx, int cz) {
 		return cx & 0xFFFFFFFFL | (long) cz << 32;
 	}
