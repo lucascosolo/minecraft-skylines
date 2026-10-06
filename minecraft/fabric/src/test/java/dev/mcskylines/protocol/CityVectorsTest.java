@@ -52,7 +52,8 @@ class CityVectorsTest {
 
     @Test
     void constants() {
-        assertEquals(5, AppProtocol.MINOR);
+        assertEquals(6, AppProtocol.MINOR);
+        assertEquals(0x0160, AppProtocol.WORLD_TIME);
         assertEquals(0x0150, AppProtocol.CITY_OPEN);
         assertEquals(0x0151, AppProtocol.BLOCK_EDITS);
         assertEquals(0x0152, AppProtocol.CITY_CLOSE);
