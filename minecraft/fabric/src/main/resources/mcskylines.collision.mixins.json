@@ -10,6 +10,7 @@
     "MinecraftServerFlightMixin",
     "PlayerEdgeMixin",
     "ShadowCollisionMixin",
+    "BuriedDropsMixin",
     "EntityTriCollideMixin",
     "FarmlandWaterMixin"
   ],
