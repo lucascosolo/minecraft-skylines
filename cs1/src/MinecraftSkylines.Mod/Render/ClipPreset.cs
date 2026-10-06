@@ -14,7 +14,7 @@ namespace MinecraftSkylines.Mod.Render
         public const int Count = 5;
 
         /// <summary>Preset used until the owner picks one.</summary>
-        public const int Default = 2;
+        public const int Default = 1;
 
         private static readonly float[] s_near = { 0.1f, 0.15f, 0.25f, 0.4f, 0.6f };
         private static readonly float[] s_far = { 0f, 4000f, 3000f, 2000f, 1500f };
@@ -35,6 +35,24 @@ namespace MinecraftSkylines.Mod.Render
         public static float Near(int preset)
         {
             return s_near[IsValid(preset) ? preset : Default];
+        }
+
+        /// <summary>Surfaces closer than this to the eye lower the near plane (metres).</summary>
+        public const float NearProbeRadius = 1f;
+
+        /// <summary>Smallest near plane the dynamic rule goes to (metres).</summary>
+        public const float MinNear = 0.05f;
+
+        /// <summary>
+        /// The near plane for a nearest-surface distance (infinity or more than <see cref="NearProbeRadius"/>: none close):
+        /// 0.6 x distance clamped to [<see cref="MinNear"/>, <paramref name="presetNear"/>]. Never above the preset's near.
+        /// </summary>
+        public static float DynamicNear(float distance, float presetNear)
+        {
+            if (!(distance < NearProbeRadius)) return presetNear;
+            float n = 0.6f * distance;
+            if (n < MinNear) n = MinNear;
+            return n < presetNear ? n : presetNear;
         }
 
         /// <summary>Far clip plane in metres; preset 0 returns <paramref name="cityFar"/> (the camera's far plane at entry).</summary>

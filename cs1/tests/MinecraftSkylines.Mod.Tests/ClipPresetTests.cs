@@ -27,9 +27,9 @@ namespace MinecraftSkylines.Mod.Tests
         }
 
         [Fact]
-        public void DefaultIsTwo()
+        public void DefaultIsOne()
         {
-            Assert.Equal(2, ClipPreset.Default);
+            Assert.Equal(1, ClipPreset.Default);
         }
 
         [Theory]
@@ -49,6 +49,19 @@ namespace MinecraftSkylines.Mod.Tests
         {
             Assert.Equal("clip: near 0.25 m, far 3000 m", ClipPreset.Describe(2, 9000f));
             Assert.Equal("clip: near 0.1 m, far 9000 m", ClipPreset.Describe(0, 9000f));
+        }
+
+        [Theory]
+        [InlineData(float.PositiveInfinity, 0.15f, 0.15f)]
+        [InlineData(1f, 0.15f, 0.15f)]
+        [InlineData(0.9f, 0.15f, 0.15f)]
+        [InlineData(0.2f, 0.15f, 0.12f)]
+        [InlineData(0.01f, 0.15f, 0.05f)]
+        [InlineData(0f, 0.15f, 0.05f)]
+        [InlineData(0.5f, 0.6f, 0.3f)]
+        public void DynamicNearIsSixTenthsOfTheDistanceClamped(float distance, float presetNear, float expected)
+        {
+            Assert.Equal(expected, ClipPreset.DynamicNear(distance, presetNear), 5);
         }
     }
 }

@@ -21,6 +21,7 @@ namespace MinecraftSkylines.Mod.Render
         private bool _active;
         private float _originalCameraHeight;
         private float _originalShadowDistance;
+        private float _near;
 
         public RenderOverrides(HostLog log, int preset)
         {
@@ -45,17 +46,19 @@ namespace MinecraftSkylines.Mod.Render
         }
 
         /// <summary>Applies this frame's overrides; call after <see cref="CameraTakeover.Drive"/>.</summary>
-        public void Apply(CameraTakeover camera)
+        public void Apply(CameraTakeover camera, float nearestSurface)
         {
             if (!_active) return;
-            camera.SetClip(ClipPreset.Near(Preset), ClipPreset.Far(Preset, camera.CityFar));
+            _near = ClipPreset.DynamicNear(nearestSurface, ClipPreset.Near(Preset));
+            camera.SetClip(_near, ClipPreset.Far(Preset, camera.CityFar));
             if (RenderManager.exists) RenderManager.instance.CameraHeight = CameraHeight;
             QualitySettings.shadowDistance = ShadowDistance;
         }
 
         public string OverlayText(CameraTakeover camera)
         {
-            return "Clip [Ctrl+Shift+F]: preset " + Preset + ", " + ClipPreset.Describe(Preset, camera.CityFar);
+            return "Clip [Ctrl+Shift+F]: preset " + Preset + ", " + ClipPreset.Describe(Preset, camera.CityFar)
+                + ", near now " + (_active ? _near : ClipPreset.Near(Preset)).ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " m";
         }
 
         public void End()

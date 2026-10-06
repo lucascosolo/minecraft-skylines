@@ -13,19 +13,22 @@ namespace Skylines.Host.Input
     /// the focused component first and skips shortcuts and <c>UIInput.eventProcessKeyEvent</c> (other
     /// mods) when it marks them used. Esc while a modal is up goes to <c>EscapeFromModal</c>, a no-op
     /// for a component that is not the unlocking panel.
-    /// <para>The blocker also hides CS1's own UI while it is up (<c>UIView.Show(false)</c>, as the game's
-    /// cinematic camera does) and restores the recorded visibility when it releases. Hiding is safe for the
-    /// modal: <c>Show</c> only sets <c>UIView.enabled</c> (a MonoBehaviour flag) and clears focus; the modal
-    /// stack and <c>activeComponent</c> are statics, <c>UIInput</c> is a separate component that keeps running
-    /// and delivers keys to the focused component. Hide therefore happens before the focus is taken.</para>
+    /// <para>The blocker also stops CS1's own UI from drawing while it is up, by disabling the UI camera
+    /// (<c>UIView.uiCamera</c>) and leaving <c>UIView.enabled</c> alone. <c>UIView.Show</c> flips <c>enabled</c>,
+    /// whose <c>OnEnable</c>/<c>OnDisable</c> toggle the camera and mesh renderer and force a full re-layout
+    /// (<c>OnResolutionChanged</c>), so any second caller (CameraController.UpdateFreeCamera, MainToolbar,
+    /// cinematic camera, other mods) made the UI flash. Nothing else in the game touches the camera's own
+    /// <c>enabled</c>. The UIView keeps updating, <c>UIInput</c> keeps delivering key events to the focused
+    /// modal (<c>UIInput.ProcessKeyEvent</c> does not test <c>UIView.isVisible</c>; only mouse events do).
+    /// The camera state is restored on release.</para>
     /// </summary>
     public sealed class ShortcutBlocker
     {
         private SinkPanel _panel;
         private bool _releasing;
         private int _releaseFrame;
-        private bool _hidUi;
-        private bool _uiWasVisible;
+        private UnityEngine.Camera _uiCamera;
+        private bool _uiCameraWasEnabled;
 
         /// <summary>True while the modal is on CS1's modal stack.</summary>
         public bool Blocking { get { return _panel != null; } }
@@ -75,7 +78,7 @@ namespace Skylines.Host.Input
             }
             if (!_releasing)
             {
-                if (_hidUi && UIView.isVisible) UIView.Show(false);
+                if (_uiCamera != null && _uiCamera.enabled) _uiCamera.enabled = false;
                 if (UIView.activeComponent != _panel)
                 {
                     UIView.SetFocus(_panel);
@@ -117,21 +120,25 @@ namespace Skylines.Host.Input
             return null;
         }
 
-        // Records the view's visibility once and hides it.
+        // Records the UI camera's state once and turns it off; the view itself stays enabled.
         private void HideUi()
         {
-            if (_hidUi) return;
-            _uiWasVisible = UIView.isVisible;
-            _hidUi = true;
-            UIView.Show(false);
+            if (_uiCamera != null) return;
+            UIView view = UIView.GetAView();
+            UnityEngine.Camera cam = view == null ? null : view.uiCamera;
+            if (cam == null) return;
+            _uiCamera = cam;
+            _uiCameraWasEnabled = cam.enabled;
+            cam.enabled = false;
         }
 
-        // Puts the recorded visibility back; the view stays hidden if it was hidden before.
+        // Puts the recorded camera state back.
         private void RestoreUi()
         {
-            if (!_hidUi) return;
-            _hidUi = false;
-            UIView.Show(_uiWasVisible);
+            if (_uiCamera == null) return;
+            UnityEngine.Camera cam = _uiCamera;
+            _uiCamera = null;
+            cam.enabled = _uiCameraWasEnabled;
         }
 
         private static string Describe(UIComponent c)

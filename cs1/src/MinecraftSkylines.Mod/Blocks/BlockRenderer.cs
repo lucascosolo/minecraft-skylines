@@ -28,12 +28,45 @@ namespace MinecraftSkylines.Mod.Blocks
         private readonly bool[] _materialFailed = new bool[VariantCount];
         private Texture2D _atlas, _xys, _aci;
 
+        // Triangles of every section for the near-plane probe; the arrays are the ones the MeshStore keeps (not copied).
+        private sealed class Geo
+        {
+            public Vector3 Origin, Min, Max;
+            public float[] Positions;
+            public int[] Indices;
+        }
+
+        private readonly System.Collections.Generic.Dictionary<long, Geo> _geo = new System.Collections.Generic.Dictionary<long, Geo>();
+
+        /// <summary>The live renderer, for the near-plane probe (null before the mod starts and after dispose).</summary>
+        public static BlockRenderer Current { get; private set; }
+
+        /// <summary>
+        /// Distance from <paramref name="p"/> (CS1 coordinates) to the nearest block surface within
+        /// <paramref name="maxDistance"/>, or infinity.
+        /// </summary>
+        public float NearestSurface(Vector3 p, float maxDistance)
+        {
+            float best = float.PositiveInfinity;
+            foreach (Geo g in _geo.Values)
+            {
+                Vector3 q = p - g.Origin;
+                if (q.x < g.Min.x - maxDistance || q.x > g.Max.x + maxDistance
+                    || q.y < g.Min.y - maxDistance || q.y > g.Max.y + maxDistance
+                    || q.z < g.Min.z - maxDistance || q.z > g.Max.z + maxDistance) continue;
+                float d = Skylines.Core.Geometry.PointTriangle.NearestIndexed(g.Positions, g.Indices, q.x, q.y, q.z, Mathf.Min(maxDistance, best));
+                if (d < best) best = d;
+            }
+            return best;
+        }
+
         /// <summary>Raised per SECTION_MESH after it is queued: sx, sy, sz, vertex count.</summary>
         public event Action<int, int, int, int> SectionReceived;
 
         public BlockRenderer(HostLog log, int variant)
         {
             _log = log;
+            Current = this;
             int layer = LayerMask.NameToLayer("Props");
             _store = new MeshStore(layer >= 0 ? layer : 10, BuildBudgetMs);
             Variant = Math.Max(0, Math.Min(VariantCount - 1, variant));
@@ -67,6 +100,7 @@ namespace MinecraftSkylines.Mod.Blocks
                     return true;
                 case AppProtocol.SectionsClearType:
                     _store.Clear();
+                    _geo.Clear();
                     _log.Info("blocks: SECTIONS_CLEAR");
                     return true;
                 case AppProtocol.AtlasRegionType:
@@ -136,6 +170,8 @@ namespace MinecraftSkylines.Mod.Blocks
 
         public void Dispose()
         {
+            if (Current == this) Current = null;
+            _geo.Clear();
             _store.Dispose();
             for (int i = 0; i < VariantCount; i++) TextureUtil.Replace(ref _materials[i], null);
             TextureUtil.Replace(ref _atlas, null);
@@ -161,14 +197,28 @@ namespace MinecraftSkylines.Mod.Blocks
             SectionsReceived++;
             VerticesReceived += m.VertexCount;
             long key = Key(m.Sx, m.Sy, m.Sz);
-            if (m.VertexCount == 0) _store.Remove(key);
+            if (m.VertexCount == 0) { _store.Remove(key); _geo.Remove(key); }
             else
             {
                 CsMeshData d = BlockMeshConversion.Convert(m);
+                _geo[key] = MakeGeo(d);
                 _store.Put(key, new Vector3((float)d.OriginX, (float)d.OriginY, (float)d.OriginZ), d.Positions, d.Uvs, d.Colors, d.Indices);
             }
             Action<int, int, int, int> h = SectionReceived;
             if (h != null) h(m.Sx, m.Sy, m.Sz, m.VertexCount);
+        }
+
+        private static Geo MakeGeo(CsMeshData d)
+        {
+            var g = new Geo { Origin = new Vector3((float)d.OriginX, (float)d.OriginY, (float)d.OriginZ), Positions = d.Positions, Indices = d.Indices };
+            g.Min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+            g.Max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+            for (int i = 0; i + 2 < d.Positions.Length; i += 3)
+            {
+                g.Min = Vector3.Min(g.Min, new Vector3(d.Positions[i], d.Positions[i + 1], d.Positions[i + 2]));
+                g.Max = Vector3.Max(g.Max, new Vector3(d.Positions[i], d.Positions[i + 1], d.Positions[i + 2]));
+            }
+            return g;
         }
 
         private Material MaterialFor(int v)

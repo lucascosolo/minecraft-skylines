@@ -55,6 +55,22 @@ namespace MinecraftSkylines.Mod.Diagnostics
             foreach (long k in _evict) _regions.Remove(k);
         }
 
+        /// <summary>
+        /// Distance from <paramref name="p"/> (CS1 coordinates) to the nearest kept collision triangle within
+        /// <paramref name="maxDistance"/>, or infinity.
+        /// </summary>
+        public float NearestSurface(Vector3 p, float maxDistance)
+        {
+            float best = float.PositiveInfinity;
+            foreach (Region r in _regions.Values)
+            {
+                if (Distance(r, p) > maxDistance) continue;
+                float d = PointTriangle.Nearest(r.Positions, r.Flags.Length, p.x, p.y, p.z, Mathf.Min(maxDistance, best));
+                if (d < best) best = d;
+            }
+            return best;
+        }
+
         /// <summary>Forgets every region (new collision epoch).</summary>
         public void Clear()
         {

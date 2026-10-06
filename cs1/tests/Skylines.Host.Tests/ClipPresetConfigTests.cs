@@ -7,7 +7,7 @@ namespace Skylines.Host.Tests
         [Fact]
         public void DefaultsToTwo()
         {
-            Assert.Equal(2, LaunchConfig.Parse("command = x").ClipPreset);
+            Assert.Equal(1, LaunchConfig.Parse("command = x").ClipPreset);
         }
 
         [Theory]
@@ -29,7 +29,7 @@ namespace Skylines.Host.Tests
         {
             LaunchConfig c = LaunchConfig.Parse("command = x\nclip_preset = " + value);
             Assert.Single(c.Problems);
-            Assert.Equal(2, c.ClipPreset);
+            Assert.Equal(1, c.ClipPreset);
         }
     }
 }

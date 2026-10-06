@@ -242,7 +242,7 @@ namespace MinecraftSkylines.Mod
                 Quaternion rot = Quaternion.Euler((float)_look.Pitch, (float)_look.Yaw, 0f);
                 Vector3 eyePos = feet + new Vector3(0f, _eye, 0f);
                 _camera.Drive(eyePos, rot, _fov, NearClip);
-                _render.Apply(_camera);
+                _render.Apply(_camera, NearestSurface(eyePos));
                 _underground.Apply(eyePos, NowMs());
             }
             catch (Exception e)
@@ -255,6 +255,15 @@ namespace MinecraftSkylines.Mod
                 _frameWatch.Stop();
                 _frameMs += _frameWatch.Elapsed.TotalMilliseconds;
             }
+        }
+
+        // Distance from the eye to the nearest streamed collision triangle or block surface within the probe radius.
+        private float NearestSurface(Vector3 eye)
+        {
+            float d = _streamer.Viewer.NearestSurface(eye, ClipPreset.NearProbeRadius);
+            Blocks.BlockRenderer blocks = Blocks.BlockRenderer.Current;
+            if (blocks != null) d = Mathf.Min(d, blocks.NearestSurface(eye, Mathf.Min(ClipPreset.NearProbeRadius, d)));
+            return d;
         }
 
         /// <summary>A PLAYER_STATE arrived (called while polling bridge events).</summary>

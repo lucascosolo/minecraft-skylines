@@ -33,7 +33,7 @@ namespace Skylines.Host
     /// Keys: <c>command</c>, <c>args</c> (space separated, double quotes group, backslash escapes a quote
     /// or backslash inside quotes), <c>working_dir</c>, <c>env.NAME</c> (repeatable) and
     /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>), <c>selftest</c> (<c>off</c> default, <c>city_load</c>),
-    /// <c>clip_preset</c> (0-4, default 2), <c>autoload</c> (a save name to load from the main menu once per game start, or <c>new:&lt;map&gt;</c> to start a new game on that map; empty default = off) and
+    /// <c>clip_preset</c> (0-4, default 1), <c>autoload</c> (a save name to load from the main menu once per game start, or <c>new:&lt;map&gt;</c> to start a new game on that map; empty default = off) and
     /// <c>selftest_quit</c> (<c>false</c> default, <c>true</c>: quit the game after the self-test report). Pure logic: no Unity, no process start.
     /// </summary>
     public sealed class LaunchConfig
@@ -87,7 +87,7 @@ namespace Skylines.Host
         public int ClipPreset = DefaultClipPreset;
 
         /// <summary>Default for <c>clip_preset</c>; keep equal to <c>ClipPreset.Default</c> in the Mod.</summary>
-        public const int DefaultClipPreset = 2;
+        public const int DefaultClipPreset = 1;
 
         /// <summary>Largest valid <c>clip_preset</c>.</summary>
         public const int MaxClipPreset = 4;
