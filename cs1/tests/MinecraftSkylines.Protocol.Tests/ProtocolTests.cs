@@ -377,6 +377,19 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("appliedCount").GetUInt32(), m.AppliedCount);
                         return m.Encode();
                     }
+                case AppProtocol.PlayerDataType:
+                    {
+                        PlayerData m = PlayerData.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(Hex(f.GetProperty("dataHex").GetString()), m.Data);
+                        return m.Encode();
+                    }
+                case AppProtocol.RespawnRequestType:
+                    {
+                        RespawnRequest m = RespawnRequest.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        return m.Encode();
+                    }
                 default:
                     {
                         Assert.Equal(AppProtocol.PlayerStateType, frame.Type);
@@ -684,7 +697,9 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(10, AppProtocol.Minor);
+            Assert.Equal(11, AppProtocol.Minor);
+            Assert.Equal(0x01B0, AppProtocol.PlayerDataType);
+            Assert.Equal(0x01B1, AppProtocol.RespawnRequestType);
             Assert.Equal(0x01A0, AppProtocol.WaterSurfaceType);
             Assert.Equal(0x0190, AppProtocol.SkyStateType);
             Assert.Equal(0x0191, AppProtocol.SkyTexturesType);

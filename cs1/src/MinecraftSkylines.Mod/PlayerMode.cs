@@ -481,6 +481,46 @@ namespace MinecraftSkylines.Mod
             return false;
         }
 
+        /// <summary>The guest respawned away from a spawn point of its own (RESPAWN_REQUEST): back to the entry spot.</summary>
+        public void Respawn(BridgeHost host)
+        {
+            if ((_state != State.Active && _state != State.Waiting) || host == null || host.State != BridgeState.Connected)
+            {
+                _log.Info("player mode: respawn request ignored (" + _state + ")");
+                return;
+            }
+            try
+            {
+                Vector3 target = _spawnFeet;
+                string how;
+                target.y = _streamer.SpawnFeetY(target.x, target.z, out how);
+                _spawnFeet = target;
+                _interp.Reset();
+                _haveTick = false;
+                _state = State.Waiting;
+                _teleportSeq++;
+                McVec mc = PlayerPose.FeetCsToMc(new McVec(target.x, target.y, target.z));
+                McLook look = _look.ToMc();
+                var enter = new EnterPlayerMode
+                {
+                    TeleportSeq = _teleportSeq,
+                    X = mc.X, Y = mc.Y, Z = mc.Z,
+                    Yaw = (float)look.Yaw, Pitch = (float)look.Pitch,
+                    CollisionEpoch = _streamer.Epoch,
+                };
+                if (!host.Send(AppProtocol.EnterPlayerModeType, enter.Encode()))
+                    throw new InvalidOperationException("could not send ENTER_PLAYER_MODE");
+                _log.Info("player mode: respawn, teleport " + _teleportSeq + " to CS (" + Fmt(target) + ") = MC ("
+                    + mc.X.ToString("0.00") + ", " + mc.Y.ToString("0.00") + ", " + mc.Z.ToString("0.00") + ") on " + how);
+                _changed();
+            }
+            catch (Exception e)
+            {
+                _log.Error("player mode respawn", e);
+                Exit("could not respawn", host, true);
+            }
+        }
+
         private void TryEnter(BridgeHost host, bool cityReady, Vector3? feet, float? yawDeg)
         {
             Vector2? drop = _dropTarget;

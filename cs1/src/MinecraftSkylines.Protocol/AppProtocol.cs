@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 10;
+        public const ushort Minor = 11;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -72,6 +72,11 @@ namespace MinecraftSkylines.Protocol
 
         /// <summary>Message type of <see cref="WaterSurface"/> WATER_SURFACE (host to guest, minor 10).</summary>
         public const ushort WaterSurfaceType = 0x01A0;
+
+        /// <summary>Message type of <see cref="PlayerData"/> PLAYER_DATA (both directions, minor 11).</summary>
+        public const ushort PlayerDataType = 0x01B0;
+        /// <summary>Message type of <see cref="RespawnRequest"/> RESPAWN_REQUEST (guest to host, minor 11).</summary>
+        public const ushort RespawnRequestType = 0x01B1;
     }
 
     /// <summary>Bits of <see cref="HostStatus.Flags"/>.</summary>

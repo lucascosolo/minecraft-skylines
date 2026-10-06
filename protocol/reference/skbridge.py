@@ -825,6 +825,45 @@ class WaterSurface:
         return WaterSurface(ox, oz, size, surface, bottom)
 
 
+# ---- minecraft-skylines app protocol 1.11: the city's player -----------------------------------
+PLAYER_DATA = 0x01B0
+RESPAWN_REQUEST = 0x01B1
+PLAYER_DATA_MAX = 4 * 1024 * 1024
+
+
+@dataclass
+class PlayerData:
+    """The player's own data as the guest serializes it; opaque to the host. Empty: a fresh player (host -> guest)."""
+    open_seq: int
+    data: bytes
+
+    def encode(self) -> bytes:
+        if len(self.data) > PLAYER_DATA_MAX:
+            raise ValueError("player data too long")
+        return Writer().u32(self.open_seq).u32(len(self.data)).bytes() + self.data
+
+    @staticmethod
+    def decode(p: bytes) -> "PlayerData":
+        r = Reader(p)
+        seq, n = r.u32(), r.u32()
+        if n > PLAYER_DATA_MAX:
+            raise ProtocolError(f"player data length {n} above {PLAYER_DATA_MAX}")
+        return PlayerData(seq, r._take(n))
+
+
+@dataclass
+class RespawnRequest:
+    """The player respawned without a spawn block of its own; the host teleports it to the city's entry spot."""
+    open_seq: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "RespawnRequest":
+        return RespawnRequest(Reader(p).u32())
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

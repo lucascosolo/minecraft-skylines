@@ -791,6 +791,32 @@
       "hex": "0a000000a001000000000000000000000000"
     },
     {
+      "name": "player_data",
+      "type": 432,
+      "fields": {
+        "openSeq": 3,
+        "dataHex": "1f8b08000000000000ff007f"
+      },
+      "hex": "14000000b0010000030000000c0000001f8b08000000000000ff007f"
+    },
+    {
+      "name": "player_data_fresh",
+      "type": 432,
+      "fields": {
+        "openSeq": 4294967295,
+        "dataHex": ""
+      },
+      "hex": "08000000b0010000ffffffff00000000"
+    },
+    {
+      "name": "respawn_request",
+      "type": 433,
+      "fields": {
+        "openSeq": 3
+      },
+      "hex": "04000000b101000003000000"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {
@@ -865,6 +891,16 @@
       "name": "water_surface_size_129",
       "hex": "0a000000a001000000000000000000008100",
       "why": "water grid size > 128 (checked before the columns)"
+    },
+    {
+      "name": "player_data_too_long",
+      "hex": "08000000b00100000100000001004000",
+      "why": "player data length > 4 MiB (checked before the bytes)"
+    },
+    {
+      "name": "player_data_overruns",
+      "hex": "0a000000b001000001000000030000000102",
+      "why": "data length past payload end"
     },
     {
       "name": "unknown_bridge_type",

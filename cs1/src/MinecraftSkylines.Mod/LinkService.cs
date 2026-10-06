@@ -478,7 +478,8 @@ namespace MinecraftSkylines.Mod
                             s_log.Warn("bad BLOCK_SELECTION ignored: " + ex.Message);
                         }
                     }
-                    else if (e.MessageType >= AppProtocol.BlockEditsType && e.MessageType <= AppProtocol.CityStateType)
+                    else if ((e.MessageType >= AppProtocol.BlockEditsType && e.MessageType <= AppProtocol.CityStateType)
+                        || ((e.MessageType == AppProtocol.PlayerDataType || e.MessageType == AppProtocol.RespawnRequestType) && s_host.NegotiatedAppMinor >= 11))
                     {
                         try
                         {
