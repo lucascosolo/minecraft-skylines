@@ -30,6 +30,7 @@ import dev.mcskylines.protocol.Viewport;
 import dev.mcskylines.render.OverlayExporter;
 import dev.mcskylines.render.SectionExporter;
 import dev.mcskylines.render.SelectionExporter;
+import dev.mcskylines.render.SkyExporter;
 import dev.mcskylines.world.CityClock;
 import dev.mcskylines.world.CityEdits;
 import java.util.List;
@@ -50,6 +51,8 @@ final class LinkController {
 	private final SectionExporter sections;
 	private final OverlayExporter overlay;
 	private final SelectionExporter selection;
+	private final SkyExporter sky;
+	private int skyErrors;
 	private final CityEdits city;
 	private final CityClock clock = new CityClock();
 	private int exportErrors;
@@ -76,6 +79,7 @@ final class LinkController {
 		this.sections = new SectionExporter(guest);
 		this.overlay = new OverlayExporter(guest);
 		this.selection = new SelectionExporter(guest);
+		this.sky = new SkyExporter(guest);
 	}
 
 	/** Start of every frame: input and look arrive at host frame rate, not tick rate. */
@@ -113,6 +117,15 @@ final class LinkController {
 		}
 		if (peer.appMinor() >= 4) {
 			selection.frame(mc, playerMode.active());
+		}
+		if (peer.appMinor() >= 9) {
+			try {
+				sky.frame(mc);
+			} catch (RuntimeException e) {
+				if (skyErrors++ < 5) {
+					LOG.error(PREFIX + "sky export failed", e);
+				}
+			}
 		}
 	}
 
@@ -178,6 +191,7 @@ final class LinkController {
 					playerMode.onLinkUp(mc);
 					sections.linkUp();
 					selection.linkUp();
+					sky.linkUp();
 					if (peer != null) {
 						chat(mc, "Connected to " + peer.peerName() + " (" + peer.peerVersion() + ")");
 					}
