@@ -419,6 +419,13 @@ public final class CityEdits {
 		if (s != server) {
 			return;
 		}
+		// The city's player data waits for the player; JOIN can fire before the player is in the player list
+		// (owner's run 2026-10-06: stuck on "waiting for Minecraft to load this city's blocks", no "city player
+		// applied" after the join), so retry every tick until it is applied and the open is ready.
+		if (open != null && !open.ready && open.playerExpected && open.playerData != null && !open.playerApplied) {
+			applyPlayer();
+			maybeReady();
+		}
 		// Every queued chunk is checked each tick until it is fully loaded (owner's run 2026-10-06: a chunk whose
 		// CHUNK_LOAD came before getChunkNow saw it, or before the reconcile, was dropped and its blocks never placed).
 		// getChunkNow is a map lookup, so this stays cheap for the few hundred chunks a city touches.
