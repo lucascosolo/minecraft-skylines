@@ -165,29 +165,38 @@ namespace Skylines.Host.Geometry
 
         private static readonly Dictionary<BuildingInfoBase, KeyValuePair<Vector3[], int[]>> s_detail = new Dictionary<BuildingInfoBase, KeyValuePair<Vector3[], int[]>>();
 
-        // The building's full-detail mesh when the game lets mods read it (custom assets usually; built-in meshes are
-        // GPU-only), else its LOD data. Owner, 2026-10-06: a narrow side staircase blocked the player; the LOD mesh
+        // The building's full-detail mesh when the game lets mods read it (custom assets usually), else the same mesh from
+        // the extracted built-in mesh cache (built-in meshes are GPU-only; tools/extract-cs1-meshes.sh), else its LOD data. Owner, 2026-10-06: a narrow side staircase blocked the player; the LOD mesh
         // simplifies such details away. Each info's choice is logged once to Player.log.
         private static bool MeshFor(BuildingInfoBase info, out Vector3[] v, out int[] t)
         {
             KeyValuePair<Vector3[], int[]> cached;
             if (!s_detail.TryGetValue(info, out cached))
             {
-                string why;
+                string why = null;
                 cached = new KeyValuePair<Vector3[], int[]>(null, null);
                 try
                 {
                     Mesh mesh = info.m_mesh;
+                    Vector3[] verts = null;
+                    int[] tris = null;
+                    string source = null;
                     if (mesh == null) why = "no detailed mesh";
-                    else if (!mesh.isReadable) why = "detailed mesh not readable";
-                    else
+                    else if (mesh.isReadable)
                     {
-                        int[] tris = mesh.triangles;
-                        if (tris.Length / 3 > DetailTriangleLimit) why = "detailed mesh has " + tris.Length / 3 + " triangles (limit " + DetailTriangleLimit + ")";
+                        verts = mesh.vertices;
+                        tris = mesh.triangles;
+                        source = "detailed mesh";
+                    }
+                    else if (BuiltInMeshes.TryGet(mesh, out verts, out tris)) source = "cached built-in mesh";
+                    else why = "detailed mesh not readable, not in the built-in mesh cache";
+                    if (source != null)
+                    {
+                        if (tris.Length / 3 > DetailTriangleLimit) why = source + " has " + tris.Length / 3 + " triangles (limit " + DetailTriangleLimit + ")";
                         else
                         {
-                            cached = new KeyValuePair<Vector3[], int[]>(mesh.vertices, tris);
-                            why = "detailed mesh, " + tris.Length / 3 + " triangles";
+                            cached = new KeyValuePair<Vector3[], int[]>(verts, tris);
+                            why = source + ", " + tris.Length / 3 + " triangles";
                         }
                     }
                 }
@@ -212,7 +221,7 @@ namespace Skylines.Host.Geometry
             return v != null && t != null;
         }
 
-        // Appends one mesh (detailed when readable, else LOD), with its foundation skirt, in world space. False when it has no usable triangles.
+        // Appends one mesh (detailed when readable or cached, else LOD), with its foundation skirt, in world space. False when it has no usable triangles.
         private static bool AddMesh(BuildingInfoBase info, Matrix4x4 m, bool followTerrain, float depth, TerrainSampler terrain, TriangleBuffer into)
         {
             if (info == null) return false;
