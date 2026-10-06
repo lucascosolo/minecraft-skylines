@@ -56,6 +56,7 @@ namespace MinecraftSkylines.Mod
         private bool _swallowUndergroundKeyUp;
         private bool _swallowClipKeyUp;
         private bool _swallowDumpKeyUp;
+        private bool _swallowSoftenKeyUp;
         private bool _guestScreenOpen;
         private bool _screenMode;
         private int _cursorX = -1, _cursorY = -1;
@@ -323,6 +324,7 @@ namespace MinecraftSkylines.Mod
             _swallowUndergroundKeyUp = false;
             _swallowClipKeyUp = false;
             _swallowDumpKeyUp = false;
+            _swallowSoftenKeyUp = false;
             Guard("restore underground view", () => _underground.End());
             Guard("restore render overrides", () => _render.End());
             Guard("restore camera", () =>
@@ -503,7 +505,7 @@ namespace MinecraftSkylines.Mod
                 // Ctrl+Shift+N (underground mode), F (clip preset), O (overlay mode, OverlayLink) and D (NetRenderDump) are ours and must
                 // not reach Minecraft, key-up included.
                 if (Swallowed(c, KeyCode.N, ref _swallowUndergroundKeyUp) || Swallowed(c, KeyCode.O, ref _swallowModeKeyUp) || Swallowed(c, KeyCode.F, ref _swallowClipKeyUp)
-                    || Swallowed(c, KeyCode.D, ref _swallowDumpKeyUp)) continue;
+                    || Swallowed(c, KeyCode.D, ref _swallowDumpKeyUp) || Swallowed(c, KeyCode.L, ref _swallowSoftenKeyUp)) continue;
                 switch (c.Kind)
                 {
                     case CapturedKind.KeyDown:

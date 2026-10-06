@@ -26,6 +26,7 @@ namespace Skylines.Host.Rendering
             public Vector3 Origin;
             public Mesh[] Meshes;
             public int Vertices;
+            public Pending Source; // kept so a lighting change can rebuild (uploaded meshes are not readable)
         }
 
         private readonly Dictionary<long, Entry> _entries = new Dictionary<long, Entry>();
@@ -37,6 +38,28 @@ namespace Skylines.Host.Rendering
 
         /// <summary>Material used for every draw; nothing is drawn while null. Not owned.</summary>
         public Material Material;
+
+        private float _normalUpBend;
+
+        /// <summary>
+        /// 0..1: how far vertex normals are bent toward +Y (Skylines.Core.Geometry.NormalBend) to soften the sun's
+        /// contrast between lit and shaded faces. Changing it re-queues every built mesh for a rebuild.
+        /// </summary>
+        public float NormalUpBend
+        {
+            get { return _normalUpBend; }
+            set
+            {
+                if (Math.Abs(value - _normalUpBend) < 1e-4f) return;
+                _normalUpBend = value;
+                foreach (KeyValuePair<long, Entry> kv in _entries)
+                {
+                    if (kv.Value.Source == null || _pending.ContainsKey(kv.Key)) continue;
+                    _pending[kv.Key] = kv.Value.Source;
+                    _order.Enqueue(kv.Key);
+                }
+            }
+        }
 
         /// <param name="layer">Unity layer for the draws.</param>
         /// <param name="frameBudgetMs">Mesh building time per frame (checked between meshes).</param>
@@ -136,7 +159,7 @@ namespace Skylines.Host.Rendering
         {
             int n = p.Positions.Length / 3;
             List<MeshPart> parts = MeshSplit.Split(p.Indices, n, MeshSplit.MaxVertices);
-            var e = new Entry { Origin = p.Origin, Meshes = new Mesh[parts.Count], Vertices = n };
+            var e = new Entry { Origin = p.Origin, Meshes = new Mesh[parts.Count], Vertices = n, Source = p };
             for (int k = 0; k < parts.Count; k++)
             {
                 int[] map = parts[k].VertexMap;
@@ -156,6 +179,17 @@ namespace Skylines.Host.Rendering
                 mesh.colors32 = c;
                 mesh.triangles = parts[k].Indices;
                 mesh.RecalculateNormals();
+                if (_normalUpBend > 0f)
+                {
+                    Vector3[] normals = mesh.normals;
+                    for (int j = 0; j < normals.Length; j++)
+                    {
+                        float x, y, z;
+                        Skylines.Core.Geometry.NormalBend.Apply(normals[j].x, normals[j].y, normals[j].z, _normalUpBend, out x, out y, out z);
+                        normals[j] = new Vector3(x, y, z);
+                    }
+                    mesh.normals = normals;
+                }
                 mesh.RecalculateBounds();
                 mesh.UploadMeshData(true);
                 e.Meshes[k] = mesh;

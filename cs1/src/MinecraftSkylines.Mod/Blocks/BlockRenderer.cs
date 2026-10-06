@@ -83,8 +83,25 @@ namespace MinecraftSkylines.Mod.Blocks
             _log.Info("blocks: material variant " + Variant + " (" + VariantName + ")" + (_store.Material == null ? " unavailable, blocks hidden" : ""));
         }
 
+        // Sun-contrast softening for blocks (owner, 2026-10-06: sunlit sides too bright, shaded sides too dark,
+        // but the light should still come from the sun). Ctrl+Shift+L cycles; Ctrl+Shift+L is not forwarded to
+        // Minecraft (PlayerMode), where plain L would open the advancements screen.
+        private static readonly float[] SoftenSteps = { 0f, 0.3f, 0.5f, 0.7f };
+        private int _soften = 2;
+
+        public string SoftenText { get { return "softening " + SoftenSteps[_soften].ToString("0.0") + "  [Ctrl+Shift+L]"; } }
+
         public void Update()
         {
+            _store.NormalUpBend = SoftenSteps[_soften];
+            if (UInput.GetKeyDown(KeyCode.L)
+                && (UInput.GetKey(KeyCode.LeftControl) || UInput.GetKey(KeyCode.RightControl))
+                && (UInput.GetKey(KeyCode.LeftShift) || UInput.GetKey(KeyCode.RightShift))
+                && !ColossalFramework.UI.UIView.HasInputFocus())
+            {
+                _soften = (_soften + 1) % SoftenSteps.Length;
+                _log.Info("blocks: lighting softening " + SoftenSteps[_soften].ToString("0.0") + " (normals bent toward up)");
+            }
             if (UInput.GetKeyDown(KeyCode.B)
                 && (UInput.GetKey(KeyCode.LeftControl) || UInput.GetKey(KeyCode.RightControl))
                 && (UInput.GetKey(KeyCode.LeftShift) || UInput.GetKey(KeyCode.RightShift))
@@ -114,7 +131,7 @@ namespace MinecraftSkylines.Mod.Blocks
         {
             if (SectionsReceived == 0 && _atlas == null) return "";
             return "Blocks: " + _store.Count + " sections, " + _store.VertexCount + " vertices, atlas " + AtlasWidth + "x" + AtlasHeight
-                + "; material " + Variant + " (" + VariantName + ")  [Ctrl+Shift+B]";
+                + "; material " + Variant + " (" + VariantName + ")  [Ctrl+Shift+B]; " + SoftenText;
         }
 
         public void Dispose()
