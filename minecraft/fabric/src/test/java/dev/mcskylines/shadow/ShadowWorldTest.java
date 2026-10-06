@@ -202,12 +202,13 @@ class ShadowWorldTest {
         build();
         assertNotNull(world.get(k(1, 9, 1)));
         owned.add(k(2, 7, 2));
-        // The ground drops to solidTop 4; the floor (y=4) is kept, so cells 5..9 are no longer planned.
+        // The ground drops to solidTop 4; the floor (y=4) is kept and grass grows at y=5, so cells 6..9 are no longer planned.
         CollisionStore.INSTANCE.accept(flat(5.3f));
         ShadowWorld.regionChanged(0, 0);
         ticks();
         assertNull(world.get(k(1, 9, 1)), "old top cell must be cleared");
-        assertNull(world.get(k(1, 5, 1)), "old unplanned cell must be cleared");
+        assertNull(world.get(k(1, 6, 1)), "old unplanned cell must be cleared");
+        assertTrue(world.get(k(1, 5, 1)).contains("grass"), "grass on the new top");
         assertTrue(cleared.contains(k(1, 9, 1)));
         assertNotNull(world.get(k(2, 7, 2)), "owned cell must stay in the world");
         assertFalse(cleared.contains(k(2, 7, 2)), "owned cell must not be cleared");
