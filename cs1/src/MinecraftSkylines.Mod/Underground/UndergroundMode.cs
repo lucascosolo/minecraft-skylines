@@ -4,15 +4,16 @@ namespace MinecraftSkylines.Mod.Underground
     /// The live-switchable ways road tunnels and their cars are made visible in Minecraft mode (the owner picks one).
     /// Pure logic, no Unity: <see cref="UndergroundRenderer"/> applies the answers.
     /// 0 off; 1 main camera always draws the MetroTunnels layer; 2 same, only while the eye is underground;
-    /// 3 the game's own underground view (TransportManager.TunnelsVisible), only while the eye is underground.
+    /// 3 the game's own underground view (TransportManager.TunnelsVisible), only while the eye is underground;
+    /// 4 road tunnels drawn as real tunnels (road surface, walls, ceiling) and underground cars with their surface look.
     /// </summary>
     public static class UndergroundMode
     {
         /// <summary>Number of modes; valid values are 0 to Count - 1.</summary>
-        public const int Count = 4;
+        public const int Count = 5;
 
         /// <summary>Mode used until the owner picks one.</summary>
-        public const int Default = 2;
+        public const int Default = 4;
 
         /// <summary>The eye counts as underground when this far (metres) below the terrain.</summary>
         public const float Margin = 0.5f;
@@ -47,6 +48,12 @@ namespace MinecraftSkylines.Mod.Underground
             return mode == 3 && underground;
         }
 
+        /// <summary>True when the realistic tunnel interior and normally drawn underground vehicles are wanted.</summary>
+        public static bool WantsInterior(int mode)
+        {
+            return mode == 4;
+        }
+
         /// <summary>One-line description for the log and the status box.</summary>
         public static string Describe(int mode)
         {
@@ -56,6 +63,7 @@ namespace MinecraftSkylines.Mod.Underground
                 case 1: return "1 main camera always draws MetroTunnels";
                 case 2: return "2 main camera draws MetroTunnels while underground";
                 case 3: return "3 game underground view (TunnelsVisible) while underground";
+                case 4: return "4 realistic tunnel interior, underground cars drawn normally";
                 default: return mode + " (invalid)";
             }
         }

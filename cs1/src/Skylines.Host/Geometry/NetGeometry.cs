@@ -67,6 +67,7 @@ namespace Skylines.Host.Geometry
         // loaded prefab count changes.
         private static readonly HashSet<NetInfo> s_elevatedInfos = new HashSet<NetInfo>();
         private static readonly HashSet<NetInfo> s_slopeInfos = new HashSet<NetInfo>();
+        private static readonly Dictionary<NetInfo, NetInfo> s_groundOf = new Dictionary<NetInfo, NetInfo>();
         private static int s_infoCount = -1;
 
         private readonly HashSet<ushort> _nodes = new HashSet<ushort>();
@@ -177,6 +178,7 @@ namespace Skylines.Host.Geometry
             s_infoCount = n;
             s_elevatedInfos.Clear();
             s_slopeInfos.Clear();
+            s_groundOf.Clear();
             for (uint i = 0; i < n; i++)
             {
                 NetInfo info = PrefabCollection<NetInfo>.GetLoaded(i);
@@ -185,7 +187,21 @@ namespace Skylines.Host.Geometry
                 if (road.m_elevatedInfo != null) s_elevatedInfos.Add(road.m_elevatedInfo);
                 if (road.m_bridgeInfo != null) s_elevatedInfos.Add(road.m_bridgeInfo);
                 if (road.m_slopeInfo != null) s_slopeInfos.Add(road.m_slopeInfo);
+                if (road.m_slopeInfo != null) s_groundOf[road.m_slopeInfo] = info;
+                if (road.m_tunnelInfo != null) s_groundOf[road.m_tunnelInfo] = info;
             }
+        }
+
+        /// <summary>
+        /// The ground road whose RoadAI names <paramref name="info"/> as its tunnel or slope variant (RoadAI.m_tunnelInfo,
+        /// m_slopeInfo), or null.
+        /// </summary>
+        public static NetInfo GroundInfoOf(NetInfo info)
+        {
+            if (info == null) return null;
+            RefreshInfoRoles();
+            NetInfo ground;
+            return s_groundOf.TryGetValue(info, out ground) ? ground : null;
         }
 
         /// <summary>
