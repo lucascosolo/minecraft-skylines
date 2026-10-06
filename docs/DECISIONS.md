@@ -117,3 +117,33 @@ the x, z of its last `ENTER_PLAYER_MODE` on the highest walkable surface compute
 a fallback spawn with `CITY_OPEN` (the entry spot changes with every entry, and a host teleport brings collision
 loading and the hold with it). Advancements and statistics stay in the cache world (separate files), not per city.
 
+## 2026-10-06: trees are Minecraft trees (protocol 1.12)
+
+The host lists every drawn `TreeManager` tree per collision region (`TREES`, after that region's `COLLISION_REGION`:
+id, trunk base, height, radius, kind from the `TreeInfo` name) and the guest places a Minecraft tree for each; the
+player felling one sends `TREE_FELLED` and the host releases it as the bulldozer does (`TreeManager.ReleaseTree` via
+`SimulationManager.AddAction`). The kind mapping lives in `MinecraftSkylines.Protocol` (`TreeRecord.KindOf`), the
+region collection in `Skylines.Host` (`ObstacleGeometry.TreeSamples`, Minecraft-free). Rejected: a separate tree
+scan (the obstacle tree loop already visits exactly the trees of a region); sending building and lane decoration
+trees (not `TreeManager` trees, nothing to release).
+
+## 2026-10-06: the shadow world (guest), and entities on the host's triangles
+
+`ShadowWorld` (Fabric, `dev.mcskylines.shadow`) fills the city world with real blocks rebuilt per chunk from the
+streamed collision triangles and `TREES`: ground (grass/sand/stone top by slope and the 1.10 water grid, dirt or sand,
+stone, deepslate below y 0, bedrock at y -64, Minecraft-like ore bands and stone pockets, seeded by the city's saveId
+and position), gray concrete under roads (a one-block deck on bridges), `minecraft:barrier` in the lowest 4 cells of
+building volumes, short/tall grass on grass-topped open ground, and trees. A cell is solid when its centre is under
+the surface. Ground is a 6-cell crust that deepens by 6 under the 3x3 columns wherever the player digs at its floor.
+Shadow blocks are not edits: every one is in the touched set (so the reconcile on restart or another city reverts
+it), the edit set wins over them, and a player emptying one is recorded as `minecraft:cave_air` (the host stores plain
+air as "no edit"). Built lazily, at most ~4000 changed cells per server tick. SECTION_MESH skips them.
+Owner rule: shadow blocks never take part in entity movement collision where the triangles are loaded
+(`ShadowCollisionMixin` on `EntityCollisionContext.getCollisionShape`); queries without an entity (path-finding node
+evaluation, spawn checks, fluids) still see them. Mobs, items and other non-player entities collide server-side with
+the triangles and moving obstacles through `PlayerCollider` (`EntityTriCollideMixin`). Path nodes sit on block tops
+up to half a block off the smooth surface; mobs step up 0.6, so the walk follows the path. Generated logs and leaves
+do not collide either (the CS1 trunk box already does). Barrier over a custom invisible block: vanilla (no registry
+or asset risk), solid to path-finding, no spawns on it, unbreakable; the crosshair skips it explicitly in `SkyClip`.
+Rejected: writing chunk sections directly (fast, but lighting, heightmaps and client resend would be ours to keep
+right); filling the full column depth up front (millions of `setBlock` calls for a loaded city).

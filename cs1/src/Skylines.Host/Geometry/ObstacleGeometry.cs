@@ -7,6 +7,21 @@ using UnityEngine;
 
 namespace Skylines.Host.Geometry
 {
+    /// <summary>A drawn tree of the region <see cref="ObstacleGeometry.TreeSamples"/> collected, in CS1 coordinates.</summary>
+    public struct TreeSample
+    {
+        /// <summary>TreeManager index.</summary>
+        public uint Id;
+        /// <summary>Trunk base, CS1 coordinates.</summary>
+        public Vector3 Position;
+        /// <summary>TreeInfo.m_generatedInfo.m_size.y * scale, metres.</summary>
+        public float Height;
+        /// <summary>Half of max(size.x, size.z) * scale, metres.</summary>
+        public float Radius;
+        /// <summary>TreeInfo.name.</summary>
+        public string Name;
+    }
+
     /// <summary>
     /// Trees, bushes and props overlapping a world-space rectangle as boxes (<see cref="Obstacle"/>) in CS1 coordinates, clipped to
     /// the rectangle. Sources, each placed as the game renders it: tree instances (TreeManager grid, TreeInstance.RenderInstance),
@@ -101,12 +116,16 @@ namespace Skylines.Host.Geometry
         /// <summary>Triangles the last <see cref="Emit"/> dropped to stay within the budgets.</summary>
         public int LastDropped { get; private set; }
 
+        /// <summary>When set, <see cref="Emit"/> clears it and fills it with every drawn tree whose trunk base lies in [minX, maxX) x (minZ, maxZ].</summary>
+        public List<TreeSample> TreeSamples;
+
         /// <summary>Appends every tree, bush and prop box inside the rectangle to <paramref name="into"/>.</summary>
         public void Emit(float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
         {
             _veg.Clear();
             _props.Clear();
             LastTreeCount = LastPropCount = 0;
+            if (TreeSamples != null) TreeSamples.Clear();
             _x0 = minX; _z0 = minZ; _x1 = maxX; _z1 = maxZ;
             Trees();
             Props();
@@ -269,7 +288,16 @@ namespace Skylines.Host.Geometry
             TreeInfo info = t.Info;
             if (info == null) return;
             var r = new Randomizer(id);
-            AddTree(info, t.Position, info.m_minScale + r.Int32(10000u) * (info.m_maxScale - info.m_minScale) * 0.0001f);
+            float scale = info.m_minScale + r.Int32(10000u) * (info.m_maxScale - info.m_minScale) * 0.0001f;
+            AddTree(info, t.Position, scale);
+            if (TreeSamples != null && info.m_generatedInfo != null) Sample(id, info, t.Position, scale);
+        }
+
+        private void Sample(uint id, TreeInfo info, Vector3 p, float scale)
+        {
+            if (p.x < _x0 || p.x >= _x1 || p.z <= _z0 || p.z > _z1) return;
+            Vector3 s = info.m_generatedInfo.m_size;
+            TreeSamples.Add(new TreeSample { Id = id, Position = p, Height = s.y * scale, Radius = 0.5f * Mathf.Max(s.x, s.z) * scale, Name = info.name });
         }
 
         private static int TCell(float v)

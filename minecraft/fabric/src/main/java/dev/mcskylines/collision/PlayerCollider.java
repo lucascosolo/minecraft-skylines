@@ -6,12 +6,11 @@ package dev.mcskylines.collision;
 
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** Feeds the local player's movement through {@link TriCollider} against the nearby streamed triangles and moving obstacles. */
+/** Feeds an entity's movement (the local player on the client; mobs and items on the server) through {@link TriCollider} against the nearby streamed triangles and moving obstacles. */
 public final class PlayerCollider {
 	private PlayerCollider() {
 	}
@@ -21,7 +20,7 @@ public final class PlayerCollider {
 		return CollisionStore.INSTANCE.regionCount() > 0;
 	}
 
-	public static Vec3 collide(LocalPlayer player, Vec3 move) {
+	public static Vec3 collide(Entity player, Vec3 move) {
 		AABB body = player.getBoundingBox();
 		double fx = (body.minX + body.maxX) * 0.5, fy = body.minY, fz = (body.minZ + body.maxZ) * 0.5;
 		double radius = body.getXsize() * 0.5, height = body.getYsize();

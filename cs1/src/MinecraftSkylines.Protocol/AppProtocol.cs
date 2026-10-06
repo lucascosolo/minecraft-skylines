@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 11;
+        public const ushort Minor = 12;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -77,6 +77,11 @@ namespace MinecraftSkylines.Protocol
         public const ushort PlayerDataType = 0x01B0;
         /// <summary>Message type of <see cref="RespawnRequest"/> RESPAWN_REQUEST (guest to host, minor 11).</summary>
         public const ushort RespawnRequestType = 0x01B1;
+
+        /// <summary>Message type of <see cref="Trees"/> TREES (host to guest, minor 12).</summary>
+        public const ushort TreesType = 0x01C0;
+        /// <summary>Message type of <see cref="TreeFelled"/> TREE_FELLED (guest to host, minor 12).</summary>
+        public const ushort TreeFelledType = 0x01C1;
     }
 
     /// <summary>Bits of <see cref="HostStatus.Flags"/>.</summary>

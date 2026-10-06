@@ -26,6 +26,6 @@ public abstract class EntityPickMixin {
 		if (!((Object) this instanceof LocalPlayer) || !PlayerCollider.active()) {
 			return vanilla;
 		}
-		return SkyClip.pick(context.getFrom(), context.getTo(), vanilla);
+		return SkyClip.pick(level, context.getFrom(), context.getTo(), vanilla);
 	}
 }

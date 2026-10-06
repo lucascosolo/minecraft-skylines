@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ColossalFramework;
 using ICities;
 using MinecraftSkylines.Protocol;
 using Skylines.Bridge;
@@ -272,6 +273,16 @@ namespace MinecraftSkylines.Mod.City
                 _player.Respawn(host);
                 return true;
             }
+            if (type == AppProtocol.TreeFelledType)
+            {
+                TreeFelled f = TreeFelled.Decode(payload);
+                lock (_sync)
+                {
+                    if (!_open || f.OpenSeq != _openSeq) return true;
+                }
+                ReleaseTree(f.TreeId);
+                return true;
+            }
             if (type == AppProtocol.EditSyncAckType)
             {
                 _barrier.Acknowledge(EditSync.Decode(payload).Token);
@@ -369,6 +380,19 @@ namespace MinecraftSkylines.Mod.City
             }
             if (_note.Length > 0) sb.Append("  (").Append(_note).Append(')');
             return sb.ToString();
+        }
+
+        // BulldozeTool.DeleteTreeImpl: a tree that exists (m_flags != 0) and is not Burning (0x80) is released with
+        // TreeManager.ReleaseTree; as every simulation-state change, on the simulation thread. Repeats find m_flags == 0.
+        private static void ReleaseTree(uint id)
+        {
+            if (id == 0 || id >= TreeManager.MAX_TREE_COUNT) return;
+            Singleton<SimulationManager>.instance.AddAction(delegate
+            {
+                TreeManager tm = Singleton<TreeManager>.instance;
+                ushort flags = tm.m_trees.m_buffer[id].m_flags;
+                if (flags != 0 && (flags & (ushort)TreeInstance.Flags.Burning) == 0) tm.ReleaseTree(id);
+            });
         }
 
         private void SendOpen(BridgeHost host)

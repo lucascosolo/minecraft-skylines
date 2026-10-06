@@ -58,6 +58,11 @@ public final class CollisionStore {
 		return epoch;
 	}
 
+	/** Keys ({@link #key}) of every region held now. */
+	public java.util.Set<Long> regionKeys() {
+		return java.util.Set.copyOf(regions.keySet());
+	}
+
 	public int regionCount() {
 		return regions.size();
 	}
