@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.10
+# `minecraft-skylines` application protocol, version 1.11
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 10`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 11`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -519,3 +519,47 @@ sideways it is refused where the target cell has no host geometry but the cell a
 overhang), and where the target's host ground top is more than 0.13 above the source's and reaches the fluid's spread
 surface − 0.05. A cell's host ground top is the highest point (0-1 of the cell) of the triangles crossing it; a steep
 triangle (a wall) crossing it fills it to 1.
+
+## Minor 11: the city's player
+
+The player's own Minecraft state (inventory with armour and offhand and every item component, health, food and
+saturation, experience, effects, selected slot, game mode, spawn point, fall distance, air: everything Minecraft
+stores for a player) belongs to the open city exactly like its blocks (minor 5): the host keeps it as an opaque blob
+and writes it into the city's save; the guest's world only caches it. Position is not part of it: the host places
+the player with `ENTER_PLAYER_MODE`.
+
+### `0x01B0 PLAYER_DATA` (both directions)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | as in minor 5; another open's data is stale and dropped |
+| u32 | `length` | at most 4 MiB (4194304); anything above is a protocol error, checked before the bytes |
+| u8 × `length` | `data` | opaque to the host. Host → guest: empty means a fresh player |
+
+Host → guest: sent right after `CITY_OPEN`, before its first `BLOCK_EDITS` batch, on every open (so also after a
+reconnect): the city's player data from its save, the newest the guest sent for this city since, or empty (a city
+that never had a player, or whose stored data was unreadable). The guest replaces its player's state with it (a fresh
+player for empty data: survival, full health and food, empty inventory, no spawn point) before it sends
+`CITY_STATE` ready; a player not yet in the world gets it when it joins, and ready waits for that.
+
+Guest → host: the player's current data, never empty. Sent after `CITY_STATE` ready only (never a previous city's
+player): before every `EDIT_SYNC_ACK` (so the save barrier covers it) and whenever it changed, at most every 10 s.
+The host keeps the newest for the current open and writes it into the save; a host that has no data for a city
+writes nothing.
+
+Fabric guest: `data` is the gzip-compressed NBT of `ServerPlayer.saveWithoutId` (it carries `DataVersion`, so the
+guest's data fixer upgrades data written by an older Minecraft); applying it never changes the player's UUID,
+position, rotation or motion.
+
+### `0x01B1 RESPAWN_REQUEST` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the current open (informational; the host does not drop on mismatch) |
+
+The player died and respawned (immediately, without a death screen) somewhere other than a spawn point of its own
+(bed or respawn anchor). In player mode the host answers with `ENTER_PLAYER_MODE` (new `teleportSeq`, same collision
+epoch, no `COLLISION_RESET`) to the city's entry spot: the x and z of its last `ENTER_PLAYER_MODE`, standing on the
+highest walkable surface computed afresh, and waits for the acknowledgement as for any entry. Outside player mode
+the host ignores it (the next entry places the player anyway). A player respawning at its own bed or anchor sends
+nothing.
