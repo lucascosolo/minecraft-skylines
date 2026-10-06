@@ -60,3 +60,6 @@ Each file carries an attribution header. All under `fabric/src/` and adapted (pa
 - `main/java/dev/mcskylines/render/MeshVertices.java`: `unshade` and the vertex packing from `WorldExporter.MeshBuilder`.
 - `main/java/dev/mcskylines/client/mixin/{LevelExtractorMixin,TextureAtlasAccessor,SpriteContentsAccessor}.java` from the same-named files in `dev/skycraft/client/mixin/`.
 - `main/resources/data/mcskylines/dimension_type/void.json` and `worldgen/world_preset/void.json` from `data/skycraft/dimension_type/mirror.json` and `worldgen/world_preset/mirror.json` (heights per our protocol: `min_y` -64, `height` 1536).
+- `main/java/dev/mcskylines/mixin/{EntityFluidInteractionMixin,EntitySwimMixin}.java` from the same-named files in `dev/skycraft/mixin/` (`SkyWater` renamed `HostWater`).
+- `main/java/dev/mcskylines/world/HostWater.java` and `world/WaterGrid.java` from `dev/skycraft/world/SkyWater.java` (grid from WATER_SURFACE instead of shared memory; cells under the host's ground are dry).
+- `main/java/dev/mcskylines/mixin/FlowingFluidMixin.java` and `collision/FluidRules.java` from `dev/skycraft/mixin/FlowingFluidMixin.java` (decisions moved into pure `FluidRules`; ground tops from the host's collision triangles in `collision/FluidGround.java` instead of SkyCraft's voxel fill; refusal logging removed).

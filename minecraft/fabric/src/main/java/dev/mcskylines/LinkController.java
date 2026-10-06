@@ -23,7 +23,9 @@ import dev.mcskylines.protocol.GuestStatus;
 import dev.mcskylines.protocol.HostStatus;
 import dev.mcskylines.protocol.Input;
 import dev.mcskylines.protocol.PlayerState;
+import dev.mcskylines.protocol.WaterSurface;
 import dev.mcskylines.protocol.WorldTime;
+import dev.mcskylines.world.HostWater;
 import dev.mcskylines.player.DevWorld;
 import dev.mcskylines.player.PlayerMode;
 import dev.mcskylines.protocol.Viewport;
@@ -204,6 +206,7 @@ final class LinkController {
 				sentStatus = null;
 				playerMode.onLinkDown(mc);
 				DynamicObstacleStore.INSTANCE.clear();
+				HostWater.clear();
 				overlay.linkDown();
 				city.linkDown();
 				clock.linkDown();
@@ -233,6 +236,7 @@ final class LinkController {
 							case AppProtocol.ENTER_PLAYER_MODE -> playerMode.onEnter(mc, EnterPlayerMode.decode(m.payload()));
 							default -> {
 								DynamicObstacleStore.INSTANCE.clear();
+								HostWater.clear();
 								playerMode.onExit(mc, ExitPlayerMode.decode(m.payload()).reason());
 							}
 						}
@@ -260,6 +264,14 @@ final class LinkController {
 						}
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed DYNAMIC_OBSTACLES: {}", e.getMessage());
+					}
+				} else if (m.type() == AppProtocol.WATER_SURFACE) {
+					try {
+						if (peer != null && peer.appMinor() >= 10) {
+							HostWater.accept(WaterSurface.decode(m.payload()));
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed WATER_SURFACE: {}", e.getMessage());
 					}
 				} else if (m.type() == AppProtocol.WORLD_TIME) {
 					try {
