@@ -54,6 +54,7 @@ namespace MinecraftSkylines.Mod
         private readonly List<InputEvent> _escEvents = new List<InputEvent>();
         private bool _swallowModeKeyUp;
         private bool _enterRequested;
+        private Vector2? _dropTarget;
         private bool _swallowUndergroundKeyUp;
         private bool _swallowClipKeyUp;
         private bool _swallowDumpKeyUp;
@@ -169,6 +170,16 @@ namespace MinecraftSkylines.Mod
         /// <summary>Enters on the next Update as if Ctrl+Shift+M was pressed (still asks <see cref="EnterGate"/>).</summary>
         public void RequestEnter()
         {
+            _enterRequested = true;
+        }
+
+        /// <summary>
+        /// Like <see cref="RequestEnter"/>, but the player lands at CS1 (x, z) on the highest walkable surface. The spot
+        /// is kept through the enable dialog, backup and Minecraft start; Ctrl+Shift+M, a cancelled start or Exit drop it.
+        /// </summary>
+        public void RequestEnterAt(float x, float z)
+        {
+            _dropTarget = new Vector2(x, z);
             _enterRequested = true;
         }
 
@@ -324,6 +335,7 @@ namespace MinecraftSkylines.Mod
         /// </summary>
         public void Exit(string reason, BridgeHost host, bool immediate)
         {
+            _dropTarget = null;
             if (_state == State.Off)
             {
                 if (immediate) Guard("release blocker", () => ReportBlocker(_blocker.ReleaseNow()));
@@ -408,11 +420,13 @@ namespace MinecraftSkylines.Mod
             bool key = EnterKeyPressed();
             bool requested = _enterRequested;
             _enterRequested = false;
+            if (key) _dropTarget = null;
             if (_launcher.Pending)
             {
                 if (key || UInput.GetKeyDown(KeyCode.Escape) || !cityReady)
                 {
                     _launcher.Cancel();
+                    _dropTarget = null;
                     _note = "start cancelled (Minecraft keeps running)";
                 }
                 else if (connected)
@@ -453,6 +467,8 @@ namespace MinecraftSkylines.Mod
 
         private void TryEnter(BridgeHost host, bool cityReady, Vector3? feet, float? yawDeg)
         {
+            Vector2? drop = _dropTarget;
+            _dropTarget = null;
             string refusal = null;
             if (!cityReady || !TerrainManager.exists) refusal = "no city loaded";
             else if (host == null || host.State != BridgeState.Connected) refusal = "Minecraft is not connected";
@@ -473,12 +489,12 @@ namespace MinecraftSkylines.Mod
                 if (blocked != null) throw new InvalidOperationException("shortcut blocker: " + blocked);
                 _input.Begin();
 
-                Vector3 target = feet.HasValue ? feet.Value : _camera.CityTarget;
+                Vector3 target = feet.HasValue ? feet.Value : drop.HasValue ? new Vector3(drop.Value.x, 0f, drop.Value.y) : _camera.CityTarget;
                 if (!feet.HasValue)
                 {
                     string how;
                     target.y = _streamer.SpawnFeetY(target.x, target.z, out how);
-                    _log.Info("player mode: spawn on " + how);
+                    _log.Info("player mode: spawn " + (drop.HasValue ? "at the dropped spot " : "") + "on " + how);
                 }
                 _spawnFeet = target;
                 try { _log.Info("player mode: " + _streamer.DescribeNearestGround(target)); }

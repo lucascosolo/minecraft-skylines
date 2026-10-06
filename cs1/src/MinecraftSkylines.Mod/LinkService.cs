@@ -35,6 +35,7 @@ namespace MinecraftSkylines.Mod
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
         private static CityLink s_city;
+        private static WalkInButton s_walkIn;
         private static BlockRenderer s_blocks;
         private static SelectionOutline s_selection;
         private static OverlayLink s_gui;
@@ -84,6 +85,8 @@ namespace MinecraftSkylines.Mod
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_city = new CityLink(s_log, s_saveId, s_player);
             s_player.EnterGate = s_city.EnterGate;
+            s_walkIn = new WalkInButton(s_log, s_player);
+            s_pump.Updated += s_walkIn.Update;
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;
             s_selection = new SelectionOutline(() => s_player != null && s_player.IsActive);
@@ -153,6 +156,7 @@ namespace MinecraftSkylines.Mod
             s_log.Info("stopping: " + why + PerfSummary());
             s_selfTest.Abort(why);
             s_player.Exit(why, s_host, true);
+            s_walkIn.Dispose();
             s_player.Viewer.Dispose();
             s_blocks.Dispose();
             s_selection.Dispose();
@@ -165,6 +169,7 @@ namespace MinecraftSkylines.Mod
             s_overlay = null;
             s_player = null;
             s_city = null;
+            s_walkIn = null;
             s_blocks = null;
             s_selection = null;
             s_gui = null;
@@ -183,6 +188,7 @@ namespace MinecraftSkylines.Mod
             // No id is assigned on load: a city is only paired (after a verified backup) when the player enables
             // Minecraft for it (CityLink), so a city merely loaded with the mod enabled is saved exactly as without it.
             if (s_city != null) s_city.OnLevelLoaded(mode);
+            if (s_walkIn != null) s_walkIn.OnLevelLoaded(mode);
             if (s_fixture != null) s_fixture.OnLevelLoaded();
             if (s_selfTest != null) s_selfTest.OnLevelLoaded();
             if (s_autoloadIssued && s_unattended != null) s_unattended.AutoloadLevelLoaded(Now());
@@ -202,6 +208,7 @@ namespace MinecraftSkylines.Mod
             s_saveId.Clear();
             if (s_selfTest != null) s_selfTest.OnLevelUnloading(s_host);
             if (s_fixture != null) s_fixture.OnLevelUnloading();
+            if (s_walkIn != null) s_walkIn.Dispose();
             if (s_player != null) s_player.Exit("city unloading", s_host, true);
             if (s_probe != null) s_probe.RestoreAll("level unloading", false);
             Log("level unloading");

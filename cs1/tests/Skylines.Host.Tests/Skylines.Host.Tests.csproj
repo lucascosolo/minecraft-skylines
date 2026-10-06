@@ -17,6 +17,7 @@
     <Compile Include="..\..\src\Skylines.Host\Saves\BackupNaming.cs" Link="BackupNaming.cs" />
     <Compile Include="..\..\src\Skylines.Host\Saves\BackupVerifier.cs" Link="BackupVerifier.cs" />
     <Compile Include="..\..\src\Skylines.Host\Saves\FileSnapshot.cs" Link="FileSnapshot.cs" />
+    <Compile Include="..\..\src\Skylines.Host\Ui\DragGesture.cs" Link="DragGesture.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
