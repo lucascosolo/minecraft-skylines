@@ -33,7 +33,7 @@ namespace Skylines.Host
     /// Keys: <c>command</c>, <c>args</c> (space separated, double quotes group, backslash escapes a quote
     /// or backslash inside quotes), <c>working_dir</c>, <c>env.NAME</c> (repeatable) and
     /// <c>connect_timeout_seconds</c> (default 180), <c>prewarm</c> (<c>game_start</c> default, <c>city_load</c>, <c>off</c>), <c>selftest</c> (<c>off</c> default, <c>city_load</c>),
-    /// <c>clip_preset</c> (0-4, default 1), <c>autoload</c> (a save name to load from the main menu once per game start, or <c>new:&lt;map&gt;</c> to start a new game on that map; empty default = off) and
+    /// <c>clip_preset</c> (0-4, default 1), <c>first_person_sim_rate</c> (0.1-1, default 0.4), <c>autoload</c> (a save name to load from the main menu once per game start, or <c>new:&lt;map&gt;</c> to start a new game on that map; empty default = off) and
     /// <c>selftest_quit</c> (<c>false</c> default, <c>true</c>: quit the game after the self-test report). Pure logic: no Unity, no process start.
     /// </summary>
     public sealed class LaunchConfig
@@ -91,6 +91,15 @@ namespace Skylines.Host
 
         /// <summary>Largest valid <c>clip_preset</c>.</summary>
         public const int MaxClipPreset = 4;
+
+        /// <summary>
+        /// <c>first_person_sim_rate</c>: how fast the city simulation runs while a first-person view is active, as a
+        /// fraction of normal speed (0.1-1, default 0.4), so walkers and cars move at about real speed up close.
+        /// </summary>
+        public float FirstPersonSimRate = DefaultFirstPersonSimRate;
+
+        /// <summary>Default for <c>first_person_sim_rate</c>.</summary>
+        public const float DefaultFirstPersonSimRate = 0.4f;
 
         /// <summary>Problems found while parsing (unknown keys, bad numbers, missing command).</summary>
         public readonly List<string> Problems = new List<string>();
@@ -234,6 +243,14 @@ namespace Skylines.Host
                         int g;
                         if (int.TryParse(value, out g) && g >= 0 && g <= MaxUndergroundMode) UndergroundMode = g;
                         else Problems.Add("line " + lineNo + ": underground_mode must be 0, 1, 2 or 3");
+                    }
+                    break;
+                case "first_person_sim_rate":
+                    {
+                        float r;
+                        if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out r)
+                            && r >= 0.1f && r <= 1f) FirstPersonSimRate = r;
+                        else Problems.Add("line " + lineNo + ": first_person_sim_rate must be a number from 0.1 to 1");
                     }
                     break;
                 case "clip_preset":
