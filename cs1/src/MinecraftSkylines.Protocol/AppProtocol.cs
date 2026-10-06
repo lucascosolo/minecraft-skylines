@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 4;
+        public const ushort Minor = 5;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -43,6 +43,18 @@ namespace MinecraftSkylines.Protocol
         public const ushort OverlayOfferType = 0x0141;
         /// <summary>Message type of OVERLAY_STOP (guest to host, minor 3); empty payload.</summary>
         public const ushort OverlayStopType = 0x0142;
+        /// <summary>Message type of <see cref="CityOpen"/> (host to guest, minor 5).</summary>
+        public const ushort CityOpenType = 0x0150;
+        /// <summary>Message type of <see cref="BlockEdits"/> (both directions, minor 5).</summary>
+        public const ushort BlockEditsType = 0x0151;
+        /// <summary>Message type of <see cref="CityClose"/> (host to guest, minor 5).</summary>
+        public const ushort CityCloseType = 0x0152;
+        /// <summary>Message type of <see cref="EditSync"/> EDIT_SYNC (host to guest, minor 5).</summary>
+        public const ushort EditSyncType = 0x0153;
+        /// <summary>Message type of <see cref="EditSync"/> EDIT_SYNC_ACK (guest to host, minor 5).</summary>
+        public const ushort EditSyncAckType = 0x0154;
+        /// <summary>Message type of <see cref="CityStateUpdate"/> CITY_STATE (guest to host, minor 5).</summary>
+        public const ushort CityStateType = 0x0155;
     }
 
     /// <summary>Bits of <see cref="HostStatus.Flags"/>.</summary>

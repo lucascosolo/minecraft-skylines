@@ -18,7 +18,12 @@ namespace Skylines.Bridge.Tests
         {
             using (JsonDocument d = VectorFiles.Load("frames.json"))
                 foreach (JsonElement v in d.RootElement.GetProperty("invalid").EnumerateArray())
-                    yield return new object[] { v.GetProperty("name").GetString() };
+                {
+                    // Frame type is the u16 LE at bytes 4..5 (hex chars 8..11); app-level (>= 0x0100) vectors are not the bridge's concern.
+                    string h = v.GetProperty("hex").GetString();
+                    int type = Convert.ToInt32(h.Substring(8, 2), 16) | (Convert.ToInt32(h.Substring(10, 2), 16) << 8);
+                    if (type < 0x0100) yield return new object[] { v.GetProperty("name").GetString() };
+                }
         }
 
         private static JsonElement Find(JsonDocument d, string list, string name)

@@ -233,6 +233,59 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("command").GetString(), m.Command);
                         return m.Encode();
                     }
+                case AppProtocol.CityOpenType:
+                    {
+                        CityOpen m = CityOpen.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(new Guid(f.GetProperty("saveId").GetString()), m.SaveId);
+                        Assert.Equal(f.GetProperty("cityName").GetString(), m.CityName);
+                        Assert.Equal(f.GetProperty("editCount").GetUInt32(), m.EditCount);
+                        return m.Encode();
+                    }
+                case AppProtocol.BlockEditsType:
+                    {
+                        BlockEdits m = BlockEdits.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("flags").GetByte(), m.Flags);
+                        JsonElement pal = f.GetProperty("palette");
+                        Assert.Equal(pal.GetArrayLength(), m.Palette.Length);
+                        int pi = 0;
+                        foreach (JsonElement e in pal.EnumerateArray()) Assert.Equal(e.GetString(), m.Palette[pi++]);
+                        JsonElement edits = f.GetProperty("edits");
+                        Assert.Equal(edits.GetArrayLength(), m.Edits.Length);
+                        int ei = 0;
+                        foreach (JsonElement e in edits.EnumerateArray())
+                        {
+                            Assert.Equal(e.GetProperty("x").GetInt32(), m.Edits[ei].X);
+                            Assert.Equal(e.GetProperty("y").GetInt32(), m.Edits[ei].Y);
+                            Assert.Equal(e.GetProperty("z").GetInt32(), m.Edits[ei].Z);
+                            Assert.Equal(e.GetProperty("state").GetUInt16(), m.Edits[ei].State);
+                            ei++;
+                        }
+                        return m.Encode();
+                    }
+                case AppProtocol.CityCloseType:
+                    {
+                        CityClose m = CityClose.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        return m.Encode();
+                    }
+                case AppProtocol.EditSyncType:
+                case AppProtocol.EditSyncAckType:
+                    {
+                        EditSync m = EditSync.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("token").GetUInt32(), m.Token);
+                        return m.Encode();
+                    }
+                case AppProtocol.CityStateType:
+                    {
+                        CityStateUpdate m = CityStateUpdate.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("state").GetByte(), m.State);
+                        Assert.Equal(f.GetProperty("appliedCount").GetUInt32(), m.AppliedCount);
+                        return m.Encode();
+                    }
                 default:
                     {
                         Assert.Equal(AppProtocol.PlayerStateType, frame.Type);
@@ -376,12 +429,111 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Throws<ProtocolException>(() => GuestStatus.Decode(new byte[] { 1, 0, 0, 0, 5, 0, 1 }));
         }
 
+        public static IEnumerable<object[]> InvalidBlockEdits()
+        {
+            yield return new object[] { "block_edits_index_out_of_range" };
+            yield return new object[] { "block_edits_duplicate_palette" };
+            yield return new object[] { "block_edits_too_many" };
+        }
+
+        [Theory]
+        [MemberData(nameof(InvalidBlockEdits))]
+        public void InvalidBlockEditsVectorRaisesProtocolException(string name)
+        {
+            string hex = null;
+            using (JsonDocument d = Load("frames.json"))
+                foreach (JsonElement v in d.RootElement.GetProperty("invalid").EnumerateArray())
+                    if (v.GetProperty("name").GetString() == name) hex = v.GetProperty("hex").GetString();
+            Assert.NotNull(hex);
+            Assert.Throws<ProtocolException>(() => BlockEdits.Decode(FrameCodec.Decode(Hex(hex)).Payload));
+        }
+
+        private static byte[] SnapshotPayload()
+        {
+            return new BlockEdits
+            {
+                OpenSeq = 3,
+                Flags = BlockEdits.FlagLast,
+                Palette = new[] { "minecraft:stone", "minecraft:dirt" },
+                Edits = new[] { new BlockEdit(1, 2, 3, 0), new BlockEdit(-4, 5, -6, 1) },
+            }.Encode();
+        }
+
+        [Fact]
+        public void BlockEditsRoundTripsAndEveryTruncationThrows()
+        {
+            byte[] full = SnapshotPayload();
+            BlockEdits m = BlockEdits.Decode(full);
+            Assert.Equal(2, m.Edits.Length);
+            Assert.Equal(-6, m.Edits[1].Z);
+            for (int len = 0; len < full.Length; len++)
+            {
+                byte[] cut = new byte[len];
+                Array.Copy(full, cut, len);
+                Assert.Throws<ProtocolException>(() => BlockEdits.Decode(cut));
+            }
+        }
+
+        [Fact]
+        public void BlockEditsHugeCountsFailWithoutAllocating()
+        {
+            // openSeq=1, flags=0, paletteCount=0, editCount=0xFFFFFFFF, no edit bytes.
+            Assert.Throws<ProtocolException>(() => BlockEdits.Decode(Hex("01000000" + "00" + "0000" + "ffffffff")));
+            // editCount exactly at the limit but no data present.
+            Assert.Throws<ProtocolException>(() => BlockEdits.Decode(Hex("01000000" + "00" + "0000" + "00000100")));
+            // paletteCount=0xFFFF with no entries.
+            Assert.Throws<ProtocolException>(() => BlockEdits.Decode(Hex("01000000" + "00" + "ffff")));
+        }
+
+        [Fact]
+        public void BlockEditsEncodeRejectsInvalidContent()
+        {
+            Assert.Throws<InvalidOperationException>(() => new BlockEdits
+            {
+                Palette = new[] { "a", "a" },
+                Edits = new BlockEdit[0],
+            }.Encode());
+            Assert.Throws<InvalidOperationException>(() => new BlockEdits
+            {
+                Palette = new[] { "a" },
+                Edits = new BlockEdit[BlockEdits.MaxEdits + 1],
+            }.Encode());
+            Assert.Throws<InvalidOperationException>(() => new BlockEdits
+            {
+                Palette = new[] { "a" },
+                Edits = new[] { new BlockEdit(0, 0, 0, 1) },
+            }.Encode());
+        }
+
+        [Fact]
+        public void BlockEditsEncodeAcceptsMaxEdits()
+        {
+            var edits = new BlockEdit[BlockEdits.MaxEdits];
+            byte[] p = new BlockEdits { Palette = new[] { "a" }, Edits = edits }.Encode();
+            Assert.Equal(BlockEdits.MaxEdits, BlockEdits.Decode(p).Edits.Length);
+        }
+
+        [Fact]
+        public void SmallCityMessagesRejectTruncation()
+        {
+            Assert.Throws<ProtocolException>(() => CityClose.Decode(new byte[3]));
+            Assert.Throws<ProtocolException>(() => EditSync.Decode(new byte[7]));
+            Assert.Throws<ProtocolException>(() => CityStateUpdate.Decode(new byte[8]));
+            byte[] open = new CityOpen { OpenSeq = 1, SaveId = Guid.NewGuid(), CityName = "x", EditCount = 1 }.Encode();
+            for (int len = 0; len < open.Length; len++)
+            {
+                byte[] cut = new byte[len];
+                Array.Copy(open, cut, len);
+                Assert.Throws<ProtocolException>(() => CityOpen.Decode(cut));
+            }
+        }
+
         [Fact]
         public void ConstantsMatchSpec()
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(4, AppProtocol.Minor);
+            Assert.Equal(5, AppProtocol.Minor);
             Assert.Equal(0x0140, AppProtocol.ViewportType);
             Assert.Equal(0x0141, AppProtocol.OverlayOfferType);
             Assert.Equal(0x0142, AppProtocol.OverlayStopType);
@@ -391,6 +543,17 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Equal(0x0132, AppProtocol.SectionMeshType);
             Assert.Equal(0x0133, AppProtocol.SectionsClearType);
             Assert.Equal(0x0134, AppProtocol.BlockSelectionType);
+            Assert.Equal(0x0150, AppProtocol.CityOpenType);
+            Assert.Equal(0x0151, AppProtocol.BlockEditsType);
+            Assert.Equal(0x0152, AppProtocol.CityCloseType);
+            Assert.Equal(0x0153, AppProtocol.EditSyncType);
+            Assert.Equal(0x0154, AppProtocol.EditSyncAckType);
+            Assert.Equal(0x0155, AppProtocol.CityStateType);
+            Assert.Equal(1, BlockEdits.FlagLast);
+            Assert.Equal(65536, BlockEdits.MaxEdits);
+            Assert.Equal(0, CityStateUpdate.Applying);
+            Assert.Equal(1, CityStateUpdate.Ready);
+            Assert.Equal(2, CityStateUpdate.Closed);
             Assert.Equal(0x01F0, AppProtocol.DebugCommandType);
             Assert.Equal(8u, HostStatusFlags.PlayerMode);
             Assert.Equal(2u, GuestStatusFlags.ScreenOpen);
