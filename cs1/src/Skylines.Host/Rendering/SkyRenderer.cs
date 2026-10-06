@@ -79,7 +79,29 @@ namespace Skylines.Host.Rendering
         {
             if (slot < 0 || slot >= _textures.Length) { if (texture != null) UnityEngine.Object.Destroy(texture); return; }
             if (texture != null && slot == 9) texture.wrapMode = TextureWrapMode.Repeat;
+            // Minecraft draws the sun and moon additively over a black background; as alpha = brightest channel they also
+            // look right through an alpha-blended shader (the fallback when the additive one is missing).
+            if (texture != null && slot <= 8) AlphaFromBrightness(texture);
             TextureUtil.Replace(ref _textures[slot], texture);
+        }
+
+        private static void AlphaFromBrightness(Texture2D t)
+        {
+            try
+            {
+                Color32[] px = t.GetPixels32();
+                for (int i = 0; i < px.Length; i++)
+                {
+                    byte a = (byte)Mathf.Min(px[i].a, Mathf.Max(px[i].r, Mathf.Max(px[i].g, px[i].b)));
+                    px[i].a = a;
+                }
+                t.SetPixels32(px);
+                t.Apply(false);
+            }
+            catch (Exception)
+            {
+                // not readable: keep it as it is
+            }
         }
 
         /// <summary>Destroys every slot's texture.</summary>
@@ -219,6 +241,7 @@ namespace Skylines.Host.Rendering
             var block = new MaterialPropertyBlock();
             block.SetTexture("_MainTex", tex);
             block.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f * colour.a));
+            block.SetColor("_Color", new Color(1f, 1f, 1f, colour.a)); // the UI-shader fallback tints with _Color
             Matrix4x4 m = Matrix4x4.TRS(eye + dir.normalized * d, Quaternion.LookRotation(dir, up), Vector3.one * (2f * half * d));
             Graphics.DrawMesh(_quad, m, mat, _layer, cam, 0, block);
         }
@@ -299,9 +322,11 @@ namespace Skylines.Host.Rendering
             }
             _domeMat = ColoredMaterial(colored, 1000, UnityEngine.Rendering.BlendMode.One, UnityEngine.Rendering.BlendMode.Zero);
             _starMat = ColoredMaterial(colored, 1001, UnityEngine.Rendering.BlendMode.SrcAlpha, UnityEngine.Rendering.BlendMode.One);
-            _sunMat = ParticleMaterial("Particles/Additive", 1002);
-            _moonMat = ParticleMaterial("Particles/Additive", 1003);
-            _cloudMat = ParticleMaterial("Particles/Alpha Blended", 1004);
+            // CS1's build leaves Unity's particle shaders out (owner's run 2026-10-06: Shader.Find returned null), so fall
+            // back to the shader CS1's own UI atlas draws with: textured, alpha-blended, tinted by vertex colour and _Color.
+            _sunMat = ParticleMaterial("Particles/Additive", 1002) ?? UiMaterial(1002);
+            _moonMat = ParticleMaterial("Particles/Additive", 1003) ?? UiMaterial(1003);
+            _cloudMat = ParticleMaterial("Particles/Alpha Blended", 1004) ?? UiMaterial(1004);
             BuildDome();
             BuildStars();
             BuildQuad();
@@ -325,6 +350,23 @@ namespace Skylines.Host.Rendering
             m.SetInt("_ZWrite", 0);
             m.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.LessEqual);
             return m;
+        }
+
+        private Material UiMaterial(int queue)
+        {
+            Shader s = null;
+            try
+            {
+                ColossalFramework.UI.UIView view = ColossalFramework.UI.UIView.GetAView();
+                if (view != null && view.defaultAtlas != null && view.defaultAtlas.material != null) s = view.defaultAtlas.material.shader;
+            }
+            catch (Exception e)
+            {
+                _log.Warn("sky: UI atlas shader lookup failed: " + e.GetType().Name);
+            }
+            if (s == null) return null;
+            _log.Info("sky: using CS1's UI shader '" + s.name + "' for queue " + queue);
+            return new Material(s) { hideFlags = HideFlags.HideAndDontSave, renderQueue = queue };
         }
 
         private Material ParticleMaterial(string shaderName, int queue)

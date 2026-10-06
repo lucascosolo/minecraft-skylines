@@ -40,6 +40,7 @@ namespace MinecraftSkylines.Mod
         private readonly Action _changed;
         private readonly MinecraftLauncher _launcher;
         private readonly SimRate _simRate;
+        private readonly Skylines.Host.Rendering.DecalHeight _decals;
         private readonly CameraTakeover _camera = new CameraTakeover();
         private readonly UndergroundRenderer _underground;
         private readonly RenderOverrides _render;
@@ -98,6 +99,7 @@ namespace MinecraftSkylines.Mod
             _changed = changed;
             _launcher = launcher;
             _simRate = new SimRate(log);
+            _decals = new Skylines.Host.Rendering.DecalHeight(log);
             _streamer = new CollisionStreamer(log);
             _underground = new UndergroundRenderer(log, launcher.UndergroundMode);
             _render = new RenderOverrides(log, launcher.ClipPreset);
@@ -356,6 +358,7 @@ namespace MinecraftSkylines.Mod
             State was = _state;
             _state = State.Off;
             Guard("restore sim rate", () => _simRate.End());
+            Guard("restore decals", () => _decals.End());
             Guard("send EXIT_PLAYER_MODE", () =>
             {
                 if (host != null && host.State == BridgeState.Connected && host.NegotiatedAppMinor >= 1)
@@ -497,6 +500,7 @@ namespace MinecraftSkylines.Mod
             try
             {
                 _simRate.Begin(_launcher.FirstPersonSimRate);
+                _decals.Begin(0.5f);
                 _underground.Begin();
                 _render.Begin();
                 string blocked = _blocker.Begin();

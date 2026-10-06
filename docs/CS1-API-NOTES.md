@@ -210,3 +210,9 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
 - `.crp` packages (custom assets, `Files/` system packages; `PackageManager.LoadPackages(DataLocation.assetsPath)`, PackageManager.cs:493) are not extracted: `PackageDeserializer.DeserializeMesh` (PackageDeserializer.cs:413-430) builds them with `new Mesh()` and sets `vertices`/`SetTriangles`, so they are CPU-readable and `Mesh.isReadable` already serves them.
 - Prefab meshes are the scene's `MeshFilter.sharedMesh` (BuildingInfo.cs:488, 1680, 1725; PropInfo.cs:256), not copies, so `Mesh.name` at runtime is the serialized `m_Name`. Lookup key: `Mesh.name`, `Mesh.vertexCount`, `Mesh.bounds` (centre, extents = serialized `m_LocalAABB`); `vertexCount` and `bounds` are native getters that need no read access (UnityEngine 5.6 `Mesh`, compile-verified against refs `UnityEngine.dll`; `bounds` already relied on for GPU-only vehicle meshes). Name mismatch with a unique count+bounds match is accepted.
 - Order: `BuildingGeometry.MeshFor` readable `m_mesh` > cached > `m_lodMeshData`; `ObstacleGeometry.BaseFootprint` lamp rule > readable > cached > bounds rule. Player.log names the source per info and logs the cache status once.
+- Decals: `PropInfo.m_isDecal` props are drawn up close as `Graphics.DrawMesh(info.m_mesh, ..., info.m_material ...)`
+  (PropInstance.RenderInstance, PropInstance.cs:494); the "Tiles" decal mesh spans y -2..2, so a first-person eye is inside
+  it and the projected paint vanishes. `DecalHeight` swaps the public `m_mesh` for a box with its top 0.5 m up while in
+  Minecraft mode (`PrefabCollection<PropInfo>.LoadedCount/GetLoaded`, PrefabCollection.cs:38-43) and restores it on exit.
+- Sky fallback: CS1 ships without Unity's Particles shaders; sun, moon and clouds use the shader of
+  `UIView.GetAView().defaultAtlas.material` instead.
