@@ -29,6 +29,7 @@ namespace MinecraftSkylines.Mod
         private readonly BuildingGeometry _buildings = new BuildingGeometry();
         private readonly ObstacleGeometry _obstacles = new ObstacleGeometry();
         private readonly TriangleBuffer _buffer = new TriangleBuffer();
+        private readonly System.Collections.Generic.List<TreeSample> _treeSamples = new System.Collections.Generic.List<TreeSample>();
         private readonly TriangleBuffer _spawnTris = new TriangleBuffer();
         private int _regionsSent;
         private long _trianglesSent;
@@ -256,6 +257,22 @@ namespace MinecraftSkylines.Mod
             return ground + SpawnClearance;
         }
 
+        private byte[] TreesPayload(int rx, int rz)
+        {
+            int n = Math.Min(_treeSamples.Count, Trees.MaxCount);
+            var items = new TreeRecord[n];
+            for (int i = 0; i < n; i++)
+            {
+                TreeSample t = _treeSamples[i];
+                items[i] = new TreeRecord
+                {
+                    Id = t.Id, X = t.Position.x, Y = t.Position.y, Z = -t.Position.z,
+                    Height = t.Height, Radius = t.Radius, Kind = TreeRecord.KindOf(t.Name, t.Height)
+                };
+            }
+            return new Trees { Epoch = _planner.Epoch, RegionX = rx, RegionZ = rz, Items = items }.Encode();
+        }
+
         // Returns false when the region should be retried on a later frame (the frame could not be queued,
         // or the terrain failed to build and the region has not used up its attempts). Roads that fail to
         // build are dropped from that region only, so the player never loses ground collision for them.
@@ -268,7 +285,10 @@ namespace MinecraftSkylines.Mod
                 var clock = Stopwatch.StartNew();
                 float minX, minZ, maxX, maxZ;
                 RegionRectCs(rx, rz, out minX, out minZ, out maxX, out maxZ);
-                Exception roads = BuildCs(_terrain, _net, _buildings, _obstacles, minX, minZ, maxX, maxZ, _buffer);
+                _obstacles.TreeSamples = _treeSamples;
+                Exception roads;
+                try { roads = BuildCs(_terrain, _net, _buildings, _obstacles, minX, minZ, maxX, maxZ, _buffer); }
+                finally { _obstacles.TreeSamples = null; }
                 if (roads != null)
                 {
                     _log.Error("collision region (" + rx + "," + rz + "): roads, buildings, trees or props failed to build, sending what built", roads);
@@ -293,6 +313,8 @@ namespace MinecraftSkylines.Mod
             if (!host.Send(AppProtocol.CollisionRegionType, region.Encode())) return false;
             _regionsSent++;
             _trianglesSent += region.TriangleCount;
+            // Minor 12: the trees of this region, right after its geometry. A failed send only loses the list.
+            if (host.NegotiatedAppMinor >= 12) host.Send(AppProtocol.TreesType, TreesPayload(rx, rz));
             return true;
         }
     }

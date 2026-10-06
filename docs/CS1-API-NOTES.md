@@ -263,3 +263,17 @@ Water surface (`Skylines.Host.Terrain.WaterSampler`, WATER_SURFACE, minor 10), A
   above 2 m (6.0 m), roofed from the lower end over z -32..-8 of the 64 m mesh (fraction 0.375; the net shader maps mesh
   z linearly onto the bezier t). Without a cached portal: half-width - 2 m, 6 m, height rule. Every section's ceiling is
   mean edge y + lintel, so segments, bend and slope joints and junction mouths meet without steps. No new CS1 API.
+
+## Trees (TREES / TREE_FELLED, minor 12; verified against the decompile 2026-10-06, compiles against the real assemblies; not seen in game)
+
+Assembly-CSharp:
+- `TreeManager.ReleaseTree(uint tree)` (public, TreeManager.cs:799), what `BulldozeTool.DeleteTreeImpl(uint)` (BulldozeTool.cs:602) calls
+  after `m_trees.m_buffer[tree].m_flags != 0` and not `Burning` (0x80). `TreeManager.MAX_TREE_COUNT` (const int, 262144).
+- `SimulationManager.AddAction(Action)` -> `AsyncAction` (SimulationManager.cs:743), as in the terrain clip probe; the
+  release runs on the simulation thread.
+- `TreeInstance` (struct in `TreeManager.m_trees.m_buffer`): `ushort m_flags`, `enum TreeInstance.Flags` (`Created` 1,
+  `Deleted` 2, `Hidden` 4, `Burning` 0x80), `TreeInfo Info { get; }`, `Vector3 Position { get; }`, `int GrowState { get; }`,
+  `uint m_nextGridTree`; `TreeManager.m_treeGrid` (`uint[]`, 540 x 540).
+- `TreeInfo.name` (`PrefabInfo`/`UnityEngine.Object.name`, string; the kind comes from it), `TreeInfo.m_generatedInfo.m_size`
+  (`Vector3`), `TreeInfo.m_minScale/m_maxScale` (float); scale from `ColossalFramework.Math.Randomizer(treeID).Int32(10000u)`
+  as `TreeInstance.RenderInstance` does.

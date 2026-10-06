@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.11
+# `minecraft-skylines` application protocol, version 1.12
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 11`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 12`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -563,3 +563,43 @@ epoch, no `COLLISION_RESET`) to the city's entry spot: the x and z of its last `
 highest walkable surface computed afresh, and waits for the acknowledgement as for any entry. Outside player mode
 the host ignores it (the next entry places the player anyway). A player respawning at its own bed or anchor sends
 nothing.
+
+## Minor 12: trees
+
+The host's trees (TreeManager) are drawn by Minecraft as trees of the matching kind; felling one in Minecraft removes
+it in the city.
+
+### `0x01C0 TREES` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `epoch` | the collision epoch of the region (as `COLLISION_REGION`) |
+| i32 | `regionX` | region indices as in `COLLISION_REGION` |
+| i32 | `regionZ` | |
+| u16 | `count` | at most 4096; anything above is a protocol error, checked before the trees |
+| count × tree | `trees` | below |
+
+Per tree (25 bytes): u32 `treeId`, f32 `x`, f32 `y`, f32 `z` (Minecraft frame, the trunk base), f32 `height` (m, the
+drawn tree's height: `TreeInfo.m_generatedInfo.m_size.y` × scale), f32 `radius` (m, half of
+`max(size.x, size.z)` × scale), u8 `kind` (0 oak, 1 spruce, 2 birch, 3 jungle, 4 acacia, 5 dark oak, 6 bush = leaves
+only). The payload length must match `count` exactly; anything else is a protocol error.
+
+Sent right after that region's `COLLISION_REGION` (same epoch) when the negotiated minor is at least 12. It lists
+every tree the game draws (`TreeInstance` Created and not Deleted or Hidden, `GrowState` not 0) whose position lies
+inside the region's 16 × 16 columns (each tree in exactly one region); the decoration trees of buildings and road lanes
+are not listed. It replaces the guest's list for that region; the guest drops all lists on `COLLISION_RESET`, like
+regions. The host derives `kind` from the `TreeInfo` name, case-insensitive substring, first match in this order:
+`pine`, `conifer`, `spruce`, `fir` → 1; `birch` → 2; `palm`, `jungle` → 3; `acacia`, `savanna` → 4; `dark`, `dead` →
+5; `bush`, `shrub`, `hedge` or `height` below 2.5 m → 6; else 0.
+
+### `0x01C1 TREE_FELLED` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the open the guest saw |
+| u32 | `treeId` | a `treeId` from `TREES` |
+
+The guest sends it when the player has broken every log of the Minecraft tree it placed for `treeId`. The host acts
+only when `openSeq` is the current `CITY_OPEN`'s and the city is Minecraft-enabled (the condition under which it sends
+`CITY_OPEN`), and the tree still exists (`m_flags` not 0, and not burning); it removes the tree as the bulldozer does
+(`TreeManager.ReleaseTree`, on the simulation thread). Repeats are harmless.

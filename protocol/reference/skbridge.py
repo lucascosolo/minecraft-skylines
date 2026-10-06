@@ -864,6 +864,67 @@ class RespawnRequest:
         return RespawnRequest(Reader(p).u32())
 
 
+# ---- minecraft-skylines app protocol 1.12: trees -----------------------------------------------
+TREES = 0x01C0
+TREE_FELLED = 0x01C1
+TREES_MAX = 4096
+TREE_KIND_BUSH = 6
+
+
+@dataclass
+class Tree:
+    """A tree the host draws: trunk base (Minecraft frame), height and radius in metres, kind 0..6."""
+    id: int
+    x: float
+    y: float
+    z: float
+    height: float
+    radius: float
+    kind: int
+
+
+@dataclass
+class Trees:
+    epoch: int
+    region_x: int
+    region_z: int
+    trees: list
+
+    def encode(self) -> bytes:
+        if len(self.trees) > TREES_MAX:
+            raise ValueError("too many trees")
+        w = Writer().u32(self.epoch).i32(self.region_x).i32(self.region_z).u16(len(self.trees))
+        for t in self.trees:
+            w.u32(t.id).f32(t.x).f32(t.y).f32(t.z).f32(t.height).f32(t.radius).u8(t.kind)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "Trees":
+        r = Reader(p)
+        epoch, rx, rz, n = r.u32(), r.i32(), r.i32(), r.u16()
+        if n > TREES_MAX:
+            raise ProtocolError(f"tree count {n} above {TREES_MAX}")
+        out = [Tree(r.u32(), r.f32(), r.f32(), r.f32(), r.f32(), r.f32(), r.u8()) for _ in range(n)]
+        if r.pos != len(p):
+            raise ProtocolError("trees payload length does not match its count")
+        return Trees(epoch, rx, rz, out)
+
+
+@dataclass
+class TreeFelled:
+    """The player broke every log of the tree it placed for tree_id; the host removes the tree."""
+    open_seq: int
+    tree_id: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).u32(self.tree_id).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "TreeFelled":
+        r = Reader(p)
+        return TreeFelled(r.u32(), r.u32())
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

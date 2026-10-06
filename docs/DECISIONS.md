@@ -117,3 +117,12 @@ the x, z of its last `ENTER_PLAYER_MODE` on the highest walkable surface compute
 a fallback spawn with `CITY_OPEN` (the entry spot changes with every entry, and a host teleport brings collision
 loading and the hold with it). Advancements and statistics stay in the cache world (separate files), not per city.
 
+## 2026-10-06: trees are Minecraft trees (protocol 1.12)
+
+The host lists every drawn `TreeManager` tree per collision region (`TREES`, after that region's `COLLISION_REGION`:
+id, trunk base, height, radius, kind from the `TreeInfo` name) and the guest places a Minecraft tree for each; the
+player felling one sends `TREE_FELLED` and the host releases it as the bulldozer does (`TreeManager.ReleaseTree` via
+`SimulationManager.AddAction`). The kind mapping lives in `MinecraftSkylines.Protocol` (`TreeRecord.KindOf`), the
+region collection in `Skylines.Host` (`ObstacleGeometry.TreeSamples`, Minecraft-free). Rejected: a separate tree
+scan (the obstacle tree loop already visits exactly the trees of a region); sending building and lane decoration
+trees (not `TreeManager` trees, nothing to release).

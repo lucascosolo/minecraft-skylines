@@ -479,7 +479,8 @@ namespace MinecraftSkylines.Mod
                         }
                     }
                     else if ((e.MessageType >= AppProtocol.BlockEditsType && e.MessageType <= AppProtocol.CityStateType)
-                        || ((e.MessageType == AppProtocol.PlayerDataType || e.MessageType == AppProtocol.RespawnRequestType) && s_host.NegotiatedAppMinor >= 11))
+                        || ((e.MessageType == AppProtocol.PlayerDataType || e.MessageType == AppProtocol.RespawnRequestType) && s_host.NegotiatedAppMinor >= 11)
+                        || (e.MessageType == AppProtocol.TreeFelledType && s_host.NegotiatedAppMinor >= 12))
                     {
                         try
                         {

@@ -214,6 +214,14 @@ def frames() -> list[dict]:
         sb.PlayerData(0xFFFFFFFF, b"").encode())
     add("respawn_request", sb.RESPAWN_REQUEST, {"openSeq": 3}, sb.RespawnRequest(3).encode())
 
+    # ---- 1.12 (trees)
+    trees = [sb.Tree(70000, 120.5, 64.0, -2048.25, 9.5, 2.25, 0), sb.Tree(4294967295, -3.5, 40.875, 12.0, 1.5, 0.75, 6)]
+    for name, ts in (("trees_empty", []), ("trees_one", trees[:1]), ("trees_two", trees)):
+        add(name, sb.TREES, {"epoch": 7, "regionX": -3, "regionZ": 128, "trees": [
+            {"id": t.id, "x": t.x, "y": t.y, "z": t.z, "height": t.height, "radius": t.radius, "kind": t.kind}
+            for t in ts]}, sb.Trees(7, -3, 128, ts).encode())
+    add("tree_felled", sb.TREE_FELLED, {"openSeq": 3, "treeId": 70000}, sb.TreeFelled(3, 70000).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
@@ -240,6 +248,10 @@ def invalid_frames() -> list[dict]:
         bad("water_surface_size_129", sb.frame(sb.WATER_SURFACE, sb.Writer().i32(0).i32(0).u16(129).bytes()), "water grid size > 128 (checked before the columns)"),
         bad("player_data_too_long", sb.frame(sb.PLAYER_DATA, sb.Writer().u32(1).u32(sb.PLAYER_DATA_MAX + 1).bytes()), "player data length > 4 MiB (checked before the bytes)"),
         bad("player_data_overruns", sb.frame(sb.PLAYER_DATA, sb.Writer().u32(1).u32(3).bytes() + b"\x01\x02"), "data length past payload end"),
+        bad("trees_too_many", sb.frame(sb.TREES, sb.Writer().u32(1).i32(0).i32(0).u16(sb.TREES_MAX + 1).bytes()), "tree count > 4096 (checked before the trees)"),
+        bad("trees_truncated", sb.frame(sb.TREES, sb.Writer().u32(1).i32(0).i32(0).u16(1).u32(5).bytes()), "payload ends inside a tree"),
+        bad("trees_trailing_bytes", sb.frame(sb.TREES, sb.Trees(1, 0, 0, []).encode() + b"\x00"), "payload longer than its count says"),
+        bad("tree_felled_truncated", sb.frame(sb.TREE_FELLED, sb.Writer().u32(1).bytes()), "payload ends before treeId"),
         bad("unknown_bridge_type", sb.frame(0x0042, b""), "types below 0x0100 are reserved"),
     ]
 

@@ -817,6 +817,77 @@
       "hex": "04000000b101000003000000"
     },
     {
+      "name": "trees_empty",
+      "type": 448,
+      "fields": {
+        "epoch": 7,
+        "regionX": -3,
+        "regionZ": 128,
+        "trees": []
+      },
+      "hex": "0e000000c001000007000000fdffffff800000000000"
+    },
+    {
+      "name": "trees_one",
+      "type": 448,
+      "fields": {
+        "epoch": 7,
+        "regionX": -3,
+        "regionZ": 128,
+        "trees": [
+          {
+            "id": 70000,
+            "x": 120.5,
+            "y": 64.0,
+            "z": -2048.25,
+            "height": 9.5,
+            "radius": 2.25,
+            "kind": 0
+          }
+        ]
+      },
+      "hex": "27000000c001000007000000fdffffff800000000100701101000000f14200008042000400c5000018410000104000"
+    },
+    {
+      "name": "trees_two",
+      "type": 448,
+      "fields": {
+        "epoch": 7,
+        "regionX": -3,
+        "regionZ": 128,
+        "trees": [
+          {
+            "id": 70000,
+            "x": 120.5,
+            "y": 64.0,
+            "z": -2048.25,
+            "height": 9.5,
+            "radius": 2.25,
+            "kind": 0
+          },
+          {
+            "id": 4294967295,
+            "x": -3.5,
+            "y": 40.875,
+            "z": 12.0,
+            "height": 1.5,
+            "radius": 0.75,
+            "kind": 6
+          }
+        ]
+      },
+      "hex": "40000000c001000007000000fdffffff800000000200701101000000f14200008042000400c5000018410000104000ffffffff000060c000802342000040410000c03f0000403f06"
+    },
+    {
+      "name": "tree_felled",
+      "type": 449,
+      "fields": {
+        "openSeq": 3,
+        "treeId": 70000
+      },
+      "hex": "08000000c10100000300000070110100"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {
@@ -901,6 +972,26 @@
       "name": "player_data_overruns",
       "hex": "0a000000b001000001000000030000000102",
       "why": "data length past payload end"
+    },
+    {
+      "name": "trees_too_many",
+      "hex": "0e000000c00100000100000000000000000000000110",
+      "why": "tree count > 4096 (checked before the trees)"
+    },
+    {
+      "name": "trees_truncated",
+      "hex": "12000000c0010000010000000000000000000000010005000000",
+      "why": "payload ends inside a tree"
+    },
+    {
+      "name": "trees_trailing_bytes",
+      "hex": "0f000000c0010000010000000000000000000000000000",
+      "why": "payload longer than its count says"
+    },
+    {
+      "name": "tree_felled_truncated",
+      "hex": "04000000c101000001000000",
+      "why": "payload ends before treeId"
     },
     {
       "name": "unknown_bridge_type",

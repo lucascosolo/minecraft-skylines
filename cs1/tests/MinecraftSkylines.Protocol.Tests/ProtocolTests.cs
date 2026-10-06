@@ -390,6 +390,35 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
                         return m.Encode();
                     }
+                case AppProtocol.TreesType:
+                    {
+                        Trees m = Trees.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("epoch").GetUInt32(), m.Epoch);
+                        Assert.Equal(f.GetProperty("regionX").GetInt32(), m.RegionX);
+                        Assert.Equal(f.GetProperty("regionZ").GetInt32(), m.RegionZ);
+                        JsonElement trees = f.GetProperty("trees");
+                        Assert.Equal(trees.GetArrayLength(), m.Items.Length);
+                        int ti = 0;
+                        foreach (JsonElement t in trees.EnumerateArray())
+                        {
+                            TreeRecord a = m.Items[ti++];
+                            Assert.Equal(t.GetProperty("id").GetUInt32(), a.Id);
+                            Assert.Equal(t.GetProperty("x").GetSingle(), a.X);
+                            Assert.Equal(t.GetProperty("y").GetSingle(), a.Y);
+                            Assert.Equal(t.GetProperty("z").GetSingle(), a.Z);
+                            Assert.Equal(t.GetProperty("height").GetSingle(), a.Height);
+                            Assert.Equal(t.GetProperty("radius").GetSingle(), a.Radius);
+                            Assert.Equal(t.GetProperty("kind").GetByte(), a.Kind);
+                        }
+                        return m.Encode();
+                    }
+                case AppProtocol.TreeFelledType:
+                    {
+                        TreeFelled m = TreeFelled.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("treeId").GetUInt32(), m.TreeId);
+                        return m.Encode();
+                    }
                 default:
                     {
                         Assert.Equal(AppProtocol.PlayerStateType, frame.Type);
@@ -697,7 +726,9 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(11, AppProtocol.Minor);
+            Assert.Equal(12, AppProtocol.Minor);
+            Assert.Equal(0x01C0, AppProtocol.TreesType);
+            Assert.Equal(0x01C1, AppProtocol.TreeFelledType);
             Assert.Equal(0x01B0, AppProtocol.PlayerDataType);
             Assert.Equal(0x01B1, AppProtocol.RespawnRequestType);
             Assert.Equal(0x01A0, AppProtocol.WaterSurfaceType);
