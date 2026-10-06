@@ -102,3 +102,18 @@ and no Minecraft world ever needs removing. Rejected: one Minecraft world per ci
 would not revert blocks; worlds pile up). A city gets mod data only after the player says yes and a
 backup save written by the game's own routine is verified on disk. Details: `docs/plans/m4.md`.
 
+## 2026-10-06: the player belongs to the city (protocol 1.11)
+
+The player's own Minecraft data (gzip NBT of `ServerPlayer.saveWithoutId`: inventory, armour, offhand, item
+components, health, food, XP, effects, slot, game mode, spawn point, fall distance, air) is an opaque blob the host
+keeps in the city's save under `MinecraftSkylines.PlayerData` (`u8 version 1, u32 length, bytes, u32 CRC-32`;
+unreadable: fresh player, raw bytes kept under `.unreadable`), sent with `PLAYER_DATA` after every `CITY_OPEN` and
+returned by the guest before every `EDIT_SYNC_ACK` and when it changed (checked every 10 s). Rejected: a
+field-by-field record of our own (item components and future fields need Minecraft's own codecs anyway; the NBT
+carries `DataVersion`, so Minecraft's data fixer upgrades it). Identity and placement (UUID, position, rotation,
+motion, dimension) are never applied from it. Survival is the default; creative only via `DEBUG_COMMAND /gamemode`.
+Respawn: immediate; without a bed or anchor of its own the guest sends `RESPAWN_REQUEST` and the host re-enters at
+the x, z of its last `ENTER_PLAYER_MODE` on the highest walkable surface computed afresh. Rejected: the host sending
+a fallback spawn with `CITY_OPEN` (the entry spot changes with every entry, and a host teleport brings collision
+loading and the hold with it). Advancements and statistics stay in the cache world (separate files), not per city.
+
