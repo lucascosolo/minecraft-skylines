@@ -91,7 +91,10 @@ public final class EntityExporter {
 		List<EntityStates.Entity> out = new ArrayList<>();
 		Vec3 p = mc.player.position();
 		for (Entity e : mc.level.entitiesForRendering()) {
-			if (e == mc.player || out.size() >= EntityStates.MAX_ENTITIES) {
+			if (out.size() >= EntityStates.MAX_ENTITIES) {
+				break;
+			}
+			if (e == mc.player) {
 				continue;
 			}
 			double dx = e.getX() - p.x, dz = e.getZ() - p.z;
