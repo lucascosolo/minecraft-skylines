@@ -13,12 +13,19 @@ namespace Skylines.Host.Input
     /// the focused component first and skips shortcuts and <c>UIInput.eventProcessKeyEvent</c> (other
     /// mods) when it marks them used. Esc while a modal is up goes to <c>EscapeFromModal</c>, a no-op
     /// for a component that is not the unlocking panel.
+    /// <para>The blocker also hides CS1's own UI while it is up (<c>UIView.Show(false)</c>, as the game's
+    /// cinematic camera does) and restores the recorded visibility when it releases. Hiding is safe for the
+    /// modal: <c>Show</c> only sets <c>UIView.enabled</c> (a MonoBehaviour flag) and clears focus; the modal
+    /// stack and <c>activeComponent</c> are statics, <c>UIInput</c> is a separate component that keeps running
+    /// and delivers keys to the focused component. Hide therefore happens before the focus is taken.</para>
     /// </summary>
     public sealed class ShortcutBlocker
     {
         private SinkPanel _panel;
         private bool _releasing;
         private int _releaseFrame;
+        private bool _hidUi;
+        private bool _uiWasVisible;
 
         /// <summary>True while the modal is on CS1's modal stack.</summary>
         public bool Blocking { get { return _panel != null; } }
@@ -36,6 +43,7 @@ namespace Skylines.Host.Input
             {
                 return "no UIView";
             }
+            HideUi();
             var panel = (SinkPanel)view.AddUIComponent(typeof(SinkPanel));
             panel.name = "SkylinesHost.InputSink";
             panel.size = Vector2.zero;
@@ -67,6 +75,7 @@ namespace Skylines.Host.Input
             }
             if (!_releasing)
             {
+                if (_hidUi && UIView.isVisible) UIView.Show(false);
                 if (UIView.activeComponent != _panel)
                 {
                     UIView.SetFocus(_panel);
@@ -88,6 +97,7 @@ namespace Skylines.Host.Input
             if (_panel == null)
             {
                 _releasing = false;
+                RestoreUi();
                 return null;
             }
             _releasing = true;
@@ -103,7 +113,25 @@ namespace Skylines.Host.Input
             Object.Destroy(_panel.gameObject);
             _panel = null;
             _releasing = false;
+            RestoreUi();
             return null;
+        }
+
+        // Records the view's visibility once and hides it.
+        private void HideUi()
+        {
+            if (_hidUi) return;
+            _uiWasVisible = UIView.isVisible;
+            _hidUi = true;
+            UIView.Show(false);
+        }
+
+        // Puts the recorded visibility back; the view stays hidden if it was hidden before.
+        private void RestoreUi()
+        {
+            if (!_hidUi) return;
+            _hidUi = false;
+            UIView.Show(_uiWasVisible);
         }
 
         private static string Describe(UIComponent c)

@@ -48,6 +48,7 @@ namespace MinecraftSkylines.Mod
         private readonly double _sensitivity = ConfiguredSensitivity();
         private readonly EscapeRouter _esc = new EscapeRouter();
         private readonly List<InputEvent> _escEvents = new List<InputEvent>();
+        private bool _swallowModeKeyUp;
         private bool _guestScreenOpen;
         private bool _screenMode;
         private int _cursorX = -1, _cursorY = -1;
@@ -300,6 +301,7 @@ namespace MinecraftSkylines.Mod
             _screenMode = false;
             _esc.Reset();
             _escEvents.Clear();
+            _swallowModeKeyUp = false;
             Guard("restore camera", () =>
             {
                 string problems = _camera.Release();
@@ -467,6 +469,16 @@ namespace MinecraftSkylines.Mod
                     _escEvents.Clear();
                     continue;
                 }
+                if (c.Code == (int)KeyCode.O && (c.Kind == CapturedKind.KeyDown || c.Kind == CapturedKind.KeyUp))
+                {
+                    // Ctrl+Shift+O cycles the overlay mode (OverlayLink) and must not reach Minecraft, key-up included.
+                    if (c.Kind == CapturedKind.KeyDown && CtrlShiftHeld()) _swallowModeKeyUp = true;
+                    if (_swallowModeKeyUp)
+                    {
+                        if (c.Kind == CapturedKind.KeyUp) _swallowModeKeyUp = false;
+                        continue;
+                    }
+                }
                 switch (c.Kind)
                 {
                     case CapturedKind.KeyDown:
@@ -558,10 +570,19 @@ namespace MinecraftSkylines.Mod
 
         private static bool EnterKeyPressed()
         {
-            return UInput.GetKeyDown(KeyCode.M)
-                && (UInput.GetKey(KeyCode.LeftControl) || UInput.GetKey(KeyCode.RightControl))
-                && (UInput.GetKey(KeyCode.LeftShift) || UInput.GetKey(KeyCode.RightShift))
-                && !UIView.HasModalInput() && !UIView.HasInputFocus();
+            return UInput.GetKeyDown(KeyCode.M) && CtrlShiftHeld() && !UIView.HasModalInput() && !UIView.HasInputFocus();
+        }
+
+        /// <summary>Ctrl+Shift+O this frame: cycles the overlay draw mode.</summary>
+        public static bool ModeKeyPressed()
+        {
+            return UInput.GetKeyDown(KeyCode.O) && CtrlShiftHeld();
+        }
+
+        private static bool CtrlShiftHeld()
+        {
+            return (UInput.GetKey(KeyCode.LeftControl) || UInput.GetKey(KeyCode.RightControl))
+                && (UInput.GetKey(KeyCode.LeftShift) || UInput.GetKey(KeyCode.RightShift));
         }
 
         /// <summary>Every Unity key code Minecraft can receive; Esc stays with CS1.</summary>

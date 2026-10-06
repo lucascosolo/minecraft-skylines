@@ -21,9 +21,20 @@ namespace Skylines.Host.Overlay
         private Material _mat;
         private bool _shaderTried;
         private bool _bottomUp;
+        private bool _texLinear;
+        private int _mode = OverlayMode.Default;
 
-        /// <summary>Set to true to force the straight-alpha GUI.DrawTexture path.</summary>
-        public bool ForceStraightAlpha;
+        /// <summary>The drawing mode (see <see cref="OverlayMode"/>); changing the linear flag recreates the texture, keeping its pixels.</summary>
+        public int Mode
+        {
+            get { return _mode; }
+            set
+            {
+                if (!OverlayMode.IsValid(value) || value == _mode) return;
+                _mode = value;
+                if (_tex != null && _tex.width > 0 && OverlayMode.LinearTexture(_mode) != _texLinear) RecreateTexture(_tex.width, _tex.height, true);
+            }
+        }
 
         /// <summary>Frames uploaded.</summary>
         public long Uploads { get; private set; }
@@ -45,7 +56,7 @@ namespace Skylines.Host.Overlay
         /// <summary>How the overlay is blended, for diagnostics.</summary>
         public string BlendDescription
         {
-            get { return _mat != null && !ForceStraightAlpha ? "premultiplied (" + PremultipliedShader + ")" : "straight alpha (GUI.DrawTexture fallback)"; }
+            get { return "mode " + OverlayMode.Describe(_mode) + (OverlayMode.UsesPremultiplyShader(_mode) && _mat == null ? " (shader missing, straight alpha)" : ""); }
         }
 
         /// <summary>Copies the frame into the texture; call right after Acquire returned true, before the next Acquire.</summary>
@@ -53,16 +64,7 @@ namespace Skylines.Host.Overlay
         {
             _watch.Reset();
             _watch.Start();
-            if (_tex == null || _tex.width != frame.Width || _tex.height != frame.Height)
-            {
-                if (_tex != null) UnityEngine.Object.Destroy(_tex);
-                // Point filtering: the guest renders at exactly the host's viewport size, so texels map 1:1 to
-                // screen pixels and GUI text stays crisp; bilinear would only blur during a resize.
-                _tex = new Texture2D(frame.Width, frame.Height, TextureFormat.RGBA32, false, false);
-                _tex.filterMode = FilterMode.Point;
-                _tex.wrapMode = TextureWrapMode.Clamp;
-                _tex.hideFlags = HideFlags.HideAndDontSave;
-            }
+            if (_tex == null || _tex.width != frame.Width || _tex.height != frame.Height) RecreateTexture(frame.Width, frame.Height, false);
             _tex.LoadRawTextureData(frame.Pixels, frame.ByteCount);
             _tex.Apply(false, false);
             _bottomUp = frame.RowsBottomUp;
@@ -75,6 +77,24 @@ namespace Skylines.Host.Overlay
             TotalUploadMs += LastUploadMs;
             if (LastUploadMs > MaxUploadMs) MaxUploadMs = LastUploadMs;
             Uploads++;
+        }
+
+        private void RecreateTexture(int width, int height, bool keepPixels)
+        {
+            byte[] old = keepPixels && _tex != null ? _tex.GetRawTextureData() : null;
+            if (_tex != null) UnityEngine.Object.Destroy(_tex);
+            _texLinear = OverlayMode.LinearTexture(_mode);
+            // Point filtering: the guest renders at exactly the host's viewport size, so texels map 1:1 to
+            // screen pixels and GUI text stays crisp; bilinear would only blur during a resize.
+            _tex = new Texture2D(width, height, TextureFormat.RGBA32, false, _texLinear);
+            _tex.filterMode = FilterMode.Point;
+            _tex.wrapMode = TextureWrapMode.Clamp;
+            _tex.hideFlags = HideFlags.HideAndDontSave;
+            if (old != null)
+            {
+                _tex.LoadRawTextureData(old);
+                _tex.Apply(false, false);
+            }
         }
 
         /// <summary>Stops showing the current frame (the texture is kept for reuse).</summary>
@@ -100,7 +120,11 @@ namespace Skylines.Host.Overlay
             var screen = new Rect(0f, 0f, Screen.width, Screen.height);
             // Texture row 0 is the bottom. Top-down data (flag clear) lands upside down, so flip the V range.
             var uv = _bottomUp ? new Rect(0f, 0f, 1f, 1f) : new Rect(0f, 1f, 1f, -1f);
-            if (_mat != null && !ForceStraightAlpha) Graphics.DrawTexture(screen, _tex, uv, 0, 0, 0, 0, Color.white, _mat);
+            if (_mat != null && OverlayMode.UsesPremultiplyShader(_mode))
+            {
+                float g = OverlayMode.DrawColorGrey(_mode);
+                Graphics.DrawTexture(screen, _tex, uv, 0, 0, 0, 0, new Color(g, g, g, g), _mat);
+            }
             else GUI.DrawTextureWithTexCoords(screen, _tex, uv, true);
         }
 

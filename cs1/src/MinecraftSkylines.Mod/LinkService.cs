@@ -77,6 +77,7 @@ namespace MinecraftSkylines.Mod
             s_pump.Gui += s_overlay.Draw;
             s_launcher = new MinecraftLauncher(s_log, Path.Combine(Path.Combine(DataLocation.localApplicationData, "ModLogs"), "MinecraftSkylines-companion.log"),
                 UnityEngine.Application.platform == UnityEngine.RuntimePlatform.LinuxPlayer);
+            s_gui.SetMode(s_launcher.OverlayMode);
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;

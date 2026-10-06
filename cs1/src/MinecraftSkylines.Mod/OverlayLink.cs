@@ -25,7 +25,17 @@ namespace MinecraftSkylines.Mod
         public OverlayLink(HostLog log)
         {
             _log = log;
-            _presenter.ForceStraightAlpha = Environment.GetEnvironmentVariable("MCSKYLINES_OVERLAY_BLEND") == "straight";
+        }
+
+        /// <summary>The drawing mode (see <see cref="OverlayMode"/>).</summary>
+        public int Mode { get { return _presenter.Mode; } }
+
+        /// <summary>Sets the drawing mode (launch.cfg or Ctrl+Shift+O) and logs it.</summary>
+        public void SetMode(int mode)
+        {
+            if (!OverlayMode.IsValid(mode)) return;
+            _presenter.Mode = mode;
+            _log.Info("overlay: draw mode " + OverlayMode.Describe(mode));
         }
 
         public long Offers { get; private set; }
@@ -49,6 +59,7 @@ namespace MinecraftSkylines.Mod
                 }
             }
             _wasPlayerOn = playerOn;
+            if (playerOn && PlayerMode.ModeKeyPressed()) SetMode(OverlayMode.Next(_presenter.Mode));
             if (playerOn && _reader != null)
             {
                 try
@@ -111,7 +122,7 @@ namespace MinecraftSkylines.Mod
         public string OverlayText()
         {
             if (_reader == null && _note.Length == 0) return "";
-            var sb = new StringBuilder("GUI overlay: ");
+            var sb = new StringBuilder("GUI overlay [Ctrl+Shift+O]: mode ").Append(OverlayMode.Describe(_presenter.Mode)).Append("; ");
             if (_reader != null)
             {
                 sb.Append(_presenter.Width).Append('x').Append(_presenter.Height).Append(", ").Append(_reader.FramesAcquired)

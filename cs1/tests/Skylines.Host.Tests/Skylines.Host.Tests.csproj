@@ -13,6 +13,7 @@
     <Compile Include="..\..\src\Skylines.Host\Process\CompanionProcess.cs" Link="CompanionProcess.cs" />
     <Compile Include="..\..\src\Skylines.Host\Rendering\MeshSplit.cs" Link="MeshSplit.cs" />
     <Compile Include="..\..\src\Skylines.Host\Overlay\SharedOverlayReader.cs" Link="SharedOverlayReader.cs" />
+    <Compile Include="..\..\src\Skylines.Host\Overlay\OverlayMode.cs" Link="OverlayMode.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

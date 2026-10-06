@@ -104,6 +104,36 @@ namespace Skylines.Host.Tests
         }
 
         [Fact]
+        public void OverlayModeDefaultsToZero()
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\n");
+            Assert.Equal(0, c.OverlayMode);
+            Assert.Empty(c.Problems);
+        }
+
+        [Theory]
+        [InlineData("0", 0)]
+        [InlineData("2", 2)]
+        [InlineData(" 4 ", 4)]
+        public void ParsesOverlayMode(string value, int expected)
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\noverlay_mode = " + value + "\n");
+            Assert.Empty(c.Problems);
+            Assert.Equal(expected, c.OverlayMode);
+        }
+
+        [Theory]
+        [InlineData("5")]
+        [InlineData("x")]
+        [InlineData("-1")]
+        public void BadOverlayModeIsOneProblemAndStaysZero(string value)
+        {
+            LaunchConfig c = LaunchConfig.Parse("command = x\noverlay_mode = " + value + "\n");
+            Assert.Single(c.Problems);
+            Assert.Equal(0, c.OverlayMode);
+        }
+
+        [Fact]
         public void BlockMaterialDefaultsToZero()
         {
             LaunchConfig c = LaunchConfig.Parse("command = x\n");

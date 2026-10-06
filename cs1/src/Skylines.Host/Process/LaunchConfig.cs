@@ -71,6 +71,9 @@ namespace Skylines.Host
         /// <summary>Material variant for drawn block meshes, 0-3 (an in-game experiment knob).</summary>
         public int BlockMaterial;
 
+        /// <summary>Overlay drawing mode, 0-4 (an in-game brightness experiment knob; see <c>Skylines.Host.Overlay.OverlayMode</c>).</summary>
+        public int OverlayMode;
+
         /// <summary>Problems found while parsing (unknown keys, bad numbers, missing command).</summary>
         public readonly List<string> Problems = new List<string>();
 
@@ -199,6 +202,13 @@ namespace Skylines.Host
                         int m;
                         if (int.TryParse(value, out m) && m >= 0 && m <= 3) BlockMaterial = m;
                         else Problems.Add("line " + lineNo + ": block_material must be 0, 1, 2 or 3");
+                    }
+                    break;
+                case "overlay_mode":
+                    {
+                        int o;
+                        if (int.TryParse(value, out o) && o >= 0 && o <= 4) OverlayMode = o;
+                        else Problems.Add("line " + lineNo + ": overlay_mode must be 0, 1, 2, 3 or 4");
                     }
                     break;
                 default:
