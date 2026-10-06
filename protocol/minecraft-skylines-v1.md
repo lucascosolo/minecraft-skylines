@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.8
+# `minecraft-skylines` application protocol, version 1.9
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 8`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 9`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -428,3 +428,55 @@ its lights; a light the player has replaced is forgotten, not removed. These pla
 edits: never reported in `BLOCK_EDITS`, never part of the city's edit set, but recorded as touched positions, so the
 next `CITY_OPEN` (also after a Minecraft restart) or `CITY_CLOSE` reverts any left behind; the guest forgets its lights
 on either.
+
+
+## Minor 9: Minecraft's sky
+
+While the player is in Minecraft mode the host hides its own sky and draws Minecraft's: a dome from the sky colour
+overhead to the fog colour at the horizon, the sunrise/sunset glow, stars, Minecraft's sun and moon textures and a
+flat cloud layer. The sun and moon are drawn **where the host's own sun and moon light comes from** (CS1:
+`DayNightProperties.m_SunLight` / `m_MoonLight`), not at Minecraft's celestial angle, so the textured sun is the light
+source the city is lit and shadowed by. Time of day is shared by `WORLD_TIME` (minor 6).
+
+### `0x0190 SKY_STATE` (guest → host)
+
+Sent about four times a second while a world is loaded; the newest replaces the previous one, and a host stops
+drawing Minecraft's sky when none has arrived for 5 s. Colours are Minecraft's 0-1 floats as its sky renderer uses
+them (sRGB-encoded).
+
+| Type | Field | Notes |
+|---|---|---|
+| u8 | `flags` | bit 0 `SKY`: the dimension has an overworld-style sky (draw dome, glow, sun, moon, stars); bit 1 `CLOUDS`: clouds are shown (the dimension has clouds and the player's cloud option is not off) |
+| f32 × 3 | `skyColor` | `EnvironmentAttributes.SKY_COLOR` at the camera |
+| f32 × 3 | `fogColor` | `FOG_COLOR` at the camera; the dome's colour at the horizon |
+| f32 × 4 | `sunriseColor` | `SUNRISE_SUNSET_COLOR` (r, g, b, a); a = 0 outside sunrise and sunset |
+| f32 | `starBrightness` | `STAR_BRIGHTNESS`, 0-1, before rain |
+| f32 | `rainLevel` | `ClientLevel.getRainLevel`, 0-1; sun, moon and stars are drawn at `1 - rainLevel` |
+| u8 | `moonPhase` | `MoonPhase.index()`: 0 full moon, 1 waning gibbous, 2 third quarter, 3 waning crescent, 4 new moon, 5 waxing crescent, 6 first quarter, 7 waxing gibbous; anything above 7 is a protocol error |
+| f32 × 4 | `cloudColor` | `CLOUD_COLOR` (r, g, b, a) |
+| f32 | `cloudHeight` | `CLOUD_HEIGHT`, Minecraft Y of the cloud layer |
+| f32 | `cloudOffset` | blocks the cloud pattern has moved along +x: `((gameTime mod (cloudTextureWidth × 400)) + partialTick) × 0.03` |
+| f32 | `cloudSpeed` | blocks per second `cloudOffset` grows by until the next message (0.6 while the game runs, 0 while it is paused); the host extrapolates with it |
+
+Clouds are one texel of the clouds texture per 12 × 12 blocks: the texel at Minecraft (x, z) is column
+`floor((x + cloudOffset) / 12) mod width`, row `floor((z + 3.96) / 12) mod height` (row 0 = the image's top row),
+coloured `cloudColor` × texel; texels with alpha 0 are clear sky.
+
+### `0x0191 SKY_TEXTURES` (guest → host)
+
+The images the sky is drawn with, from the guest's current resource packs. Sent after the handshake once a world is
+loaded and again after every resource reload; each set replaces the previous one.
+
+| Type | Field | Notes |
+|---|---|---|
+| u8 | `count` | |
+| per texture: u8 | `kind` | 0 sun, 1 moon, 2 clouds; a host skips kinds it does not know |
+| u8 | `phase` | moon: its `moonPhase` (0-7, anything else is a protocol error); other kinds: 0 |
+| u8 | `format` | 1 = PNG; a host skips other formats |
+| u32 | `byteLength` | |
+| bytes | `data` | the encoded image, as in the resource pack |
+
+Minecraft 26.3 sends `textures/environment/celestial/sun.png`, the eight
+`textures/environment/celestial/moon/<phase>.png` and `textures/environment/clouds.png`; an image over 2 MiB is left
+out (and logged). The host draws them point-filtered. Sun and moon are additive (black is transparent), drawn as
+squares facing their direction with half-size 0.30 (sun) and 0.20 (moon) at distance 1, as Minecraft's 30 and 20 at 100.

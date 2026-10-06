@@ -313,6 +313,38 @@ namespace MinecraftSkylines.Protocol.Tests
                         }
                         return m.Encode();
                     }
+                case AppProtocol.SkyStateType:
+                    {
+                        SkyState m = SkyState.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("flags").GetByte(), m.Flags);
+                        AssertFloats(f.GetProperty("skyColor"), m.SkyColor);
+                        AssertFloats(f.GetProperty("fogColor"), m.FogColor);
+                        AssertFloats(f.GetProperty("sunriseColor"), m.SunriseColor);
+                        Assert.Equal(f.GetProperty("starBrightness").GetSingle(), m.StarBrightness);
+                        Assert.Equal(f.GetProperty("rainLevel").GetSingle(), m.RainLevel);
+                        Assert.Equal(f.GetProperty("moonPhase").GetByte(), m.MoonPhase);
+                        AssertFloats(f.GetProperty("cloudColor"), m.CloudColor);
+                        Assert.Equal(f.GetProperty("cloudHeight").GetSingle(), m.CloudHeight);
+                        Assert.Equal(f.GetProperty("cloudOffset").GetSingle(), m.CloudOffset);
+                        Assert.Equal(f.GetProperty("cloudSpeed").GetSingle(), m.CloudSpeed);
+                        return m.Encode();
+                    }
+                case AppProtocol.SkyTexturesType:
+                    {
+                        SkyTextures m = SkyTextures.Decode(frame.Payload);
+                        JsonElement textures = f.GetProperty("textures");
+                        Assert.Equal(textures.GetArrayLength(), m.Textures.Length);
+                        int ti = 0;
+                        foreach (JsonElement t in textures.EnumerateArray())
+                        {
+                            SkyTexture a = m.Textures[ti++];
+                            Assert.Equal(t.GetProperty("kind").GetByte(), a.Kind);
+                            Assert.Equal(t.GetProperty("phase").GetByte(), a.Phase);
+                            Assert.Equal(t.GetProperty("format").GetByte(), a.Format);
+                            Assert.Equal(Hex(t.GetProperty("dataHex").GetString()), a.Data);
+                        }
+                        return m.Encode();
+                    }
                 case AppProtocol.CityCloseType:
                     {
                         CityClose m = CityClose.Decode(frame.Payload);
@@ -508,6 +540,37 @@ namespace MinecraftSkylines.Protocol.Tests
             Assert.Throws<ProtocolException>(() => LightSources.Decode(FrameCodec.Decode(Hex(hex)).Payload));
         }
 
+        private static void AssertFloats(JsonElement expected, float[] actual)
+        {
+            Assert.Equal(expected.GetArrayLength(), actual.Length);
+            int i = 0;
+            foreach (JsonElement e in expected.EnumerateArray()) Assert.Equal(e.GetSingle(), actual[i++]);
+        }
+
+        private static byte[] InvalidVectorPayload(string name)
+        {
+            string hex = null;
+            using (JsonDocument d = Load("frames.json"))
+                foreach (JsonElement v in d.RootElement.GetProperty("invalid").EnumerateArray())
+                    if (v.GetProperty("name").GetString() == name) hex = v.GetProperty("hex").GetString();
+            Assert.NotNull(hex);
+            return FrameCodec.Decode(Hex(hex)).Payload;
+        }
+
+        [Fact]
+        public void InvalidSkyStateVectorRaisesProtocolException()
+        {
+            byte[] p = InvalidVectorPayload("sky_state_moon_phase_8");
+            Assert.Throws<ProtocolException>(() => SkyState.Decode(p));
+        }
+
+        [Fact]
+        public void InvalidSkyTexturesVectorRaisesProtocolException()
+        {
+            byte[] p = InvalidVectorPayload("sky_textures_moon_phase_8");
+            Assert.Throws<ProtocolException>(() => SkyTextures.Decode(p));
+        }
+
         private static byte[] SnapshotPayload()
         {
             return new BlockEdits
@@ -611,7 +674,9 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(8, AppProtocol.Minor);
+            Assert.Equal(9, AppProtocol.Minor);
+            Assert.Equal(0x0190, AppProtocol.SkyStateType);
+            Assert.Equal(0x0191, AppProtocol.SkyTexturesType);
             Assert.Equal(0x0180, AppProtocol.LightSourcesType);
             Assert.Equal(0x0170, AppProtocol.DynamicObstaclesType);
             Assert.Equal(0x0140, AppProtocol.ViewportType);

@@ -183,6 +183,23 @@ def frames() -> list[dict]:
         {"x": s.x, "y": s.y, "z": s.z, "level": s.level} for s in lights]}, sb.LightSources(lights).encode())
     add("light_sources_empty", sb.LIGHT_SOURCES, {"lights": []}, sb.LightSources([]).encode())
 
+    # ---- 1.9 (Minecraft's sky)
+    day = sb.SkyState(sb.SKY_FLAG_SKY | sb.SKY_FLAG_CLOUDS, (0.46875, 0.65625, 1.0), (0.75, 0.84375, 1.0),
+                      (0.9921875, 0.453125, 0.15625, 0.5), 0.0, 0.25, 3, (1.0, 1.0, 1.0, 0.8125), 192.5, 1234.25, 0.5)
+    night = sb.SkyState(sb.SKY_FLAG_SKY, (0.0, 0.0, 0.03125), (0.0234375, 0.03125, 0.0625), (0.0, 0.0, 0.0, 0.0),
+                        0.5, 0.0, 7, (0.125, 0.125, 0.1875, 0.8125), -64.0, 0.0, 0.0)
+    for name, st in (("sky_state_day", day), ("sky_state_night", night)):
+        add(name, sb.SKY_STATE, {"flags": st.flags, "skyColor": list(st.sky_color), "fogColor": list(st.fog_color),
+            "sunriseColor": list(st.sunrise_color), "starBrightness": st.star_brightness, "rainLevel": st.rain_level,
+            "moonPhase": st.moon_phase, "cloudColor": list(st.cloud_color), "cloudHeight": st.cloud_height,
+            "cloudOffset": st.cloud_offset, "cloudSpeed": st.cloud_speed}, st.encode())
+    texs = [sb.SkyTexture(sb.SKY_TEX_SUN, 0, sb.SKY_TEX_PNG, png), sb.SkyTexture(sb.SKY_TEX_MOON, 7, sb.SKY_TEX_PNG, png),
+            sb.SkyTexture(sb.SKY_TEX_CLOUDS, 0, sb.SKY_TEX_PNG, bytes([1, 2])), sb.SkyTexture(9, 0, 2, b"")]
+    add("sky_textures", sb.SKY_TEXTURES, {"textures": [
+        {"kind": t.kind, "phase": t.phase, "format": t.fmt, "dataHex": t.data.hex()} for t in texs]},
+        sb.SkyTextures(texs).encode())
+    add("sky_textures_empty", sb.SKY_TEXTURES, {"textures": []}, sb.SkyTextures([]).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
@@ -203,6 +220,8 @@ def invalid_frames() -> list[dict]:
         bad("block_edits_index_out_of_range", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(1).string("minecraft:stone").u32(1).i32(0).i32(0).i32(0).u16(1).bytes()), "state index >= paletteCount"),
         bad("block_edits_duplicate_palette", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(2).string("minecraft:stone").string("minecraft:stone").u32(0).bytes()), "palette has duplicates"),
         bad("block_edits_too_many", sb.frame(sb.BLOCK_EDITS, sb.Writer().u32(1).u8(0).u16(0).u32(65537).bytes()), "editCount > 65536"),
+        bad("sky_state_moon_phase_8", sb.frame(sb.SKY_STATE, sb.SkyState(1, (0, 0, 0), (0, 0, 0), (0, 0, 0, 0), 0, 0, 8, (0, 0, 0, 0), 0, 0, 0).encode()), "moonPhase > 7"),
+        bad("sky_textures_moon_phase_8", sb.frame(sb.SKY_TEXTURES, sb.Writer().u8(1).u8(1).u8(8).u8(1).u32(0).bytes()), "moon texture phase > 7"),
         bad("light_sources_level_zero", sb.frame(sb.LIGHT_SOURCES, sb.Writer().u16(1).i32(0).i32(64).i32(0).u8(0).bytes()), "light level outside 1..15"),
         bad("unknown_bridge_type", sb.frame(0x0042, b""), "types below 0x0100 are reserved"),
     ]
