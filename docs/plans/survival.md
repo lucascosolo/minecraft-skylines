@@ -34,6 +34,19 @@ material available including some ores buried in the ground. we need trees to ge
    them regularly near the player by city context — cows/pigs/sheep/chickens on open grass, parks and CS1 farm land;
    horses/llamas on open country; rabbits/foxes/wolves near forest; fish/squid in CS1 water — on shadow grass, standing
    on CS1's visible ground. Needs entities drawn in CS1 (step 4) first.
+   Growing conditions (owner, 2026-10-06: "Saplings need to be fed the conditions necessary for them to grow which might
+   not exist in the environment they're placed in currently", "Same with plants that can be farmed", "I would like to be
+   able to hoe CS1 grass and turn it into farmland just like a normal grass block"). Vanilla (checked in the 26.3 jar):
+   a sapling advances on a random tick with chance 1/7 when the light at the cell above is at least 9, in two stages,
+   on a block in `supports_vegetation`; crops add farmland moisture and neighbour rules. What the city lacks:
+   (a) random ticks happen only in chunks simulated near the Minecraft player, so a farm or sapling anywhere else, or
+   in city view, never grows; (b) a CS1 tree grown from a sapling needs room against the whole city (buildings above the
+   4-block barrier fill, props), not only shadow blocks; (c) hoes, shovels and bone meal aimed at CS1's ground hit the
+   invisible grass plant or the empty cell above it, never the ground block. Plan: tool use on CS1 ground acts on the
+   shadow ground block (a hoe clears the plant on it and tills, as on a bare grass block); every growing plant the
+   player owns catches up when its chunk loads, by vanilla's probabilities applied to the city time that passed, with
+   light from the synced sun and CS1's lamps and moisture from CS1 water; pausing CS1 pauses growth; a sapling that
+   completes grows into a CS1 tree of the matching kind (TREES), if the city has room for it.
 4b. **Citizens are villagers to mobs** (owner, 2026-10-06: "CS1 npcs will be villagers to the Minecraft mobs and they
    will be triggered to panic when targeted by mobs, and they will be capable of actually being killed by them too").
    CS1 citizens near the simulated area get invisible villager proxies in Minecraft that follow them (positions as
