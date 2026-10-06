@@ -635,6 +635,48 @@ def minecraft_day_ticks(hour: float) -> int:
     return int(((hour - 6.0) % 24.0) * 1000.0) % 24000
 
 
+# ---- minecraft-skylines app protocol 1.7: moving obstacles --------------------------------------
+DYNAMIC_OBSTACLES = 0x0170
+OBSTACLE_VEHICLE = 1
+OBSTACLE_CITIZEN = 2
+
+
+@dataclass
+class Obstacle:
+    """An oriented box in Minecraft coordinates: centre, yaw of the length axis, half extents, velocity (m/s)."""
+    kind: int
+    id: int
+    x: float
+    y: float
+    z: float
+    yaw: float
+    half_width: float
+    half_height: float
+    half_length: float
+    vx: float
+    vy: float
+    vz: float
+
+
+@dataclass
+class DynamicObstacles:
+    obstacles: list
+
+    def encode(self) -> bytes:
+        w = Writer().u16(len(self.obstacles))
+        for o in self.obstacles:
+            w.u8(o.kind).u32(o.id)
+            for v in (o.x, o.y, o.z, o.yaw, o.half_width, o.half_height, o.half_length, o.vx, o.vy, o.vz):
+                w.f32(v)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "DynamicObstacles":
+        r = Reader(p)
+        n = r.u16()
+        return DynamicObstacles([Obstacle(r.u8(), r.u32(), *[r.f32() for _ in range(10)]) for _ in range(n)])
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

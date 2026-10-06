@@ -11,9 +11,11 @@ import dev.mcskylines.bridge.Goodbye;
 import dev.mcskylines.bridge.ProtocolException;
 import dev.mcskylines.bridge.Welcome;
 import dev.mcskylines.collision.CollisionStore;
+import dev.mcskylines.collision.DynamicObstacleStore;
 import dev.mcskylines.protocol.AppProtocol;
 import dev.mcskylines.protocol.CollisionRegion;
 import dev.mcskylines.protocol.CollisionReset;
+import dev.mcskylines.protocol.DynamicObstacles;
 import dev.mcskylines.protocol.DebugCommand;
 import dev.mcskylines.protocol.EnterPlayerMode;
 import dev.mcskylines.protocol.ExitPlayerMode;
@@ -187,6 +189,7 @@ final class LinkController {
 				hostStatus = null;
 				sentStatus = null;
 				playerMode.onLinkDown(mc);
+				DynamicObstacleStore.INSTANCE.clear();
 				overlay.linkDown();
 				city.linkDown();
 				clock.linkDown();
@@ -214,7 +217,10 @@ final class LinkController {
 						switch (m.type()) {
 							case AppProtocol.INPUT -> playerMode.onInput(mc, Input.decode(m.payload()));
 							case AppProtocol.ENTER_PLAYER_MODE -> playerMode.onEnter(mc, EnterPlayerMode.decode(m.payload()));
-							default -> playerMode.onExit(mc, ExitPlayerMode.decode(m.payload()).reason());
+							default -> {
+								DynamicObstacleStore.INSTANCE.clear();
+								playerMode.onExit(mc, ExitPlayerMode.decode(m.payload()).reason());
+							}
 						}
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed player-mode message: {}", e.getMessage());
@@ -231,6 +237,14 @@ final class LinkController {
 						|| m.type() == AppProtocol.CITY_CLOSE || m.type() == AppProtocol.EDIT_SYNC) {
 					if (peer != null && peer.appMinor() >= 5) {
 						city.deliver(m.type(), m.payload());
+					}
+				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES) {
+					try {
+						if (peer != null && peer.appMinor() >= 7) {
+							DynamicObstacleStore.INSTANCE.accept(DynamicObstacles.decode(m.payload()), System.nanoTime());
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed DYNAMIC_OBSTACLES: {}", e.getMessage());
 					}
 				} else if (m.type() == AppProtocol.WORLD_TIME) {
 					try {

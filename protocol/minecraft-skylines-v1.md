@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.6
+# `minecraft-skylines` application protocol, version 1.7
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 6`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 7`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -378,3 +378,25 @@ while the value changes. The guest stops its own clock and shows exactly this ti
 levels (and therefore everything Minecraft lights, the player's hand included) follow the city.
 Minecraft's day starts at 06:00: ticks into the day = ((hour − 6) mod 24) × 1000.
 
+
+## Minor 7: moving obstacles
+
+### `0x0170 DYNAMIC_OBSTACLES` (host → guest)
+
+The vehicles and citizens near the player as oriented boxes, so the player collides with them. Sent about 20 times a
+second while in player mode, each time with the **complete** current set within 48 m of the player's feet (possibly
+empty); the latest set replaces the previous one. Positions are where the host draws the object this frame.
+
+| Type | Field | Notes |
+|---|---|---|
+| u16 | `count` | |
+| per obstacle: u8 | `kind` | 1 vehicle (a trailer is its own vehicle), 2 citizen; others reserved, treated as solid |
+| u32 | `id` | the host's id of the object (CS1: index into `VehicleManager.m_vehicles` for kind 1, into `CitizenManager.m_instances` for kind 2), so later messages can refer to it |
+| f32 × 3 | `x`, `y`, `z` | centre of the box, Minecraft coordinates |
+| f32 | `yaw` | Minecraft yaw of the box's length axis: that axis is `(-sin yaw, 0, cos yaw)`, the width axis `(cos yaw, 0, sin yaw)`; the box is always upright |
+| f32 × 3 | `halfWidth`, `halfHeight`, `halfLength` | half extents along the width, vertical and length axes, metres |
+| f32 × 3 | `vx`, `vy`, `vz` | velocity, m/s in the Minecraft frame, as observed on the host's clock (zero while the city is paused) |
+
+The guest extrapolates each box by `velocity × age` between messages, drops the whole set when no message has arrived
+for 0.5 s or player mode ends, does not let the crosshair target the boxes, and pushes the player out of a box that
+moves into it along the box's horizontal velocity (along the shortest way out when it is not moving).

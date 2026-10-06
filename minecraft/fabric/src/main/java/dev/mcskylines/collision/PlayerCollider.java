@@ -11,7 +11,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** Feeds the local player's movement through {@link TriCollider} against the nearby streamed triangles. */
+/** Feeds the local player's movement through {@link TriCollider} against the nearby streamed triangles and moving obstacles. */
 public final class PlayerCollider {
 	private PlayerCollider() {
 	}
@@ -22,15 +22,30 @@ public final class PlayerCollider {
 	}
 
 	public static Vec3 collide(LocalPlayer player, Vec3 move) {
-		AABB box = player.getBoundingBox().expandTowards(move).inflate(1.0, 1.0 + player.maxUpStep(), 1.0);
+		AABB body = player.getBoundingBox();
+		double fx = (body.minX + body.maxX) * 0.5, fy = body.minY, fz = (body.minZ + body.maxZ) * 0.5;
+		double radius = body.getXsize() * 0.5, height = body.getYsize();
+		AABB box = body.expandTowards(move).inflate(1.0, 1.0 + player.maxUpStep(), 1.0);
 		List<SkyTri> tris = new ArrayList<>();
 		CollisionStore.INSTANCE.trianglesNear(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, tris);
-		if (tris.isEmpty()) {
-			return move;
+		// A vehicle or citizen that moved into the player pushes it out; the rest are solid like the city.
+		double pushX = 0, pushZ = 0;
+		for (ObstacleBox o : DynamicObstacleStore.INSTANCE.current(System.nanoTime())) {
+			if (o.overlaps(fx, fy, fz, radius, height)) {
+				double[] p = o.pushOut(fx, fy, fz, radius, height);
+				pushX += p[0];
+				pushZ += p[1];
+			} else if (Math.abs(o.x - fx) < box.getXsize() * 0.5 + o.halfWidth + o.halfLength
+					&& Math.abs(o.z - fz) < box.getZsize() * 0.5 + o.halfWidth + o.halfLength) {
+				o.triangles(tris);
+			}
 		}
-		AABB body = player.getBoundingBox();
-		double[] r = TriCollider.resolve(tris, (body.minX + body.maxX) * 0.5, body.minY, (body.minZ + body.maxZ) * 0.5,
-				body.getXsize() * 0.5, body.getYsize(), player.maxUpStep(), player.onGround(), move.x, move.y, move.z);
+		Vec3 wanted = new Vec3(move.x + pushX, move.y, move.z + pushZ);
+		if (tris.isEmpty()) {
+			return pushX == 0 && pushZ == 0 ? move : Entity.collideBoundingBox(player, wanted, body, player.level(), List.of());
+		}
+		double[] r = TriCollider.resolve(tris, fx, fy, fz, radius, height, player.maxUpStep(), player.onGround(),
+				wanted.x, wanted.y, wanted.z);
 		if (r[0] == move.x && r[1] == move.y && r[2] == move.z) {
 			return move;
 		}

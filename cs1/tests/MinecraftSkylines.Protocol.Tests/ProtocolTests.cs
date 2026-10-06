@@ -273,6 +273,30 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("minecraftDayTicks").GetInt32(), WorldTime.MinecraftDayTicks(m.Hour));
                         return m.Encode();
                     }
+                case AppProtocol.DynamicObstaclesType:
+                    {
+                        DynamicObstacles m = DynamicObstacles.Decode(frame.Payload);
+                        JsonElement obs = f.GetProperty("obstacles");
+                        Assert.Equal(obs.GetArrayLength(), m.Obstacles.Length);
+                        int oi = 0;
+                        foreach (JsonElement o in obs.EnumerateArray())
+                        {
+                            MovingObstacle a = m.Obstacles[oi++];
+                            Assert.Equal(o.GetProperty("kind").GetByte(), a.Kind);
+                            Assert.Equal(o.GetProperty("id").GetUInt32(), a.Id);
+                            Assert.Equal(o.GetProperty("x").GetSingle(), a.X);
+                            Assert.Equal(o.GetProperty("y").GetSingle(), a.Y);
+                            Assert.Equal(o.GetProperty("z").GetSingle(), a.Z);
+                            Assert.Equal(o.GetProperty("yaw").GetSingle(), a.Yaw);
+                            Assert.Equal(o.GetProperty("halfWidth").GetSingle(), a.HalfWidth);
+                            Assert.Equal(o.GetProperty("halfHeight").GetSingle(), a.HalfHeight);
+                            Assert.Equal(o.GetProperty("halfLength").GetSingle(), a.HalfLength);
+                            Assert.Equal(o.GetProperty("vx").GetSingle(), a.VX);
+                            Assert.Equal(o.GetProperty("vy").GetSingle(), a.VY);
+                            Assert.Equal(o.GetProperty("vz").GetSingle(), a.VZ);
+                        }
+                        return m.Encode();
+                    }
                 case AppProtocol.CityCloseType:
                     {
                         CityClose m = CityClose.Decode(frame.Payload);
@@ -539,11 +563,29 @@ namespace MinecraftSkylines.Protocol.Tests
         }
 
         [Fact]
+        public void DynamicObstaclesRejectEveryTruncation()
+        {
+            byte[] full = new DynamicObstacles
+            {
+                Obstacles = new[] { new MovingObstacle { Kind = DynamicObstacles.Vehicle, Id = 7, X = 1f }, new MovingObstacle { Kind = DynamicObstacles.Citizen, Id = 8 } },
+            }.Encode();
+            Assert.Equal(2, DynamicObstacles.Decode(full).Obstacles.Length);
+            for (int len = 0; len < full.Length; len++)
+            {
+                byte[] cut = new byte[len];
+                Array.Copy(full, cut, len);
+                Assert.Throws<ProtocolException>(() => DynamicObstacles.Decode(cut));
+            }
+            Assert.Empty(DynamicObstacles.Decode(new DynamicObstacles { Obstacles = new MovingObstacle[0] }.Encode()).Obstacles);
+        }
+
+        [Fact]
         public void ConstantsMatchSpec()
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(6, AppProtocol.Minor);
+            Assert.Equal(7, AppProtocol.Minor);
+            Assert.Equal(0x0170, AppProtocol.DynamicObstaclesType);
             Assert.Equal(0x0140, AppProtocol.ViewportType);
             Assert.Equal(0x0141, AppProtocol.OverlayOfferType);
             Assert.Equal(0x0142, AppProtocol.OverlayStopType);

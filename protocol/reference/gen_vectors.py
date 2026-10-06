@@ -168,6 +168,15 @@ def frames() -> list[dict]:
     add("world_time_no_cycle", sb.WORLD_TIME, {"hour": 3.25, "day": 0, "flags": 0, "minecraftDayTicks": 21250},
         sb.WorldTime(3.25, 0, 0).encode())
 
+    # ---- 1.7 (moving obstacles)
+    obs = [sb.Obstacle(sb.OBSTACLE_VEHICLE, 16383, 120.5, 64.75, -2048.25, -90.0, 0.875, 0.75, 2.25, 8.5, 0.0, -0.25),
+           sb.Obstacle(sb.OBSTACLE_CITIZEN, 65535, -3.5, 40.875, 12.0, 179.5, 0.3125, 0.9375, 0.3125, -1.25, 0.0, 0.5)]
+    add("dynamic_obstacles", sb.DYNAMIC_OBSTACLES, {"obstacles": [
+        {"kind": o.kind, "id": o.id, "x": o.x, "y": o.y, "z": o.z, "yaw": o.yaw, "halfWidth": o.half_width,
+         "halfHeight": o.half_height, "halfLength": o.half_length, "vx": o.vx, "vy": o.vy, "vz": o.vz} for o in obs]},
+        sb.DynamicObstacles(obs).encode())
+    add("dynamic_obstacles_empty", sb.DYNAMIC_OBSTACLES, {"obstacles": []}, sb.DynamicObstacles([]).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
