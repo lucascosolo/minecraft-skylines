@@ -12,6 +12,8 @@ namespace Skylines.Host.Geometry
         public const byte Vehicle = 1;
         /// <summary>A walking citizen; <see cref="Id"/> indexes <c>CitizenManager.m_instances</c>.</summary>
         public const byte Citizen = 2;
+        /// <summary>A parked vehicle; <see cref="Id"/> indexes <c>VehicleManager.m_parkedVehicles</c>.</summary>
+        public const byte ParkedVehicle = 3;
 
         /// <summary><see cref="Vehicle"/> or <see cref="Citizen"/>.</summary>
         public byte Kind;
@@ -46,6 +48,7 @@ namespace Skylines.Host.Geometry
         public static void Collect(Vector3 center, float radius, List<MovingObject> into)
         {
             if (VehicleManager.exists) Vehicles(center, radius, into);
+            if (VehicleManager.exists) ParkedVehicles(center, radius, into);
             if (CitizenManager.exists) Citizens(center, radius, into);
         }
 
@@ -78,6 +81,33 @@ namespace Skylines.Host.Geometry
                             }
                         }
                         id = v.m_nextGridVehicle;
+                    }
+                }
+        }
+
+        // Parked cars (owner, 2026-10-06: "I still don't collide ... with parked cars"): VehicleManager.m_parkedGrid, 540 x 540
+        // cells of 32 m like the moving grid (VehicleManager.AddToGrid(ushort, ref VehicleParked), VehicleManager.cs:1914),
+        // chained by m_nextGridParked; they stand still at m_position / m_rotation.
+        private static void ParkedVehicles(Vector3 center, float radius, List<MovingObject> into)
+        {
+            VehicleManager vm = Singleton<VehicleManager>.instance;
+            VehicleParked[] buf = vm.m_parkedVehicles.m_buffer;
+            int x0, z0, x1, z1;
+            Cells(center, radius + GridSlack, VehicleCell, VehicleGrid, out x0, out z0, out x1, out z1);
+            for (int gz = z0; gz <= z1; gz++)
+                for (int gx = x0; gx <= x1; gx++)
+                {
+                    ushort id = vm.m_parkedGrid[gz * VehicleGrid + gx];
+                    for (int guard = 0; id != 0 && guard < ChainLimit; guard++)
+                    {
+                        VehicleParked v = buf[id];
+                        VehicleInfo info = v.Info;
+                        if ((v.m_flags & (ushort)VehicleParked.Flags.Created) != 0 && (v.m_flags & (ushort)VehicleParked.Flags.Deleted) == 0
+                            && info != null && info.m_generatedInfo != null)
+                        {
+                            Add(into, MovingObject.ParkedVehicle, id, v.m_position, v.m_rotation, info.m_generatedInfo.m_size * 0.5f, center, radius);
+                        }
+                        id = v.m_nextGridParked;
                     }
                 }
         }

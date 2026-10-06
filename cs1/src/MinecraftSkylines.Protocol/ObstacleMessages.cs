@@ -26,6 +26,8 @@ namespace MinecraftSkylines.Protocol
         public const byte Vehicle = 1;
         /// <summary>Kind of a walking citizen.</summary>
         public const byte Citizen = 2;
+        /// <summary>Kind of a parked vehicle (id indexes CS1's parked-vehicle table, a separate numbering).</summary>
+        public const byte ParkedVehicle = 3;
 
         /// <summary>The obstacles; at most 65535.</summary>
         public MovingObstacle[] Obstacles = new MovingObstacle[0];

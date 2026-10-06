@@ -24,6 +24,10 @@ namespace MinecraftSkylines.Mod
         private readonly VelocityTracker _velocity = new VelocityTracker();
         private double _lastSeconds = double.NegativeInfinity;
         private bool _logged;
+        private double _lastCountSeconds = double.NegativeInfinity;
+
+        /// <summary>The set last sent, for the Ctrl+Shift+G viewer. Main thread only.</summary>
+        public static readonly List<MovingObject> LastSent = new List<MovingObject>();
 
         public ObstacleLink(HostLog log)
         {
@@ -52,7 +56,8 @@ namespace MinecraftSkylines.Mod
                 CoreVec v = _velocity.Sample(((long)o.Kind << 32) | o.Id, new CoreVec { X = mc.X, Y = mc.Y, Z = mc.Z });
                 msg.Obstacles[i] = new MovingObstacle
                 {
-                    Kind = o.Kind == MovingObject.Vehicle ? DynamicObstacles.Vehicle : DynamicObstacles.Citizen,
+                    Kind = o.Kind == MovingObject.Vehicle ? DynamicObstacles.Vehicle
+                        : o.Kind == MovingObject.ParkedVehicle ? DynamicObstacles.ParkedVehicle : DynamicObstacles.Citizen,
                     Id = o.Id,
                     X = (float)mc.X, Y = (float)mc.Y, Z = (float)mc.Z,
                     Yaw = (float)MinecraftFrame.UnityEulerToMc(0, o.HeadingDeg).Yaw,
@@ -61,6 +66,21 @@ namespace MinecraftSkylines.Mod
                 };
             }
             _velocity.End();
+            LastSent.Clear();
+            LastSent.AddRange(_found);
+            if (nowSeconds - _lastCountSeconds >= 10)
+            {
+                _lastCountSeconds = nowSeconds;
+                int cars = 0, parked = 0, people = 0;
+                foreach (MovingObject o in _found)
+                {
+                    if (o.Kind == MovingObject.Vehicle) cars++;
+                    else if (o.Kind == MovingObject.ParkedVehicle) parked++;
+                    else people++;
+                }
+                _log.Info("obstacles: within " + Radius + " m of (" + feet.x.ToString("0") + ", " + feet.y.ToString("0") + ", " + feet.z.ToString("0")
+                    + "): " + cars + " moving vehicles, " + parked + " parked, " + people + " citizens");
+            }
             if (host.Send(AppProtocol.DynamicObstaclesType, msg.Encode()) && !_logged)
             {
                 _logged = true;

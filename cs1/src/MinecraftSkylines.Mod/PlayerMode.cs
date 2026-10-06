@@ -188,6 +188,7 @@ namespace MinecraftSkylines.Mod
         /// <summary>Per frame from the pump's Update, after bridge events were handled.</summary>
         public void Update(BridgeHost host, bool cityReady)
         {
+            _simRate.Tick();
             _frameWatch.Reset();
             _frameWatch.Start();
             try

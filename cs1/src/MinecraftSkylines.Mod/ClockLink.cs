@@ -46,7 +46,8 @@ namespace MinecraftSkylines.Mod
             var now = new WorldTime
             {
                 Hour = Math.Max(0f, Math.Min(23.9999f, sim.m_currentDayTimeHour)),
-                Day = (uint)Math.Max(0L, sim.m_currentGameTime.Ticks / TimeSpan.TicksPerDay),
+                // Days of the sun's cycle (65536 frames), not the calendar, which CS1 runs about 112x faster than the sun.
+                Day = (sim.m_referenceFrameIndex + sim.m_dayTimeOffsetFrames) / SimulationManager.DAYTIME_FRAMES,
                 Flags = sim.m_enableDayNight ? WorldTime.DayNight : (byte)0,
             };
             if (_sent && now.Flags == _last.Flags && now.Day == _last.Day && Math.Abs(now.Hour - _last.Hour) < MinHourChange) return;

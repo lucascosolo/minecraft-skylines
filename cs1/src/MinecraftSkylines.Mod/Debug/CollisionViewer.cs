@@ -138,6 +138,7 @@ namespace MinecraftSkylines.Mod.Diagnostics
             GL.MultMatrix(Matrix4x4.identity);
             Pass(CompareFunction.Greater, HiddenAlpha);
             Pass(CompareFunction.LessEqual, 1f);
+            Movers();
             GL.PopMatrix();
         }
 
@@ -157,6 +158,31 @@ namespace MinecraftSkylines.Mod.Diagnostics
                     Line(p, o, o + 3);
                     Line(p, o + 3, o + 6);
                     Line(p, o + 6, o);
+                }
+            }
+            GL.End();
+        }
+
+        // The moving obstacles last sent to Minecraft (ObstacleLink), as wire boxes: cars orange, parked cars brown,
+        // people cyan, so they can be compared with what the game draws.
+        private void Movers()
+        {
+            _material.SetInt("_ZTest", (int)CompareFunction.Always);
+            _material.SetPass(0);
+            GL.Begin(GL.LINES);
+            foreach (MovingObject o in ObstacleLink.LastSent)
+            {
+                GL.Color(o.Kind == MovingObject.Vehicle ? new Color(1f, 0.5f, 0f) : o.Kind == MovingObject.ParkedVehicle ? new Color(0.6f, 0.35f, 0.1f) : new Color(0f, 1f, 1f));
+                Quaternion r = Quaternion.Euler(0f, o.HeadingDeg, 0f);
+                Vector3 h = o.HalfExtents;
+                var c = new Vector3[8];
+                for (int k = 0; k < 8; k++)
+                    c[k] = o.Center + r * new Vector3((k & 1) != 0 ? h.x : -h.x, (k & 2) != 0 ? h.y : -h.y, (k & 4) != 0 ? h.z : -h.z);
+                int[] edges = { 0, 1, 2, 3, 4, 5, 6, 7, 0, 2, 1, 3, 4, 6, 5, 7, 0, 4, 1, 5, 2, 6, 3, 7 };
+                for (int e = 0; e < edges.Length; e += 2)
+                {
+                    GL.Vertex(c[edges[e]]);
+                    GL.Vertex(c[edges[e + 1]]);
                 }
             }
             GL.End();

@@ -370,7 +370,7 @@ Sent on every state change. The host enters player mode for a paired city only a
 | Type | Field | Notes |
 |---|---|---|
 | f32 | `hour` | the city's time of day, 0 ≤ hour < 24 (CS1 `SimulationManager.m_currentDayTimeHour`) |
-| u32 | `day` | whole days since an arbitrary epoch that only moves forward (CS1: days of `m_currentGameTime` since 0001-01-01); the guest uses it for the moon phase |
+| u32 | `day` | whole days since an arbitrary epoch that only moves forward (CS1: completed day/night cycles, `(m_referenceFrameIndex + m_dayTimeOffsetFrames) / 65536`; not the calendar, which CS1 runs about 112 times faster than its sun); the guest uses it for the moon phase |
 | u8 | `flags` | bit 0 `DAY_NIGHT`: the city has a day/night cycle; when clear the guest shows midday |
 
 Sent while a city is loaded: right after the handshake (or the level load) and then at most once a second
@@ -390,7 +390,7 @@ empty); the latest set replaces the previous one. Positions are where the host d
 | Type | Field | Notes |
 |---|---|---|
 | u16 | `count` | |
-| per obstacle: u8 | `kind` | 1 vehicle (a trailer is its own vehicle), 2 citizen; others reserved, treated as solid |
+| per obstacle: u8 | `kind` | 1 vehicle (a trailer is its own vehicle), 2 citizen, 3 parked vehicle (CS1: index into `VehicleManager.m_parkedVehicles`, its own numbering; velocity 0); others reserved, treated as solid |
 | u32 | `id` | the host's id of the object (CS1: index into `VehicleManager.m_vehicles` for kind 1, into `CitizenManager.m_instances` for kind 2), so later messages can refer to it |
 | f32 × 3 | `x`, `y`, `z` | centre of the box, Minecraft coordinates |
 | f32 | `yaw` | Minecraft yaw of the box's length axis: that axis is `(-sin yaw, 0, cos yaw)`, the width axis `(cos yaw, 0, sin yaw)`; the box is always upright |
