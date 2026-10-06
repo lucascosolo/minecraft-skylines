@@ -1,5 +1,6 @@
 using System;
 using Skylines.Host;
+using Skylines.Host.Rendering;
 using UnityEngine;
 
 namespace MinecraftSkylines.Mod.Underground
@@ -7,13 +8,16 @@ namespace MinecraftSkylines.Mod.Underground
     /// <summary>
     /// Applies an <see cref="UndergroundMode"/> to the main camera and TransportManager each frame while in Minecraft
     /// mode. <see cref="Begin"/> records the camera's culling mask and TunnelsVisible; <see cref="End"/> restores both
-    /// exactly, is idempotent and never throws. Main thread only.
+    /// exactly, is idempotent and never throws. In mode 4 it draws the tunnel interior (<see cref="TunnelInteriorRenderer"/>)
+    /// and keeps underground vehicles on their surface look (<see cref="UndergroundVehicles"/>); End undoes both. Main thread only.
     /// </summary>
     internal sealed class UndergroundRenderer
     {
         private const double LogGapMs = 1000;
 
         private readonly HostLog _log;
+        private readonly TunnelInteriorRenderer _interior;
+        private readonly UndergroundVehicles _vehicles;
         private Camera _camera;
         private int _originalMask;
         // World-space overlays that belong to the city-builder view, not a first-person view (owner, 2026-10-06:
@@ -31,6 +35,8 @@ namespace MinecraftSkylines.Mod.Underground
         public UndergroundRenderer(HostLog log, int mode)
         {
             _log = log;
+            _interior = new TunnelInteriorRenderer(log);
+            _vehicles = new UndergroundVehicles(log);
             Mode = mode;
         }
 
@@ -84,6 +90,15 @@ namespace MinecraftSkylines.Mod.Underground
                 // Mode 3 drives the game's view; otherwise leave whatever was there at Begin.
                 TransportManager.instance.TunnelsVisible = Mode == 3 ? UndergroundMode.WantsTunnelsVisible(Mode, under) : _originalTunnels;
             }
+            if (UndergroundMode.WantsInterior(Mode))
+            {
+                _vehicles.Begin();
+                _interior.Draw(eye);
+            }
+            else
+            {
+                _vehicles.End();
+            }
         }
 
         /// <summary>Restores the camera mask and TunnelsVisible recorded by <see cref="Begin"/>. Never throws.</summary>
@@ -96,12 +111,20 @@ namespace MinecraftSkylines.Mod.Underground
             catch (Exception e) { _log.Error("underground: restore culling mask", e); }
             try { if (TransportManager.exists) TransportManager.instance.TunnelsVisible = _originalTunnels; }
             catch (Exception e) { _log.Error("underground: restore TunnelsVisible", e); }
+            _vehicles.End();
+            _interior.Release();
             _camera = null;
         }
 
         public string OverlayText()
         {
-            return "Underground [Ctrl+Shift+N]: mode " + UndergroundMode.Describe(Mode) + "; player underground: " + (_underground ? "yes" : "no");
+            string text = "Underground [Ctrl+Shift+N]: mode " + UndergroundMode.Describe(Mode) + "; player underground: " + (_underground ? "yes" : "no");
+            if (UndergroundMode.WantsInterior(Mode))
+            {
+                text += "; tunnels: " + _interior.LastSegments + " segments, " + _interior.LastRoadDraws + " road draws, "
+                    + _interior.ShellVertices + " wall vertices; cars " + (_vehicles.Active ? "surface look" : "unchanged");
+            }
+            return text;
         }
 
         private void Transition(double nowMs, float eyeY)

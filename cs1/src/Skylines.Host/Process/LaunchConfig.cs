@@ -74,14 +74,14 @@ namespace Skylines.Host
         /// <summary>Overlay drawing mode, 0-4 (an in-game brightness experiment knob; see <c>Skylines.Host.Overlay.OverlayMode</c>).</summary>
         public int OverlayMode = Skylines.Host.Overlay.OverlayMode.Default;
 
-        /// <summary>Underground rendering mode, 0-3 (see <c>MinecraftSkylines.Mod.Underground.UndergroundMode</c>; Host cannot reference it, so the range is repeated here).</summary>
+        /// <summary>Underground rendering mode, 0-4 (see <c>MinecraftSkylines.Mod.Underground.UndergroundMode</c>; Host cannot reference it, so the range is repeated here).</summary>
         public int UndergroundMode = DefaultUndergroundMode;
 
         /// <summary>Default for <c>underground_mode</c>; keep equal to <c>UndergroundMode.Default</c> in the Mod.</summary>
-        public const int DefaultUndergroundMode = 2;
+        public const int DefaultUndergroundMode = 4;
 
         /// <summary>Largest valid <c>underground_mode</c>.</summary>
-        public const int MaxUndergroundMode = 3;
+        public const int MaxUndergroundMode = 4;
 
         /// <summary>Clip plane preset, 0-4 (see <c>MinecraftSkylines.Mod.Render.ClipPreset</c>; the range is repeated here).</summary>
         public int ClipPreset = DefaultClipPreset;

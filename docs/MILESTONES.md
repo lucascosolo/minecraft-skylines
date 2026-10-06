@@ -53,6 +53,12 @@ Underground vehicles switch to `m_undergroundMaterial` (same x-ray style). So sh
 collision), drawing underground vehicles with their surface materials, and masking/replacing the portal
 model. Owner's order (2026-10-06): realistic tunnels come right after M4; underground modes 1-3 stay as experiments until then.
 
+Phase A of `docs/plans/tunnels.md` (2026-10-06; implemented, built, sandbox-tested; **not verified in game**): underground
+mode 4, now the default (`underground_mode`, Ctrl+Shift+N cycles 0-4), draws road tunnel and slope segments within 240 m
+with the ground road's own segment meshes and materials fed the tunnel segment's bezier matrices, bend nodes the same way,
+junction floors and all ceilings/walls as one concrete mesh (`TunnelShell`) along the collision tube's edges, and swaps
+every vehicle's underground material and layer for its surface ones. The MetroTunnels layer is not added in mode 4.
+
 ## Backlog
 
 | # | Milestone | Done when | Highest risk, investigated first |

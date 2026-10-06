@@ -17,9 +17,16 @@ namespace MinecraftSkylines.Mod.Tests
             Assert.Equal(0, UndergroundMode.Next(m));
         }
 
+        [Fact]
+        public void CountIsFiveAndModeFourIsValid()
+        {
+            Assert.Equal(5, UndergroundMode.Count);
+            Assert.True(UndergroundMode.IsValid(4));
+        }
+
         [Theory]
         [InlineData(-1)]
-        [InlineData(4)]
+        [InlineData(5)]
         public void InvalidModeGivesDefaultOnNext(int mode)
         {
             Assert.False(UndergroundMode.IsValid(mode));
@@ -27,9 +34,9 @@ namespace MinecraftSkylines.Mod.Tests
         }
 
         [Fact]
-        public void DefaultIsTwo()
+        public void DefaultIsFour()
         {
-            Assert.Equal(2, UndergroundMode.Default);
+            Assert.Equal(4, UndergroundMode.Default);
         }
 
         [Theory]
@@ -53,6 +60,8 @@ namespace MinecraftSkylines.Mod.Tests
         [InlineData(2, true, true)]
         [InlineData(3, false, false)]
         [InlineData(3, true, false)]
+        [InlineData(4, false, false)]
+        [InlineData(4, true, false)]
         public void LayerDecision(int mode, bool underground, bool expected)
         {
             Assert.Equal(expected, UndergroundMode.WantsLayer(mode, underground));
@@ -64,9 +73,28 @@ namespace MinecraftSkylines.Mod.Tests
         [InlineData(2, true, false)]
         [InlineData(3, false, false)]
         [InlineData(3, true, true)]
+        [InlineData(4, false, false)]
+        [InlineData(4, true, false)]
         public void TunnelsVisibleDecision(int mode, bool underground, bool expected)
         {
             Assert.Equal(expected, UndergroundMode.WantsTunnelsVisible(mode, underground));
+        }
+
+        [Theory]
+        [InlineData(0, false)]
+        [InlineData(1, false)]
+        [InlineData(2, false)]
+        [InlineData(3, false)]
+        [InlineData(4, true)]
+        public void InteriorOnlyInModeFour(int mode, bool expected)
+        {
+            Assert.Equal(expected, UndergroundMode.WantsInterior(mode));
+        }
+
+        [Fact]
+        public void ModeFourIsDescribed()
+        {
+            Assert.DoesNotContain("invalid", UndergroundMode.Describe(4).ToLowerInvariant());
         }
     }
 }
