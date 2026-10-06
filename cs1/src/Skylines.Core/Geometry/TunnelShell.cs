@@ -58,12 +58,12 @@ namespace Skylines.Core.Geometry
 
         /// <summary>
         /// Appends the shell over the covered intervals of <paramref name="sections"/> (<see cref="TunnelProfile.Build"/>):
-        /// per side a vertical wall quad from each section's foot point minus <see cref="WallFoot"/> up to its Top minus
-        /// <paramref name="ceilingThickness"/>, normal horizontal and towards the other side; and a ceiling quad between the
-        /// four foot points at their section's Top minus ceilingThickness (level across the width), normal (0, -1, 0).
+        /// per side a vertical wall quad from each section's foot point minus <see cref="WallFoot"/> up to its Ceiling,
+        /// normal horizontal and towards the other side; and a ceiling quad between the four foot points at their section's
+        /// Ceiling (level across the width), normal (0, -1, 0).
         /// Returns the number of covered intervals.
         /// </summary>
-        public static int Segment(IList<TunnelSection> sections, float ceilingThickness, float tileMetres, ShellMesh into)
+        public static int Segment(IList<TunnelSection> sections, float tileMetres, ShellMesh into)
         {
             float run = 0f;
             int covered = 0;
@@ -72,7 +72,7 @@ namespace Skylines.Core.Geometry
                 TunnelSection a = sections[k], b = sections[k + 1];
                 float len = (float)Math.Sqrt(Sq(b.Lx - a.Lx) + Sq(b.Lz - a.Lz));
                 if (!a.Covered) { run += len; continue; }
-                float ya = a.Top - ceilingThickness, yb = b.Top - ceilingThickness;
+                float ya = a.Ceiling, yb = b.Ceiling;
                 float ox = (a.Rx + b.Rx - a.Lx - b.Lx) * 0.5f, oz = (a.Rz + b.Rz - a.Lz - b.Lz) * 0.5f;
                 Wall(a.Lx, a.Ly, a.Lz, ya, b.Lx, b.Ly, b.Lz, yb, ox, oz, run, len, tileMetres, into);
                 Wall(a.Rx, a.Ry, a.Rz, ya, b.Rx, b.Ry, b.Rz, yb, -ox, -oz, run, len, tileMetres, into);
@@ -130,11 +130,11 @@ namespace Skylines.Core.Geometry
         /// Appends the floor, ceiling and walls of an underground junction of at least three segments, each given by its
         /// section at the node (<paramref name="mouths"/>). The ring is every mouth's L and R, visited in order of angle
         /// around (cx, cz). Per consecutive ring pair: a floor triangle from the centre at the points' own heights, normal
-        /// (0, 1, 0); a ceiling triangle at each point's mouth Top minus ceilingThickness, normal (0, -1, 0) (centre at the
+        /// (0, 1, 0); a ceiling triangle at each point's mouth Ceiling, normal (0, -1, 0) (centre at the
         /// mean of each); and between points of different mouths a wall from floor minus <see cref="WallFoot"/> up to the
         /// ceiling, facing the centre. Returns the triangles appended; 0 when there are fewer than three mouths.
         /// </summary>
-        public static int Junction(float cx, float cz, IList<TunnelSection> mouths, float ceilingThickness, float tileMetres, ShellMesh into)
+        public static int Junction(float cx, float cz, IList<TunnelSection> mouths, float tileMetres, ShellMesh into)
         {
             int count = mouths.Count;
             if (count < 3) return 0;
@@ -151,7 +151,7 @@ namespace Skylines.Core.Geometry
                 TunnelSection m = mouths[i];
                 x[2 * i] = m.Lx; y[2 * i] = m.Ly; z[2 * i] = m.Lz;
                 x[2 * i + 1] = m.Rx; y[2 * i + 1] = m.Ry; z[2 * i + 1] = m.Rz;
-                top[2 * i] = top[2 * i + 1] = m.Top - ceilingThickness;
+                top[2 * i] = top[2 * i + 1] = m.Ceiling;
             }
             for (int i = 0; i < ring; i++)
             {

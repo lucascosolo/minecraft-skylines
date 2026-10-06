@@ -11,8 +11,9 @@ namespace Skylines.Host.Rendering
     /// <summary>
     /// Draws road tunnels near a point as a real road tunnel instead of CS1's underground x-ray look: the road surface is
     /// the matching ground road's own segment meshes and materials, fed the tunnel segment's bezier parameters exactly as
-    /// <c>NetSegment.RenderInstance</c> / <c>NetNode.RefreshBendData</c> feed the net shader; walls and ceiling are one
-    /// generated mesh (<see cref="TunnelShell"/>) along the collision tube's edges and clearance, textured with a concrete
+    /// <c>NetSegment.RenderInstance</c> / <c>NetNode.RefreshBendData</c> feed the net shader, with each pair of edge
+    /// control points moved together so the road fits between the inner walls (<see cref="NetGeometry.Dims"/>); walls and
+    /// ceiling are one generated mesh (<see cref="TunnelShell"/>) over the collision tube's sections, textured with a concrete
     /// texture taken from CS1's own bridge pillar material. Everything is drawn with <c>Graphics.DrawMesh</c> on the ground
     /// road's layer, so the main camera's normal lighting applies. Call <see cref="Draw"/> once per frame; nothing of CS1's
     /// is changed. <see cref="Release"/> destroys only what this class created. Main thread only.
@@ -147,12 +148,13 @@ namespace Skylines.Host.Rendering
             LastSegments++;
             bool slope = kind == NetGeometry.Kind.Slope;
             NetInfo ground = Ground(info);
-            if (ground != null) SegmentRoad(id, ref seg, ground, slope);
+            TunnelDims dims = NetGeometry.Dims(info);
+            if (ground != null) SegmentRoad(id, ref seg, ground, slope, dims.InnerRatio);
 
             Bezier3 left, right;
             seg.GenerateBezier(id, seg.m_startNode, out left, out right);
             sig = Mix(Mix(Mix(sig, id), left), right);
-            AddShell(ToCore(left), ToCore(right), NetGeometry.Clearance(info), !slope);
+            AddShell(ToCore(left), ToCore(right), dims, !slope);
             _nodes.Add(seg.m_startNode);
             _nodes.Add(seg.m_endNode);
             return sig;
@@ -165,8 +167,9 @@ namespace Skylines.Host.Rendering
             return ground;
         }
 
-        // NetSegment.RenderInstance (dirty branch) and RenderSegments, with the ground road's meshes and shape constants.
-        private void SegmentRoad(ushort id, ref NetSegment seg, NetInfo ground, bool slope)
+        // NetSegment.RenderInstance (dirty branch) and RenderSegments, with the ground road's meshes and shape constants and
+        // the edges moved in to `ratio` of the width.
+        private void SegmentRoad(ushort id, ref NetSegment seg, NetInfo ground, bool slope, float ratio)
         {
             NetNode[] nodes = Singleton<NetManager>.instance.m_nodes.m_buffer;
             Vector3 pos = (nodes[seg.m_startNode].m_position + nodes[seg.m_endNode].m_position) * 0.5f;
@@ -179,6 +182,10 @@ namespace Skylines.Host.Rendering
             seg.CalculateCorner(id, true, false, false, out c4, out d4, out s2);
             NetSegment.CalculateMiddlePoints(c1, d1, c4, d4, s1, s2, out m1, out m2);
             NetSegment.CalculateMiddlePoints(c3, d3, c2, d2, s1, s2, out m3, out m4);
+            Pinch(ref c1, ref c3, ratio);
+            Pinch(ref m1, ref m3, ratio);
+            Pinch(ref m2, ref m4, ratio);
+            Pinch(ref c4, ref c2, ratio);
             Matrix4x4 leftM = NetSegment.CalculateControlMatrix(c1, m1, m2, c4, c3, m3, m4, c2, pos, vScale);
             Matrix4x4 rightM = NetSegment.CalculateControlMatrix(c3, m3, m4, c2, c1, m1, m2, c4, pos, vScale);
             Vector4 a = RenderManager.GetColorLocation(SegmentHolder + id), b = a;
@@ -199,9 +206,21 @@ namespace Skylines.Host.Rendering
             if (!drawn && _warned.Add(ground)) _log.Warn("tunnels: no segment mesh of '" + ground.name + "' matches tunnel segment flags " + seg.m_flags);
         }
 
-        // NetNode.RefreshBendData and NetNode.RenderSegments for the joint piece between two tunnel or slope segments.
-        private void JointRoad(ushort nodeId, ref NetNode node, Bezier3 l, Bezier3 r, NetInfo ground)
+        // Moves a and b (1 - ratio) / 2 of the way towards each other.
+        private static void Pinch(ref Vector3 a, ref Vector3 b, float ratio)
         {
+            Vector3 d = (b - a) * ((1f - ratio) * 0.5f);
+            a += d;
+            b -= d;
+        }
+
+        // NetNode.RefreshBendData and NetNode.RenderSegments for the joint piece between two tunnel or slope segments.
+        private void JointRoad(ushort nodeId, ref NetNode node, Bezier3 l, Bezier3 r, NetInfo ground, float ratio)
+        {
+            Pinch(ref l.a, ref r.a, ratio);
+            Pinch(ref l.b, ref r.b, ratio);
+            Pinch(ref l.c, ref r.c, ratio);
+            Pinch(ref l.d, ref r.d, ratio);
             Vector3 pos = node.m_position;
             float vScale = ground.m_netAI.GetVScale();
             Matrix4x4 leftM = NetSegment.CalculateControlMatrix(l.a, l.b, l.c, l.d, r.a, r.b, r.c, r.d, pos, vScale);
@@ -259,15 +278,16 @@ namespace Skylines.Host.Rendering
         private long DrawNode(ushort nodeId, ref NetNode node, NetSegment[] segs, long sig)
         {
             if ((node.m_flags & NetNode.Flags.Underground) == 0 || (node.m_flags & NetNode.Flags.Middle) != 0) return sig;
-            float clearance;
-            if (NetGeometry.UndergroundJoint(nodeId, ref node, segs, out clearance))
+            NetInfo jointInfo;
+            if (NetGeometry.UndergroundJoint(nodeId, ref node, segs, out jointInfo))
             {
                 Bezier3 l, r;
                 NetGeometry.JointEdges(nodeId, ref node, segs, out l, out r);
                 sig = Mix(Mix(Mix(sig, nodeId), l), r);
-                NetInfo ground = Ground(TunnelInfoAt(ref node, segs));
-                if (ground != null) JointRoad(nodeId, ref node, l, r, ground);
-                AddShell(ToCore(l), ToCore(r), clearance, true);
+                NetInfo ground = Ground(jointInfo);
+                TunnelDims dims = NetGeometry.Dims(jointInfo);
+                if (ground != null) JointRoad(nodeId, ref node, l, r, ground, dims.InnerRatio);
+                AddShell(ToCore(l), ToCore(r), dims, true);
                 return sig;
             }
             if ((node.m_flags & NetNode.Flags.Junction) == 0) return sig;
@@ -282,7 +302,7 @@ namespace Skylines.Host.Rendering
                 Bezier3 l, r;
                 segs[sid].GenerateBezier(sid, nodeId, out l, out r);
                 sig = Mix(Mix(sig, l), r);
-                if (NetGeometry.Profile(ToCore(l), ToCore(r), NetGeometry.Clearance(info), kind == NetGeometry.Kind.Tunnel, _sections) > 0)
+                if (NetGeometry.Profile(ToCore(l), ToCore(r), NetGeometry.Dims(info), kind == NetGeometry.Kind.Tunnel, _sections) > 0)
                 {
                     _mouths.Add(_sections[0]);
                 }
@@ -291,26 +311,12 @@ namespace Skylines.Host.Rendering
             if (_shell.VertexCount < MaxVertices)
             {
                 Vector3 p = node.m_position;
-                TunnelShell.Junction(p.x, p.z, _mouths, NetGeometry.CeilingThickness, TileMetres, _shell);
+                TunnelShell.Junction(p.x, p.z, _mouths, TileMetres, _shell);
             }
             return sig;
         }
 
-        // The tunnel info among the node's segments, else its slope's: the ground road surface drawn on a joint.
-        private static NetInfo TunnelInfoAt(ref NetNode node, NetSegment[] segs)
-        {
-            NetInfo found = null;
-            for (int i = 0; i < 8; i++)
-            {
-                ushort sid = node.GetSegment(i);
-                if (sid == 0) continue;
-                NetInfo info = segs[sid].Info;
-                if (found == null || NetGeometry.Classify(info) == NetGeometry.Kind.Tunnel) found = info;
-            }
-            return found;
-        }
-
-        private void AddShell(Bezier3D left, Bezier3D right, float clearance, bool tunnel)
+        private void AddShell(Bezier3D left, Bezier3D right, TunnelDims dims, bool tunnel)
         {
             if (_shell.VertexCount >= MaxVertices)
             {
@@ -318,8 +324,8 @@ namespace Skylines.Host.Rendering
                 _capWarned = true;
                 return;
             }
-            NetGeometry.Profile(left, right, clearance, tunnel, _sections);
-            TunnelShell.Segment(_sections, NetGeometry.CeilingThickness, TileMetres, _shell);
+            NetGeometry.Profile(left, right, dims, tunnel, _sections);
+            TunnelShell.Segment(_sections, TileMetres, _shell);
         }
 
         private void Upload()

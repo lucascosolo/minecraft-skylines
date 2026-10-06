@@ -7,25 +7,28 @@ namespace Skylines.Core.Tests
 {
     public class TunnelShellTests
     {
-        private const float Thick = 1f;
-
         private static Bezier3D Line(float x, float y0, float y1, float z0, float z1)
         {
             return TunnelProfileTests.Seg(x, y0, z0, x, y1, z1);
         }
 
-        private static List<TunnelSection> Sections(Bezier3D l, Bezier3D r, float clearance, bool tunnel, Func<float, float, float> ground = null)
+        private static TunnelDims D(float ratio, float cover = float.NaN)
+        {
+            return TunnelProfileTests.Dims(ratio, 6f, cover);
+        }
+
+        private static List<TunnelSection> Sections(Bezier3D l, Bezier3D r, bool tunnel, float cover = float.NaN)
         {
             List<TunnelSection> s = new List<TunnelSection>();
-            TunnelProfile.Build(l, r, clearance, tunnel, 4f, 0.5f, ground, s);
+            TunnelProfile.Build(l, r, D(0.9f, cover), tunnel, 4f, s);
             return s;
         }
 
         private static ShellMesh LevelMesh(out int covered, out List<TunnelSection> s)
         {
-            s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), 6f, true);
+            s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), true);
             ShellMesh m = new ShellMesh();
-            covered = TunnelShell.Segment(s, Thick, 8f, m);
+            covered = TunnelShell.Segment(s, 8f, m);
             return m;
         }
 
@@ -76,12 +79,12 @@ namespace Skylines.Core.Tests
         {
             Assert.Equal(a.Lx, b.Lx, 4); Assert.Equal(a.Ly, b.Ly, 4); Assert.Equal(a.Lz, b.Lz, 4);
             Assert.Equal(a.Rx, b.Rx, 4); Assert.Equal(a.Ry, b.Ry, 4); Assert.Equal(a.Rz, b.Rz, 4);
-            Assert.Equal(a.Top, b.Top, 4);
+            Assert.Equal(a.Ceiling, b.Ceiling, 4);
         }
 
         private static TunnelSection Mouth(float lx, float rx, float lz, float rz, float y, float top)
         {
-            return new TunnelSection { Lx = lx, Ly = y, Lz = lz, Rx = rx, Ry = y, Rz = rz, Top = top, Covered = true };
+            return new TunnelSection { Lx = lx, Ly = y, Lz = lz, Rx = rx, Ry = y, Rz = rz, Ceiling = top, Covered = true };
         }
 
         // ---- Segment ----
@@ -104,9 +107,9 @@ namespace Skylines.Core.Tests
             for (int k = 0; k < s.Count; k++)
             {
                 Assert.True(HasVertex(m, s[k].Lx, s[k].Ly - TunnelShell.WallFoot, s[k].Lz), "left foot " + k);
-                Assert.True(HasVertex(m, s[k].Lx, s[k].Top - Thick, s[k].Lz), "left top " + k);
+                Assert.True(HasVertex(m, s[k].Lx, s[k].Ceiling, s[k].Lz), "left top " + k);
                 Assert.True(HasVertex(m, s[k].Rx, s[k].Ry - TunnelShell.WallFoot, s[k].Rz), "right foot " + k);
-                Assert.True(HasVertex(m, s[k].Rx, s[k].Top - Thick, s[k].Rz), "right top " + k);
+                Assert.True(HasVertex(m, s[k].Rx, s[k].Ceiling, s[k].Rz), "right top " + k);
             }
         }
 
@@ -120,7 +123,7 @@ namespace Skylines.Core.Tests
             {
                 if (NormalIs(m, v, 1, 0, 0)) { left++; Assert.Equal(0.5f, m.Positions[v * 3], 3); }
                 else if (NormalIs(m, v, -1, 0, 0)) { right++; Assert.Equal(9.5f, m.Positions[v * 3], 3); }
-                else if (NormalIs(m, v, 0, -1, 0)) { ceiling++; Assert.Equal(7f, m.Positions[v * 3 + 1], 3); }
+                else if (NormalIs(m, v, 0, -1, 0)) { ceiling++; Assert.Equal(6f, m.Positions[v * 3 + 1], 3); }
                 else Assert.Fail("unexpected normal at vertex " + v);
             }
             Assert.True(left > 0 && right > 0 && ceiling > 0);
@@ -136,12 +139,12 @@ namespace Skylines.Core.Tests
         [Fact]
         public void SegmentOnASlopeReturnsOnlyTheCoveredIntervalsAndWindsCorrectly()
         {
-            var s = Sections(Line(0, 0, -10, 0, 40), Line(10, 0, -10, 0, 40), 6f, false);
+            var s = Sections(Line(0, 0, -10, 0, 40), Line(10, 0, -10, 0, 40), false);
             int expected = 0;
             foreach (TunnelSection t in s) if (t.Covered) expected++;
             Assert.Equal(4, expected);
             ShellMesh m = new ShellMesh();
-            Assert.Equal(expected, TunnelShell.Segment(s, Thick, 8f, m));
+            Assert.Equal(expected, TunnelShell.Segment(s, 8f, m));
             AssertWellFormed(m);
             AssertWinding(m);
         }
@@ -149,9 +152,9 @@ namespace Skylines.Core.Tests
         [Fact]
         public void SegmentWithNoCoveredIntervalAppendsNothing()
         {
-            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), 6f, false);
+            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), false);
             ShellMesh m = new ShellMesh();
-            Assert.Equal(0, TunnelShell.Segment(s, Thick, 8f, m));
+            Assert.Equal(0, TunnelShell.Segment(s, 8f, m));
             Assert.Equal(0, m.VertexCount);
         }
 
@@ -162,8 +165,8 @@ namespace Skylines.Core.Tests
             m.Add(1, 2, 3, 0, 1, 0, 0, 0);
             m.Add(4, 5, 6, 0, 1, 0, 0, 0);
             int before = m.VertexCount;
-            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), 6f, true);
-            TunnelShell.Segment(s, Thick, 8f, m);
+            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), true);
+            TunnelShell.Segment(s, 8f, m);
             Assert.True(m.VertexCount > before);
             Assert.Equal(1f, m.Positions[0]);
             Assert.Equal(6f, m.Positions[5]);
@@ -174,29 +177,29 @@ namespace Skylines.Core.Tests
         [Fact]
         public void CeilingIsLevelAcrossTheWidthEvenWhenTheEdgesDifferInHeight()
         {
-            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 1, 1, 0, 20), 6f, true);
+            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 1, 1, 0, 20), true);
             ShellMesh m = new ShellMesh();
-            TunnelShell.Segment(s, Thick, 8f, m);
+            TunnelShell.Segment(s, 8f, m);
             int ceiling = 0;
             for (int v = 0; v < m.VertexCount; v++)
             {
                 if (!NormalIs(m, v, 0, -1, 0)) continue;
                 ceiling++;
-                Assert.Equal(1f + 8f - Thick, m.Positions[v * 3 + 1], 3);
+                Assert.Equal(0.5f + 6f, m.Positions[v * 3 + 1], 3);
             }
             Assert.True(ceiling > 0);
             AssertWinding(m);
         }
 
         [Fact]
-        public void CeilingIsSevenMetresAboveTheHigherEdgeForClearanceSixAndThicknessOne()
+        public void CeilingUndersideIsExactlyLintelAboveALevelRoad()
         {
-            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), 6f, true);
+            var s = Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), true);
             ShellMesh m = new ShellMesh();
-            TunnelShell.Segment(s, Thick, 8f, m);
+            TunnelShell.Segment(s, 8f, m);
             int ceiling = 0;
             for (int v = 0; v < m.VertexCount; v++)
-                if (NormalIs(m, v, 0, -1, 0)) { ceiling++; Assert.Equal(7f, m.Positions[v * 3 + 1], 3); }
+                if (NormalIs(m, v, 0, -1, 0)) { ceiling++; Assert.Equal(6f, m.Positions[v * 3 + 1], 3); }
             Assert.True(ceiling > 0);
         }
 
@@ -206,19 +209,18 @@ namespace Skylines.Core.Tests
             out ShellMesh ma, out ShellMesh mj, out ShellMesh mb)
         {
             float y = firstIsSlope ? -10f : 0f;
-            Func<float, float, float> g = firstIsSlope ? (Func<float, float, float>)((x, z) => -3f) : ((x, z) => 5f); // bites inside segments
             a = firstIsSlope
-                ? Sections(Line(0, 0, -10, 0, 40), Line(10, 0, -10, 0, 40), 6f, false, g)
-                : Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), 6f, true, g);
+                ? Sections(Line(0, 0, -10, 0, 40), Line(10, 0, -10, 0, 40), false, 0.375f)
+                : Sections(Line(0, 0, 0, 0, 20), Line(10, 0, 0, 0, 20), true);
             float z0 = firstIsSlope ? 40f : 20f;
             Bezier3D jl = new Bezier3D { Ax = 0, Ay = y, Az = z0, Bx = 0, By = y, Bz = z0 + 5, Cx = 1, Cy = y, Cz = z0 + 8, Dx = 2, Dy = y, Dz = z0 + 10 };
             Bezier3D jr = new Bezier3D { Ax = 10, Ay = y, Az = z0, Bx = 10, By = y, Bz = z0 + 5, Cx = 11, Cy = y, Cz = z0 + 8, Dx = 12, Dy = y, Dz = z0 + 10 };
-            j = Sections(jl, jr, 6f, true, g);
-            b = Sections(TunnelProfileTests.Seg(2, y, z0 + 10, 4, y, z0 + 30), TunnelProfileTests.Seg(12, y, z0 + 10, 14, y, z0 + 30), 6f, true, g);
+            j = Sections(jl, jr, true);
+            b = Sections(TunnelProfileTests.Seg(2, y, z0 + 10, 4, y, z0 + 30), TunnelProfileTests.Seg(12, y, z0 + 10, 14, y, z0 + 30), true);
             ma = new ShellMesh(); mj = new ShellMesh(); mb = new ShellMesh();
-            TunnelShell.Segment(a, Thick, 8f, ma);
-            TunnelShell.Segment(j, Thick, 8f, mj);
-            TunnelShell.Segment(b, Thick, 8f, mb);
+            TunnelShell.Segment(a, 8f, ma);
+            TunnelShell.Segment(j, 8f, mj);
+            TunnelShell.Segment(b, 8f, mb);
         }
 
         private static void AssertWallsMeet(ShellMesh from, ShellMesh to, float z)
@@ -240,28 +242,65 @@ namespace Skylines.Core.Tests
         }
 
         [Fact]
-        public void SlopeToTunnelJointMatchesDespiteGroundThatBitesInsideSegments()
+        public void SlopeToTunnelJointMatchesAndSlopeEndsCovered()
         {
             List<TunnelSection> a, j, b; ShellMesh ma, mj, mb;
             BuildThreePieces(true, out a, out j, out b, out ma, out mj, out mb);
             AssertSameSection(a[a.Count - 1], j[0]);
             AssertSameSection(j[j.Count - 1], b[0]);
-            Assert.Equal(-10f + 8f, j[0].Top, 3); // end sections are uncapped
-            for (int k = 1; k < j.Count - 1; k++) Assert.Equal(-4f, j[k].Top, 3); // ground -3 minus Cover, floor -10
+            Assert.True(a[a.Count - 2].Covered, "the slope's last interval is roofed");
+            Assert.Equal(-4f, j[0].Ceiling, 3);
+            foreach (TunnelSection t in j) Assert.Equal(t.Ly + 6f, t.Ceiling, 3);
             AssertWallsMeet(ma, mj, 40f);
             AssertWallsMeet(mj, mb, 50f);
         }
 
+        // Owner bug 2: a bend. A segment and a joint curving away (also with sides swapped) share corner vertices.
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void BendJointSharesCeilingCornersWithTheSegmentBeforeIt(bool swapped)
+        {
+            var seg = Sections(Line(0, 0, 2, 0, 20), Line(10, 0, 2, 0, 20), true);
+            Bezier3D jl = new Bezier3D { Ax = 0, Ay = 2, Az = 20, Bx = 0, By = 2, Bz = 26, Cx = 2, Cy = 2, Cz = 30, Dx = 6, Dy = 2, Dz = 33 };
+            Bezier3D jr = new Bezier3D { Ax = 10, Ay = 2, Az = 20, Bx = 10, By = 2, Bz = 28, Cx = 12, Cy = 2, Cz = 34, Dx = 14, Dy = 2, Dz = 40 };
+            var joint = swapped ? Sections(jr, jl, true) : Sections(jl, jr, true);
+            TunnelSection a = seg[seg.Count - 1], b = joint[0];
+            Assert.Equal(a.Ceiling, b.Ceiling, 4);
+            ShellMesh ms = new ShellMesh(), mj = new ShellMesh();
+            TunnelShell.Segment(seg, 8f, ms);
+            TunnelShell.Segment(joint, 8f, mj);
+            foreach (float[] c in new[] { new[] { a.Lx, a.Lz }, new[] { a.Rx, a.Rz } })
+            {
+                Assert.True(HasVertex(ms, c[0], a.Ceiling, c[1]), "segment ceiling corner missing");
+                Assert.True(HasVertex(mj, c[0], a.Ceiling, c[1]), "joint ceiling corner missing");
+            }
+        }
+
         // ---- Junction ----
+
+        // First section of an arm built by Build, 16 m wide, leaving (x0,z0) towards (x1,z1).
+        private static TunnelSection Arm(float x0, float z0, float x1, float z1, float y, bool flip)
+        {
+            float dx = z1 - z0, dz = -(x1 - x0), len = (float)Math.Sqrt(dx * dx + dz * dz);
+            dx = dx / len * 8f; dz = dz / len * 8f; // 8 m to one side of travel
+            Bezier3D l = TunnelProfileTests.Seg(x0 + dx, y, z0 + dz, x1 + dx, y, z1 + dz);
+            Bezier3D r = TunnelProfileTests.Seg(x0 - dx, y, z0 - dz, x1 - dx, y, z1 - dz);
+            List<TunnelSection> s = new List<TunnelSection>();
+            TunnelDims d = TunnelProfileTests.Dims(0.75f, 6f, float.NaN);
+            if (flip) TunnelProfile.Build(r, l, d, true, 4f, s);
+            else TunnelProfile.Build(l, r, d, true, 4f, s);
+            return s[0];
+        }
 
         // T-junction round the origin: south, east and west mouths (south given first, out of angular order); south is one metre higher.
         private static List<TunnelSection> TMouths()
         {
             return new List<TunnelSection>
             {
-                Mouth(1, -1, 6, 6, 1f, 9f),
-                Mouth(6, 6, -1, 1, 0f, 8f),
-                Mouth(-6, -6, 1, -1, 0f, 8f),
+                Arm(0, 10, 0, 30, 1f, false),
+                Arm(10, 0, 30, 0, 0f, false),
+                Arm(-10, 0, -30, 0, 0f, true),
             };
         }
 
@@ -271,8 +310,8 @@ namespace Skylines.Core.Tests
             owner = new List<int>();
             for (int i = 0; i < mouths.Count; i++)
             {
-                pts.Add(new[] { mouths[i].Lx, mouths[i].Ly, mouths[i].Lz, mouths[i].Top });
-                pts.Add(new[] { mouths[i].Rx, mouths[i].Ry, mouths[i].Rz, mouths[i].Top });
+                pts.Add(new[] { mouths[i].Lx, mouths[i].Ly, mouths[i].Lz, mouths[i].Ceiling });
+                pts.Add(new[] { mouths[i].Rx, mouths[i].Ry, mouths[i].Rz, mouths[i].Ceiling });
                 owner.Add(i); owner.Add(i);
             }
             return pts;
@@ -289,7 +328,7 @@ namespace Skylines.Core.Tests
         public void JunctionOfThreeMouthsHasExactlyThreeWalls()
         {
             ShellMesh m = new ShellMesh();
-            int n = TunnelShell.Junction(0, 0, TMouths(), Thick, 8f, m);
+            int n = TunnelShell.Junction(0, 0, TMouths(), 8f, m);
             Assert.Equal(2 * 6 + 2 * 3, n);
             Assert.Equal(n * 3, m.Indices.Count);
             Assert.Equal(6, HorizontalTriangles(m));
@@ -302,7 +341,7 @@ namespace Skylines.Core.Tests
         {
             var mouths = TMouths();
             ShellMesh m = new ShellMesh();
-            TunnelShell.Junction(0, 0, mouths, Thick, 8f, m);
+            TunnelShell.Junction(0, 0, mouths, 8f, m);
             List<int> owner;
             List<float[]> ring = Ring(mouths, out owner);
             List<int> order = new List<int>();
@@ -319,8 +358,8 @@ namespace Skylines.Core.Tests
                 if (owner[p] == owner[q]) continue;
                 walls++;
                 float[] a = ring[p], b = ring[q];
-                Assert.True(hasWall(a[0], a[1] - TunnelShell.WallFoot, a[2]) && hasWall(a[0], a[3] - Thick, a[2])
-                         && hasWall(b[0], b[1] - TunnelShell.WallFoot, b[2]) && hasWall(b[0], b[3] - Thick, b[2]),
+                Assert.True(hasWall(a[0], a[1] - TunnelShell.WallFoot, a[2]) && hasWall(a[0], a[3], a[2])
+                         && hasWall(b[0], b[1] - TunnelShell.WallFoot, b[2]) && hasWall(b[0], b[3], b[2]),
                     "missing wall between ring points " + p + " and " + q);
             }
             Assert.Equal(3, walls);
@@ -332,7 +371,7 @@ namespace Skylines.Core.Tests
         public void JunctionWallNormalsAreHorizontalPerpendicularToTheWallAndPointAtTheCentre()
         {
             ShellMesh m = new ShellMesh();
-            TunnelShell.Junction(0, 0, TMouths(), Thick, 8f, m);
+            TunnelShell.Junction(0, 0, TMouths(), 8f, m);
             int walls = 0;
             for (int t = 0; t < m.Indices.Count; t += 3)
             {
@@ -358,11 +397,11 @@ namespace Skylines.Core.Tests
         {
             var mouths = TMouths();
             ShellMesh m = new ShellMesh();
-            TunnelShell.Junction(0, 0, mouths, Thick, 8f, m);
+            TunnelShell.Junction(0, 0, mouths, 8f, m);
             List<int> owner;
             List<float[]> ring = Ring(mouths, out owner);
             float floorMean = 0, ceilMean = 0;
-            foreach (float[] r in ring) { floorMean += r[1] / 6f; ceilMean += (r[3] - Thick) / 6f; }
+            foreach (float[] r in ring) { floorMean += r[1] / 6f; ceilMean += (r[3]) / 6f; }
             int floors = 0, ceils = 0;
             for (int v = 0; v < m.VertexCount; v++)
             {
@@ -370,7 +409,7 @@ namespace Skylines.Core.Tests
                 if (!up && !down) continue;
                 float x = m.Positions[v * 3], y = m.Positions[v * 3 + 1], z = m.Positions[v * 3 + 2];
                 float[] hit = ring.Find(r => Math.Abs(r[0] - x) < 1e-3f && Math.Abs(r[2] - z) < 1e-3f);
-                float expected = hit != null ? (up ? hit[1] : hit[3] - Thick) : (up ? floorMean : ceilMean);
+                float expected = hit != null ? (up ? hit[1] : hit[3]) : (up ? floorMean : ceilMean);
                 if (hit == null) Assert.True(Math.Abs(x) < 1e-3f && Math.Abs(z) < 1e-3f, "vertex is neither ring point nor centre");
                 Assert.Equal(expected, y, 3);
                 if (up) floors++; else ceils++;
@@ -383,11 +422,34 @@ namespace Skylines.Core.Tests
         {
             var mouths = new List<TunnelSection>
             {
-                Mouth(6, 6, -1, 1, 0f, 8f), Mouth(1, -1, 6, 6, 0f, 8f), Mouth(-6, -6, 1, -1, 0f, 8f), Mouth(-1, 1, -6, -6, 0f, 8f),
+                Arm(10, 0, 30, 0, 0f, false), Arm(0, 10, 0, 30, 0f, false), Arm(-10, 0, -30, 0, 0f, false), Arm(0, -10, 0, -30, 0f, false),
             };
             ShellMesh m = new ShellMesh();
-            Assert.Equal(2 * 8 + 2 * 4, TunnelShell.Junction(0, 0, mouths, Thick, 8f, m));
+            Assert.Equal(2 * 8 + 2 * 4, TunnelShell.Junction(0, 0, mouths, 8f, m));
             AssertWinding(m);
+        }
+
+        // Owner bug 5: the ceiling ring sits at each mouth's own Ceiling.
+        [Fact]
+        public void JunctionCeilingRingAndWallTopsAreAtEachMouthsCeiling()
+        {
+            var mouths = TMouths();
+            Assert.Equal(7f, mouths[0].Ceiling, 3);
+            Assert.Equal(6f, mouths[1].Ceiling, 3);
+            ShellMesh m = new ShellMesh();
+            TunnelShell.Junction(0, 0, mouths, 8f, m);
+            foreach (TunnelSection t in mouths)
+            {
+                Assert.True(HasVertex(m, t.Lx, t.Ceiling, t.Lz), "no ceiling-level vertex at left mouth point");
+                Assert.True(HasVertex(m, t.Rx, t.Ceiling, t.Rz), "no ceiling-level vertex at right mouth point");
+            }
+            for (int v = 0; v < m.VertexCount; v++)
+            {
+                if (!NormalIs(m, v, 0, -1, 0)) continue;
+                float x = m.Positions[v * 3], z = m.Positions[v * 3 + 2];
+                int hit = mouths.FindIndex(t => (Math.Abs(t.Lx - x) < 1e-3f && Math.Abs(t.Lz - z) < 1e-3f) || (Math.Abs(t.Rx - x) < 1e-3f && Math.Abs(t.Rz - z) < 1e-3f));
+                if (hit >= 0) Assert.Equal(mouths[hit].Ceiling, m.Positions[v * 3 + 1], 3);
+            }
         }
 
         [Theory]
@@ -398,7 +460,7 @@ namespace Skylines.Core.Tests
         {
             ShellMesh m = new ShellMesh();
             var mouths = TMouths().GetRange(0, count);
-            Assert.Equal(0, TunnelShell.Junction(0, 0, mouths, Thick, 8f, m));
+            Assert.Equal(0, TunnelShell.Junction(0, 0, mouths, 8f, m));
             Assert.Equal(0, m.VertexCount);
             Assert.Empty(m.Indices);
         }
