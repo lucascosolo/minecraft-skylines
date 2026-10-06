@@ -277,3 +277,19 @@ roads render and pass S1-S5 (the screenshots show them); and whether the paused 
 `AutoSave.crp`, a separate file, never an existing city).
 
 Script tests (scratch HOME, fake Steam and game): `bash cs1/tests/scripts/remote-selftest.test.sh`.
+
+## In game: milestone 4 procedure (owner)
+
+Install: `bash tools/install-cs1-mod.sh` (Minecraft starts from the repo, so it picks up the new code).
+
+1. Load an existing city. Ctrl+Shift+M: a dialog asks to enable Minecraft and names the backup save.
+   Say **No** first: nothing happens, no save is written. Ctrl+Shift+M again, **Yes**: the status box
+   (F7) shows the backup progress, then Minecraft mode starts.
+2. Build a small recognisable structure and break a block or two. Leave Minecraft mode, save the city
+   under its usual name, quit CS1 to desktop.
+3. Start CS1, load the city, Ctrl+Shift+M (no dialog this time): the structure is back.
+4. Load a different city, enable Minecraft there: none of the first city's blocks.
+5. Load "<city> (before Minecraft) ...": Ctrl+Shift+M asks again (the backup is unpaired), no blocks.
+6. Build something, quit without saving, reload: the new blocks are gone.
+7. `bash tools/collect-evidence.sh`.
+

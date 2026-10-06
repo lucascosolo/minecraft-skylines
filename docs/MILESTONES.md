@@ -32,6 +32,16 @@ both sides.
 
 Next owner run: `docs/TESTING.md`, "Owner run: self-test for M2 + M3".
 
+## Current: M4 (per-city blocks in the save, forced backup); plan `docs/plans/m4.md`
+
+| | Status (2026-10-06) |
+|---|---|
+| Implemented | protocol 1.5 (CITY_OPEN, BLOCK_EDITS, CITY_CLOSE, EDIT_SYNC/ACK, CITY_STATE); C#: voxel edit set + save record (CRC-32), backup through the game's own `SavePanel.SaveGame` with verification and `continue_game.json` restore, enable dialog on Ctrl+Shift+M, save barrier in `OnSaveData`, self-test S10; Java: new void world `skylines-city`, snapshot reconcile (lazy per chunk), recording at `LevelChunk.setBlockState`, persistent touched set |
+| Built | yes (C# 0 warnings; Fabric jar) |
+| Sandbox-tested | yes: `tools/check.sh` green; C# Bridge 51, Protocol 65, Core 355, Mod 220, Host 202; Java bridge 55, fabric 175; C# to Java interop |
+| Verified in game | nothing yet |
+| Open | owner playtest (`docs/TESTING.md`, "Milestone 4"); not persisted by design: chest/sign contents, entities, inventory and position |
+
 ## Finding: CS1 has no realistic tunnel interiors (owner's Ctrl+Shift+D dump, 2026-10-06)
 
 `Basic Road Slope` = segment[0] `small-tunnel-segment` on layer 14 MetroTunnels with shader
@@ -41,7 +51,7 @@ part of it). `Basic Road Tunnel` segments and tunnel nodes use only `Custom/Net/
 Underground vehicles switch to `m_undergroundMaterial` (same x-ray style). So showing tunnels and traffic
 "for real" in first person means drawing our own tunnel interior (we already have its shape as
 collision), drawing underground vehicles with their surface materials, and masking/replacing the portal
-model. Deferred to M7 unless the owner reprioritises; underground modes 1-3 stay as experiments.
+model. Owner's order (2026-10-06): realistic tunnels come right after M4; underground modes 1-3 stay as experiments until then.
 
 ## Backlog
 

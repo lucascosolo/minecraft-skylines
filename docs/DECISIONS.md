@@ -92,3 +92,13 @@ checked; needs only glibc 2.17). Rejected: reaching the host's Java through the 
 `/run/host` (host-glibc binaries inside an older runtime), or asking Steam to escape the
 container (not available by default). This mirrors what a player release needs anyway (SkyCraft's
 bundled launcher brings its own Java).
+
+## 2026-10-06: the city save is the authority for Minecraft blocks; pairing only after a verified backup
+
+Owner chose save/pairing (M4) before realistic tunnels. The host keeps each city's block edits and
+writes them into the save; Minecraft's world (`skylines-city`) is a cache rebuilt on every city open,
+so older saves, Save As forks and quitting without saving behave for blocks like the rest of the city,
+and no Minecraft world ever needs removing. Rejected: one Minecraft world per city (reverting a save
+would not revert blocks; worlds pile up). A city gets mod data only after the player says yes and a
+backup save written by the game's own routine is verified on disk. Details: `docs/plans/m4.md`.
+

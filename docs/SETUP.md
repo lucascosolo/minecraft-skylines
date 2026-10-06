@@ -50,3 +50,13 @@ With the default `--app minecraft-skylines` they exchange `HOST_STATUS` / `GUEST
 ## 4. Local game test procedure
 
 Written per milestone once there is something to load; see `docs/TESTING.md`.
+
+## Taking the mod out
+
+Untick the mod in Content Manager, or move the `MinecraftSkylines` folder out of the CS1 mods folder.
+Cities that had Minecraft enabled keep a small mod data record that CS1 ignores without the mod; they
+load and play normally. The "<city> (before Minecraft) <date time>" saves are ordinary saves of the city
+from just before Minecraft was enabled. Minecraft's worlds live in the repo's Loom run folder
+(`minecraft/fabric/run/saves/`): `skylines-city` is the cache the mod rebuilds; `skylines-dev` holds
+only milestone-3 test blocks and is no longer used, so the owner may discard it.
+
