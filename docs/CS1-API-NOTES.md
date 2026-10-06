@@ -190,3 +190,5 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
 - Position: effect at `Matrix4x4.SetTRS(position, Quaternion.AngleAxis(angle * 57.29578, Vector3.down), scale) * effect.m_position` (PropInstance.cs:1110-1118 batched, :325-329 direct); the LightEffect's own `m_position` and `m_alignment` are not applied for props (their `SpawnArea` has no mesh data; normally zero).
 - Building props render effects only when the building is active or the prop is `m_alwaysActive` (PropInstance.cs:321, PropInfo.cs:102; `BuildingAI.RenderProps` passes `Building.Flags.Active`, BuildingAI.cs:463-466); standalone props pass `active: true` (PropInstance.cs:241-247).
 - `MultiEffect` sub-effects (MultiEffect.cs:6) are not searched; only direct `LightEffect`s of `PropInfo.m_effects`.
+- Vehicle boxes: `VehicleInfoGen` has only `m_size` (no centre); `Mesh.bounds` of `VehicleInfo.m_mesh` is available even for
+  GPU-only meshes and gives the model's real centre and extents in vehicle space, so `MovingObjects` places boxes from it.

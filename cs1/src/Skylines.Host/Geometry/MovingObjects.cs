@@ -76,8 +76,7 @@ namespace Skylines.Host.Geometry
                             {
                                 float t = ((target & 15) + timer) * 0.0625f;
                                 Vector3 pos = Smooth(a.m_position, a.m_velocity, b.m_position, b.m_velocity, t);
-                                Vector3 size = info.m_generatedInfo.m_size;
-                                Add(into, MovingObject.Vehicle, id, pos, Quaternion.Lerp(a.m_rotation, b.m_rotation, t), size * 0.5f, center, radius);
+                                AddVehicle(into, MovingObject.Vehicle, id, info, pos, Quaternion.Lerp(a.m_rotation, b.m_rotation, t), center, radius);
                             }
                         }
                         id = v.m_nextGridVehicle;
@@ -105,7 +104,7 @@ namespace Skylines.Host.Geometry
                         if ((v.m_flags & (ushort)VehicleParked.Flags.Created) != 0 && (v.m_flags & (ushort)VehicleParked.Flags.Deleted) == 0
                             && info != null && info.m_generatedInfo != null)
                         {
-                            Add(into, MovingObject.ParkedVehicle, id, v.m_position, v.m_rotation, info.m_generatedInfo.m_size * 0.5f, center, radius);
+                            AddVehicle(into, MovingObject.ParkedVehicle, id, info, v.m_position, v.m_rotation, center, radius);
                         }
                         id = v.m_nextGridParked;
                     }
@@ -142,6 +141,21 @@ namespace Skylines.Host.Geometry
                         id = c.m_nextGridInstance;
                     }
                 }
+        }
+
+        // The box the model actually occupies: Mesh.bounds (available even when the mesh is GPU-only) placed by the
+        // vehicle's pose, since a model's pivot need not be its centre (owner, 2026-10-06: a parked car with "especially
+        // odd, mismatched collision"). Falls back to m_generatedInfo.m_size with the pivot at the bottom centre.
+        private static void AddVehicle(List<MovingObject> into, byte kind, ushort id, VehicleInfo info, Vector3 pivot, Quaternion rot, Vector3 center, float radius)
+        {
+            Bounds b = info.m_mesh != null ? info.m_mesh.bounds : new Bounds();
+            if (!(b.size.x > 0.1f && b.size.y > 0.1f && b.size.z > 0.1f))
+            {
+                Add(into, kind, id, pivot, rot, info.m_generatedInfo.m_size * 0.5f, center, radius);
+                return;
+            }
+            Vector3 mid = pivot + rot * b.center;
+            Add(into, kind, id, new Vector3(mid.x, mid.y - b.extents.y, mid.z), rot, b.extents, center, radius);
         }
 
         // The pivot is at the bottom of the box (Vehicle.RenderOverlay spans pivot.y to pivot.y + m_size.y).

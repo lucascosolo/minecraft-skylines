@@ -239,6 +239,21 @@ namespace MinecraftSkylines.Mod.Diagnostics
                         .Append(", material ").Append(info == null ? "?" : MaterialText(info.m_material)).Append('\n');
                 }
             }
+            VehicleParked[] parked = Singleton<VehicleManager>.instance.m_parkedVehicles.m_buffer;
+            int parkedShown = 0;
+            for (int i = 1; i < parked.Length && parkedShown < 10; i++)
+            {
+                if ((parked[i].m_flags & (ushort)VehicleParked.Flags.Created) == 0) continue;
+                Vector3 p = parked[i].m_position;
+                if (new Vector2(p.x - c.x, p.z - c.z).sqrMagnitude > 20f * 20f) continue;
+                parkedShown++;
+                VehicleInfo info = parked[i].Info;
+                Vector3 size = info == null || info.m_generatedInfo == null ? Vector3.zero : info.m_generatedInfo.m_size;
+                sb.Append("parked vehicle ").Append(i).Append(" '").Append(info == null ? "?" : info.name).Append("' at (").Append(Fmt(p))
+                    .Append("), heading ").Append(parked[i].m_rotation.eulerAngles.y.ToString("0")).Append(" deg, tilt ")
+                    .Append(parked[i].m_rotation.eulerAngles.x.ToString("0")).Append("/").Append(parked[i].m_rotation.eulerAngles.z.ToString("0"))
+                    .Append(", generated size (").Append(Fmt(size)).Append("), mesh bounds ").Append(info == null || info.m_mesh == null ? "?" : info.m_mesh.bounds.ToString()).Append('\n');
+            }
             sb.Append("vehicles within ").Append(Radius).Append(" m: ").Append(created).Append(" created, ").Append(spawned).Append(" spawned, ")
                 .Append(under).Append(" underground\n");
             CitizenInstance[] cs = Singleton<CitizenManager>.instance.m_instances.m_buffer;
