@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using ColossalFramework.UI;
+using MinecraftSkylines.Mod.Underground;
 using MinecraftSkylines.Protocol;
 using Skylines.Bridge;
 using Skylines.Core.Input;
@@ -37,6 +38,7 @@ namespace MinecraftSkylines.Mod
         private readonly Action _changed;
         private readonly MinecraftLauncher _launcher;
         private readonly CameraTakeover _camera = new CameraTakeover();
+        private readonly UndergroundRenderer _underground;
         private readonly ShortcutBlocker _blocker = new ShortcutBlocker();
         private readonly InputCapture _input = new InputCapture(CapturedKeyCodes());
         private readonly TickInterpolator _interp = new TickInterpolator();
@@ -49,6 +51,7 @@ namespace MinecraftSkylines.Mod
         private readonly EscapeRouter _esc = new EscapeRouter();
         private readonly List<InputEvent> _escEvents = new List<InputEvent>();
         private bool _swallowModeKeyUp;
+        private bool _swallowUndergroundKeyUp;
         private bool _guestScreenOpen;
         private bool _screenMode;
         private int _cursorX = -1, _cursorY = -1;
@@ -86,6 +89,7 @@ namespace MinecraftSkylines.Mod
             _changed = changed;
             _launcher = launcher;
             _streamer = new CollisionStreamer(log);
+            _underground = new UndergroundRenderer(log, launcher.UndergroundMode);
         }
 
         public bool IsOn { get { return _state != State.Off; } }
@@ -179,6 +183,7 @@ namespace MinecraftSkylines.Mod
                     return;
                 }
                 if (UInput.GetKeyUp(KeyCode.Escape)) EscapeUp();
+                if (UndergroundKeyPressed()) _underground.SetMode(UndergroundMode.Next(_underground.Mode));
                 SetScreenMode(_state == State.Active && _guestScreenOpen);
                 float dx, dy;
                 _input.ReadMouse(out dx, out dy);
@@ -224,7 +229,9 @@ namespace MinecraftSkylines.Mod
                 }
                 Vector3 feet = _state == State.Active ? _feet : _spawnFeet;
                 Quaternion rot = Quaternion.Euler((float)_look.Pitch, (float)_look.Yaw, 0f);
-                _camera.Drive(feet + new Vector3(0f, _eye, 0f), rot, _fov, NearClip);
+                Vector3 eyePos = feet + new Vector3(0f, _eye, 0f);
+                _camera.Drive(eyePos, rot, _fov, NearClip);
+                _underground.Apply(eyePos, NowMs());
             }
             catch (Exception e)
             {
@@ -302,6 +309,8 @@ namespace MinecraftSkylines.Mod
             _esc.Reset();
             _escEvents.Clear();
             _swallowModeKeyUp = false;
+            _swallowUndergroundKeyUp = false;
+            Guard("restore underground view", () => _underground.End());
             Guard("restore camera", () =>
             {
                 string problems = _camera.Release();
@@ -346,6 +355,7 @@ namespace MinecraftSkylines.Mod
             if (_note.Length > 0) sb.Append("  (").Append(_note).Append(')');
             string launch = _launcher.OverlayText();
             if (launch.Length > 0) sb.Append('\n').Append(launch);
+            if (_state != State.Off) sb.Append('\n').Append(_underground.OverlayText());
             if (_state != State.Off) sb.Append("\nCollision: ").Append(_streamer.Stats);
             if (_frames > 0) sb.Append("\nPlayer mode frame: avg ").Append((_frameTotalMs / _frames).ToString("0.000"))
                 .Append(" ms, max ").Append(_frameMaxMs.ToString("0.000")).Append(" ms");
@@ -403,6 +413,7 @@ namespace MinecraftSkylines.Mod
             _state = State.Waiting;
             try
             {
+                _underground.Begin();
                 string blocked = _blocker.Begin();
                 if (blocked != null) throw new InvalidOperationException("shortcut blocker: " + blocked);
                 _input.Begin();
@@ -468,6 +479,16 @@ namespace MinecraftSkylines.Mod
                     _events.AddRange(_escEvents);
                     _escEvents.Clear();
                     continue;
+                }
+                if (c.Code == (int)KeyCode.N && (c.Kind == CapturedKind.KeyDown || c.Kind == CapturedKind.KeyUp))
+                {
+                    // Ctrl+Shift+N cycles the underground mode and must not reach Minecraft, key-up included.
+                    if (c.Kind == CapturedKind.KeyDown && CtrlShiftHeld()) _swallowUndergroundKeyUp = true;
+                    if (_swallowUndergroundKeyUp)
+                    {
+                        if (c.Kind == CapturedKind.KeyUp) _swallowUndergroundKeyUp = false;
+                        continue;
+                    }
                 }
                 if (c.Code == (int)KeyCode.O && (c.Kind == CapturedKind.KeyDown || c.Kind == CapturedKind.KeyUp))
                 {
@@ -577,6 +598,11 @@ namespace MinecraftSkylines.Mod
         public static bool ModeKeyPressed()
         {
             return UInput.GetKeyDown(KeyCode.O) && CtrlShiftHeld();
+        }
+
+        private static bool UndergroundKeyPressed()
+        {
+            return UInput.GetKeyDown(KeyCode.N) && CtrlShiftHeld();
         }
 
         private static bool CtrlShiftHeld()

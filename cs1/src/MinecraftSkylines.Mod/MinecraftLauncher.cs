@@ -78,6 +78,12 @@ namespace MinecraftSkylines.Mod
             get { Load(); return _config == null ? Skylines.Host.Overlay.OverlayMode.Default : _config.OverlayMode; }
         }
 
+        /// <summary>launch.cfg <c>underground_mode</c>; the default without a usable launch.cfg.</summary>
+        public int UndergroundMode
+        {
+            get { Load(); return _config == null ? LaunchConfig.DefaultUndergroundMode : _config.UndergroundMode; }
+        }
+
         /// <summary>True when launch.cfg's args contain <paramref name="arg"/> (e.g. -PmcskylinesDebugCommands).</summary>
         public bool HasArg(string arg)
         {

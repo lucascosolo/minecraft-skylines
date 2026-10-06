@@ -74,6 +74,15 @@ namespace Skylines.Host
         /// <summary>Overlay drawing mode, 0-4 (an in-game brightness experiment knob; see <c>Skylines.Host.Overlay.OverlayMode</c>).</summary>
         public int OverlayMode = Skylines.Host.Overlay.OverlayMode.Default;
 
+        /// <summary>Underground rendering mode, 0-3 (see <c>MinecraftSkylines.Mod.Underground.UndergroundMode</c>; Host cannot reference it, so the range is repeated here).</summary>
+        public int UndergroundMode = DefaultUndergroundMode;
+
+        /// <summary>Default for <c>underground_mode</c>; keep equal to <c>UndergroundMode.Default</c> in the Mod.</summary>
+        public const int DefaultUndergroundMode = 2;
+
+        /// <summary>Largest valid <c>underground_mode</c>.</summary>
+        public const int MaxUndergroundMode = 3;
+
         /// <summary>Problems found while parsing (unknown keys, bad numbers, missing command).</summary>
         public readonly List<string> Problems = new List<string>();
 
@@ -209,6 +218,13 @@ namespace Skylines.Host
                         int o;
                         if (int.TryParse(value, out o) && o >= 0 && o <= 4) OverlayMode = o;
                         else Problems.Add("line " + lineNo + ": overlay_mode must be 0, 1, 2, 3 or 4");
+                    }
+                    break;
+                case "underground_mode":
+                    {
+                        int g;
+                        if (int.TryParse(value, out g) && g >= 0 && g <= MaxUndergroundMode) UndergroundMode = g;
+                        else Problems.Add("line " + lineNo + ": underground_mode must be 0, 1, 2 or 3");
                     }
                     break;
                 default:
