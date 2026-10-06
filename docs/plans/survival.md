@@ -22,6 +22,13 @@ material available including some ores buried in the ground. we need trees to ge
    drawn in CS1 from any camera: each entity type's model (cuboids and texture) sent once like the block atlas, then
    per entity ~20 Hz position, orientation and part rotations, animated and drawn by CS1 in its own scene (no image
    streaming, no lag). Dropped items, arrows, minecarts the same way.
+4a. **Farming and animals readily available** (owner, 2026-10-06: "farming and natural animal spawning needs to be
+   readily available"). Farming is vanilla on the shadow ground (hoe → farmland, seeds from grass, CS1 water hydrates,
+   crops/saplings/cane grow at Minecraft's pace); tilled and planted cells are player edits, so CS1 draws and saves
+   them; arrives with the shadow world. Animals: vanilla rarely spawns passive mobs after generation, so the guest spawns
+   them regularly near the player by city context — cows/pigs/sheep/chickens on open grass, parks and CS1 farm land;
+   horses/llamas on open country; rabbits/foxes/wolves near forest; fish/squid in CS1 water — on shadow grass, standing
+   on CS1's visible ground. Needs entities drawn in CS1 (step 4) first.
 4b. **Citizens are villagers to mobs** (owner, 2026-10-06: "CS1 npcs will be villagers to the Minecraft mobs and they
    will be triggered to panic when targeted by mobs, and they will be capable of actually being killed by them too").
    CS1 citizens near the simulated area get invisible villager proxies in Minecraft that follow them (positions as
