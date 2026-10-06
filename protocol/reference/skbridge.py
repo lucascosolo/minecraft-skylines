@@ -713,6 +713,85 @@ class LightSources:
         return LightSources(out)
 
 
+# ---- minecraft-skylines app protocol 1.9: Minecraft's sky -------------------------------------
+SKY_STATE = 0x0190
+SKY_TEXTURES = 0x0191
+SKY_FLAG_SKY = 1
+SKY_FLAG_CLOUDS = 2
+SKY_TEX_SUN = 0
+SKY_TEX_MOON = 1
+SKY_TEX_CLOUDS = 2
+SKY_TEX_PNG = 1
+MOON_PHASES = 8
+
+
+@dataclass
+class SkyState:
+    flags: int
+    sky_color: tuple
+    fog_color: tuple
+    sunrise_color: tuple
+    star_brightness: float
+    rain_level: float
+    moon_phase: int
+    cloud_color: tuple
+    cloud_height: float
+    cloud_offset: float
+    cloud_speed: float
+
+    def encode(self) -> bytes:
+        w = Writer().u8(self.flags)
+        for v in (*self.sky_color, *self.fog_color, *self.sunrise_color, self.star_brightness, self.rain_level):
+            w.f32(v)
+        w.u8(self.moon_phase)
+        for v in (*self.cloud_color, self.cloud_height, self.cloud_offset, self.cloud_speed):
+            w.f32(v)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "SkyState":
+        r = Reader(p)
+        flags = r.u8()
+        sky = tuple(r.f32() for _ in range(3))
+        fog = tuple(r.f32() for _ in range(3))
+        sunrise = tuple(r.f32() for _ in range(4))
+        stars, rain, phase = r.f32(), r.f32(), r.u8()
+        if phase >= MOON_PHASES:
+            raise ProtocolError(f"moon phase {phase} outside 0..7")
+        cloud = tuple(r.f32() for _ in range(4))
+        return SkyState(flags, sky, fog, sunrise, stars, rain, phase, cloud, r.f32(), r.f32(), r.f32())
+
+
+@dataclass
+class SkyTexture:
+    kind: int
+    phase: int
+    fmt: int
+    data: bytes
+
+
+@dataclass
+class SkyTextures:
+    textures: list
+
+    def encode(self) -> bytes:
+        out = Writer().u8(len(self.textures)).bytes()
+        for t in self.textures:
+            out += Writer().u8(t.kind).u8(t.phase).u8(t.fmt).u32(len(t.data)).bytes() + t.data
+        return out
+
+    @staticmethod
+    def decode(p: bytes) -> "SkyTextures":
+        r = Reader(p)
+        out = []
+        for _ in range(r.u8()):
+            kind, phase, fmt, n = r.u8(), r.u8(), r.u8(), r.u32()
+            if kind == SKY_TEX_MOON and phase >= MOON_PHASES:
+                raise ProtocolError(f"moon phase {phase} outside 0..7")
+            out.append(SkyTexture(kind, phase, fmt, r._take(n)))
+        return SkyTextures(out)
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

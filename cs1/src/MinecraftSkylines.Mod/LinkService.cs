@@ -38,6 +38,7 @@ namespace MinecraftSkylines.Mod
         private static ClockLink s_cityClock;
         private static ObstacleLink s_obstacles;
         private static LightLink s_lights;
+        private static SkyLink s_sky;
         private static WalkInButton s_walkIn;
         private static BlockRenderer s_blocks;
         private static SelectionOutline s_selection;
@@ -90,6 +91,7 @@ namespace MinecraftSkylines.Mod
             s_cityClock = new ClockLink(s_log);
             s_obstacles = new ObstacleLink(s_log);
             s_lights = new LightLink(s_log);
+            s_sky = new SkyLink(s_log);
             var pause = new PauseGate(s_log, s_player);
             s_player.EnterGate = (host, connected) => pause.Check() ?? s_city.EnterGate(host, connected);
             s_walkIn = new WalkInButton(s_log, s_player);
@@ -121,6 +123,8 @@ namespace MinecraftSkylines.Mod
                 s_log.Info("unattended: vsync off, target 60 fps for this session");
             }
             s_pump.LateUpdated += () => s_player.LateUpdate(s_host);
+            // After the player's LateUpdate, which places the camera the sky is centred on.
+            s_pump.LateUpdated += () => s_sky.LateUpdate(s_host, s_player.IsOn);
             // Graphics.DrawMesh queues for the coming render of every camera, so the pump's LateUpdate (after
             // the camera is placed) draws in city and Minecraft mode alike. Meshes are kept across city reloads (the
             // guest only resends changed sections) but drawn only while a city is loaded.
@@ -166,6 +170,7 @@ namespace MinecraftSkylines.Mod
             s_walkIn.Dispose();
             s_player.Viewer.Dispose();
             s_blocks.Dispose();
+            s_sky.Dispose();
             s_selection.Dispose();
             s_gui.Dispose();
             s_probe.RestoreAll(why, true);
@@ -178,6 +183,7 @@ namespace MinecraftSkylines.Mod
             s_city = null;
             s_walkIn = null;
             s_blocks = null;
+            s_sky = null;
             s_selection = null;
             s_gui = null;
             s_selfTest = null;
@@ -217,6 +223,7 @@ namespace MinecraftSkylines.Mod
             if (s_fixture != null) s_fixture.OnLevelUnloading();
             if (s_walkIn != null) s_walkIn.Dispose();
             if (s_player != null) s_player.Exit("city unloading", s_host, true);
+            if (s_sky != null) s_sky.Reset();
             if (s_probe != null) s_probe.RestoreAll("level unloading", false);
             Log("level unloading");
             s_statusDirty = true;
@@ -410,6 +417,7 @@ namespace MinecraftSkylines.Mod
                     s_player.SetGuestFlags(0);
                     s_gui.OnDisconnect();
                     s_selection.Hide();
+                    s_sky.Reset();
                     s_player.Exit("link lost: " + s_lastDisconnect, s_host, false);
                     break;
                 case BridgeEventKind.Message:
@@ -476,6 +484,17 @@ namespace MinecraftSkylines.Mod
                         catch (ProtocolException ex)
                         {
                             s_log.Warn("bad city message 0x" + e.MessageType.ToString("x4") + " ignored: " + ex.Message);
+                        }
+                    }
+                    else if (e.MessageType == AppProtocol.SkyStateType || e.MessageType == AppProtocol.SkyTexturesType)
+                    {
+                        try
+                        {
+                            s_sky.Handle(e.MessageType, e.Payload);
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad sky message 0x" + e.MessageType.ToString("x4") + " ignored: " + ex.Message);
                         }
                     }
                     else if (e.MessageType >= AppProtocol.BlockAtlasType && e.MessageType <= AppProtocol.SectionsClearType)
