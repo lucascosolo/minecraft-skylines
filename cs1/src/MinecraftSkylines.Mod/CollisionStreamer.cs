@@ -143,6 +143,19 @@ namespace MinecraftSkylines.Mod
         /// As the overload above, then trees, bushes and props when <paramref name="obstacles"/> is given; if they throw, the
         /// region keeps terrain, roads and buildings and the exception is returned.
         /// </summary>
+        private static readonly ConvexCut s_cut = new ConvexCut();
+        private static readonly TriangleBuffer s_uncut = new TriangleBuffer();
+
+        private static void Copy(TriangleBuffer from, TriangleBuffer to)
+        {
+            to.Clear();
+            float[] p = from.Positions;
+            for (int t = 0, o = 0; t < from.Count; t++, o += 9)
+            {
+                to.Add(p[o], p[o + 1], p[o + 2], p[o + 3], p[o + 4], p[o + 5], p[o + 6], p[o + 7], p[o + 8], from.Flags[t]);
+            }
+        }
+
         public static Exception BuildCs(TerrainSampler terrain, NetGeometry net, BuildingGeometry buildings, ObstacleGeometry obstacles, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
         {
             into.Clear();
@@ -151,6 +164,28 @@ namespace MinecraftSkylines.Mod
             try { portals = net.PortalFootprint(minX, minZ, maxX, maxZ); }
             catch (Exception e) { failed = e; }
             Heightfield.Triangulate(terrain.AsFunc(), terrain.HoleFunc(TerrainStep, portals), minX, minZ, maxX, maxZ, TerrainStep, CollisionRegion.Terrain, into);
+            // Terrain under sunken road surfaces (Basic Road: 0.3 m below the flattened ground) is cut away, so the road
+            // is walked at its drawn height and the pavements are a step up. Uncut terrain is kept to fall back on.
+            bool cutTerrain = false, copied = false;
+            try
+            {
+                s_cut.Clear();
+                net.SunkenRoadCuts(minX, minZ, maxX, maxZ, s_cut);
+                if (s_cut.Count > 0)
+                {
+                    Copy(into, s_uncut);
+                    copied = true;
+                    into.Clear();
+                    s_cut.Apply(s_uncut, 0, s_uncut.Count, into);
+                    cutTerrain = true;
+                }
+            }
+            catch (Exception e)
+            {
+                if (copied) Copy(s_uncut, into);
+                cutTerrain = false;
+                if (failed == null) failed = e;
+            }
             int terrainOnly = into.Count;
             try
             {
@@ -159,7 +194,9 @@ namespace MinecraftSkylines.Mod
             }
             catch (Exception e)
             {
-                into.Truncate(terrainOnly);
+                // Without the roads the cut would leave holes: fall back to the whole terrain.
+                if (cutTerrain) Copy(s_uncut, into);
+                else into.Truncate(terrainOnly);
                 return e;
             }
             int solid = into.Count;

@@ -158,7 +158,12 @@ public final class PlayerMode {
 			} else {
 				LOG.info("[MinecraftSkylines] released hold, teleportAck={}", Integer.toUnsignedString(hold.ack()));
 			}
-		} else if (!active && freezePos != null) {
+		} else if (!active) {
+			// Also before the first player mode: the city world now opens as soon as a paired city loads, and a
+			// player left to gravity in the void world fell out of it and died before the owner entered (2026-10-06).
+			if (freezePos == null) {
+				freezePos = player.position();
+			}
 			pin(player, freezePos);
 		}
 	}

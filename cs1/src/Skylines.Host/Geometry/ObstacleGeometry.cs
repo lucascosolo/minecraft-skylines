@@ -99,15 +99,27 @@ namespace Skylines.Host.Geometry
             if (Obstacle.Prop(p.x, p.y, p.z, angle, c.x, c.y, c.z, s.x, s.y, s.z, scale, BaseFootprint(info), PropFlag, _props) > 0) LastPropCount++;
         }
 
+        /// <summary>Tall props whose lamp (a LightEffect) is at least this far sideways from the pivot are street lights: post at the pivot.</summary>
+        public const float LampReach = 1f;
+
         private Obstacle.Footprint? BaseFootprint(PropInfo info)
         {
             Obstacle.Footprint? cached;
             if (_footprints.TryGetValue(info, out cached)) return cached;
             cached = null;
+            string why = "no mesh data";
             try
             {
                 Mesh mesh = info.m_mesh;
-                if (mesh != null && mesh.isReadable)
+                float lamp = LampOffset(info);
+                if (lamp >= LampReach)
+                {
+                    // CS1 street lights stand on their pivot with the lamp out over the road (owner, 2026-10-06: still
+                    // collided "like a giant rectangle extending out under the lamp" with the mesh-base rule alone).
+                    cached = new Obstacle.Footprint { MinX = -0.1f, MaxX = 0.1f, MinZ = -0.1f, MaxZ = 0.1f };
+                    why = "lamp " + lamp.ToString("0.0") + " m from the pivot: post at the pivot";
+                }
+                else if (mesh != null && mesh.isReadable)
                 {
                     Vector3[] v = mesh.vertices;
                     var xyz = new float[v.Length * 3];
@@ -118,15 +130,43 @@ namespace Skylines.Host.Geometry
                         xyz[i * 3 + 2] = v[i].z;
                     }
                     Obstacle.Footprint f;
-                    if (Obstacle.BaseFootprint(xyz, v.Length, out f)) cached = f;
+                    if (Obstacle.BaseFootprint(xyz, v.Length, out f))
+                    {
+                        cached = f;
+                        why = "mesh base x " + f.MinX.ToString("0.00") + ".." + f.MaxX.ToString("0.00") + ", z " + f.MinZ.ToString("0.00") + ".." + f.MaxZ.ToString("0.00");
+                    }
+                }
+                else if (mesh != null)
+                {
+                    why = "mesh not readable";
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 cached = null; // fall back to the bounds rule
+                why = "failed: " + e.GetType().Name + ": " + e.Message;
             }
             _footprints[info] = cached;
+            if (info.m_generatedInfo != null && info.m_generatedInfo.m_size.y > Obstacle.TallHeight)
+            {
+                Vector3 c = info.m_generatedInfo.m_center, sz = info.m_generatedInfo.m_size;
+                Debug.Log("[MinecraftSkylines] prop collision: '" + info.name + "' bounds centre (" + c.x.ToString("0.00") + ", " + c.y.ToString("0.00") + ", "
+                    + c.z.ToString("0.00") + ") size (" + sz.x.ToString("0.00") + ", " + sz.y.ToString("0.00") + ", " + sz.z.ToString("0.00") + "); " + why);
+            }
             return cached;
+        }
+
+        // Largest horizontal distance of a light effect from the prop's pivot, 0 when it has none.
+        private static float LampOffset(PropInfo info)
+        {
+            float best = 0f;
+            if (info.m_effects == null) return best;
+            foreach (PropInfo.Effect e in info.m_effects)
+            {
+                if (!(e.m_effect is LightEffect)) continue;
+                best = Mathf.Max(best, new Vector2(e.m_position.x, e.m_position.z).magnitude);
+            }
+            return best;
         }
 
         // TreeManager.InitializeTree files a tree under cell (posX + 32768) * 540 / 65536 with posX = x * 3.7925925, i.e. x / 32 + 270.

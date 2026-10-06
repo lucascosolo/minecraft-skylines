@@ -13,7 +13,6 @@ import dev.mcskylines.protocol.EditSync;
 import dev.mcskylines.protocol.GuestStatus;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -65,7 +64,6 @@ public final class CityEdits {
 	private TouchedSet touched;
 	private Path touchedFile;
 	private final Long2ObjectOpenHashMap<Long2ObjectMap<String>> pending = new Long2ObjectOpenHashMap<>();
-	private final LongOpenHashSet loadedPending = new LongOpenHashSet();
 	private final Map<String, Optional<BlockState>> parsed = new HashMap<>();
 	private final EditRecorder<BlockState> recorder = new EditRecorder<>();
 	private boolean applying;
@@ -258,7 +256,6 @@ public final class CityEdits {
 		}
 		targetApplied = false;
 		pending.clear();
-		loadedPending.clear();
 		parsed.clear();
 		serverRef = null;
 		server = null;
@@ -281,16 +278,6 @@ public final class CityEdits {
 		}
 	}
 
-	/** CHUNK_LOAD: its queued edits are applied at the end of the tick, when the chunk is fully in the level. */
-	public synchronized void chunkLoaded(ServerLevel l, LevelChunk chunk) {
-		if (l == level) {
-			long key = BlockKey.chunkKey(BlockKey.pack(chunk.getPos().getMinBlockX(), 0, chunk.getPos().getMinBlockZ()));
-			if (pending.containsKey(key)) {
-				loadedPending.add(key);
-			}
-		}
-	}
-
 	/** CHUNK_UNLOAD: the chunk is about to be saved, so new touched positions go to disk first. */
 	public synchronized void chunkUnloading(ServerLevel l) {
 		if (l == level && touched.dirty()) {
@@ -303,13 +290,22 @@ public final class CityEdits {
 		if (s != server) {
 			return;
 		}
-		if (!loadedPending.isEmpty()) {
-			loadedPending.forEach((long key) -> {
+		// Every queued chunk is checked each tick until it is fully loaded (owner's run 2026-10-06: a chunk whose
+		// CHUNK_LOAD came before getChunkNow saw it, or before the reconcile, was dropped and its blocks never placed).
+		// getChunkNow is a map lookup, so this stays cheap for the few hundred chunks a city touches.
+		if (!pending.isEmpty()) {
+			var it = pending.long2ObjectEntrySet().fastIterator();
+			while (it.hasNext()) {
+				var e = it.next();
+				long key = e.getLongKey();
 				if (level.getChunkSource().getChunkNow(BlockKey.chunkX(key), BlockKey.chunkZ(key)) != null) {
-					applyChunk(pending.remove(key));
+					applyChunk(e.getValue());
+					it.remove();
 				}
-			});
-			loadedPending.clear();
+			}
+			if (pending.isEmpty()) {
+				LOG.info(PREFIX + "city world: all queued chunks applied");
+			}
 		}
 		flushRecorded();
 	}
@@ -338,7 +334,6 @@ public final class CityEdits {
 		ReconcilePlan plan = ReconcilePlan.plan(touched.live(), target);
 		target.keySet().forEach((long key) -> touched.add(key));
 		pending.clear();
-		loadedPending.clear();
 		int now = 0;
 		for (var chunk : plan.byChunk().long2ObjectEntrySet()) {
 			long ck = chunk.getLongKey();

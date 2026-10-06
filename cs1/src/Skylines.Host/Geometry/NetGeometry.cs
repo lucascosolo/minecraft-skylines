@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using ColossalFramework;
 using ColossalFramework.Math;
@@ -194,6 +195,144 @@ namespace Skylines.Host.Geometry
         public static float Clearance(NetInfo info)
         {
             return info.m_maxHeight >= 3f && info.m_maxHeight <= 12f ? info.m_maxHeight : DefaultTunnelClearance;
+        }
+
+        /// <summary>How far the terrain cut stays inside a sunken road's pavements (or its edges), in metres.</summary>
+        public const float CurbMargin = 0.25f;
+
+        private readonly HashSet<ushort> _cutNodes = new HashSet<ushort>();
+
+        /// <summary>
+        /// Adds to <paramref name="cut"/> the carriageway of every ground road near the rectangle whose drawn surface lies
+        /// below the terrain the game flattened for it (<c>m_clipTerrain</c>, <c>m_surfaceLevel</c> &lt; 0; Basic Road: 0.3 m),
+        /// so the terrain there, which the game does not draw, can be left out of the collision and the player walks on
+        /// the road with the pavements a step up (owner, 2026-10-06: "the sidewalks on my built roads are still the exact
+        /// same walking height as the road"). Each area lies inside the road's own collision (segment strips inset by the
+        /// pavement plus <see cref="CurbMargin"/>; junction fans shrunk towards the node), so no hole is opened.
+        /// </summary>
+        public void SunkenRoadCuts(float minX, float minZ, float maxX, float maxZ, ConvexCut cut)
+        {
+            NetManager nm = Singleton<NetManager>.instance;
+            NetSegment[] segs = nm.m_segments.m_buffer;
+            NetNode[] nodes = nm.m_nodes.m_buffer;
+            ushort[] grid = nm.m_segmentGrid;
+            _cutNodes.Clear();
+            for (int cz = Cell(minZ - GridMargin); cz <= Cell(maxZ + GridMargin); cz++)
+            {
+                for (int cx = Cell(minX - GridMargin); cx <= Cell(maxX + GridMargin); cx++)
+                {
+                    ushort id = grid[cz * GridSize + cx];
+                    int guard = 0;
+                    while (id != 0 && guard++ < NetManager.MAX_SEGMENT_COUNT)
+                    {
+                        NetSegment seg = segs[id];
+                        Bounds b = seg.m_bounds;
+                        if ((seg.m_flags & NetSegment.Flags.Created) != 0 && (seg.m_flags & NetSegment.Flags.Deleted) == 0
+                            && !(b.max.x < minX || b.min.x > maxX || b.max.z < minZ || b.min.z > maxZ) && Sunken(seg.Info))
+                        {
+                            Bezier3 left, right;
+                            seg.GenerateBezier(id, seg.m_startNode, out left, out right);
+                            Bezier3D l = ToCore(left, 0f), r = ToCore(right, 0f), il, ir;
+                            float w = Mathf.Max(0f, seg.Info.m_pavementWidth) + CurbMargin;
+                            if (Strip.Inset(l, r, w, 0f, out il) && Strip.Inset(r, l, w, 0f, out ir))
+                            {
+                                int n = Mathf.Max(1, Mathf.CeilToInt(Vector3.Distance(left.a, left.d) / StripStep));
+                                float[] l0 = il.At(0f), r0 = ir.At(0f);
+                                for (int k = 1; k <= n; k++)
+                                {
+                                    float[] l1 = il.At(k / (float)n), r1 = ir.At(k / (float)n);
+                                    cut.AddTriangle(l0[0], l0[2], l1[0], l1[2], r1[0], r1[2]);
+                                    cut.AddTriangle(l0[0], l0[2], r1[0], r1[2], r0[0], r0[2]);
+                                    l0 = l1;
+                                    r0 = r1;
+                                }
+                            }
+                            _cutNodes.Add(seg.m_startNode);
+                            _cutNodes.Add(seg.m_endNode);
+                        }
+                        id = seg.m_nextGridSegment;
+                    }
+                }
+            }
+            foreach (ushort n in _cutNodes) JunctionCut(n, segs, nodes, minX, minZ, maxX, maxZ, cut);
+        }
+
+        private static bool Sunken(NetInfo info)
+        {
+            return info != null && Classify(info) == Kind.Ground && info.m_clipTerrain && info.m_surfaceLevel < -0.05f;
+        }
+
+        // The node's collision (EmitJunction) shrunk inwards by the widest pavement plus CurbMargin: a disc for a
+        // two-segment node, otherwise each fan triangle (centre, corner, next corner) pulled towards the centre.
+        private void JunctionCut(ushort nodeId, NetSegment[] segs, NetNode[] nodes, float minX, float minZ, float maxX, float maxZ, ConvexCut cut)
+        {
+            NetNode node = nodes[nodeId];
+            if ((node.m_flags & NetNode.Flags.Middle) != 0) return;
+            int count = 0;
+            float radius = 0f, w = 0f;
+            for (int i = 0; i < 8; i++)
+            {
+                ushort sid = node.GetSegment(i);
+                if (sid == 0) continue;
+                NetInfo info = segs[sid].Info;
+                Kind kind = Classify(info);
+                if (kind == Kind.Skip) continue;
+                if (kind != Kind.Ground || !Sunken(info)) return; // mixed with bridges, tunnels or level roads: leave the terrain
+                radius = Mathf.Max(radius, info.m_halfWidth);
+                w = Mathf.Max(w, Mathf.Max(0f, info.m_pavementWidth) + CurbMargin);
+                Bezier3 left, right;
+                segs[sid].GenerateBezier(sid, nodeId, out left, out right);
+                foreach (Vector3 c in new[] { left.a, right.a })
+                {
+                    _ring[3 * count] = c.x; _ring[3 * count + 1] = c.y; _ring[3 * count + 2] = c.z;
+                    count++;
+                }
+            }
+            if (count == 0) return;
+            Vector3 p = node.m_position;
+            if (p.x + radius < minX || p.x - radius > maxX || p.z + radius < minZ || p.z - radius > maxZ) return;
+            if (count == 2)
+            {
+                float rin = radius - w;
+                if (rin <= 0f) return;
+                var disc = new float[2 * DiscSegments];
+                for (int i = 0; i < DiscSegments; i++)
+                {
+                    double a = 2 * Math.PI * i / DiscSegments;
+                    disc[2 * i] = p.x + rin * (float)Math.Cos(a);
+                    disc[2 * i + 1] = p.z + rin * (float)Math.Sin(a);
+                }
+                cut.Add(disc, DiscSegments);
+                return;
+            }
+            var order = new int[count];
+            var angle = new double[count];
+            for (int i = 0; i < count; i++)
+            {
+                order[i] = i;
+                angle[i] = Math.Atan2(_ring[3 * i + 2] - p.z, _ring[3 * i] - p.x);
+            }
+            Array.Sort(angle, order);
+            for (int i = 0; i < count; i++)
+            {
+                float ax, az, bx, bz;
+                if (!Pull(p, order[i], w, out ax, out az) || !Pull(p, order[(i + 1) % count], w, out bx, out bz)) continue;
+                cut.AddTriangle(p.x, p.z, ax, az, bx, bz);
+            }
+        }
+
+        // Ring corner `i` moved `w` towards the node centre in xz; false when it is not further than that from the centre.
+        private bool Pull(Vector3 p, int i, float w, out float x, out float z)
+        {
+            float dx = _ring[3 * i] - p.x, dz = _ring[3 * i + 2] - p.z;
+            float d = Mathf.Sqrt(dx * dx + dz * dz);
+            x = p.x;
+            z = p.z;
+            if (d <= w) return false;
+            float s = (d - w) / d;
+            x = p.x + dx * s;
+            z = p.z + dz * s;
+            return true;
         }
 
         private void EmitSegment(ushort id, ref NetSegment seg, NetNode[] nodes, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)

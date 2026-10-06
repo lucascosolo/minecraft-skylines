@@ -26,7 +26,8 @@ namespace Skylines.Core.Geometry
             };
         }
 
-        internal float[] At(float t)
+        /// <summary>The point at parameter <paramref name="t"/> as a new array (x, y, z).</summary>
+        public float[] At(float t)
         {
             float u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
             return new[] { a * Ax + b * Bx + c * Cx + d * Dx, a * Ay + b * By + c * Cy + d * Dy, a * Az + b * Bz + c * Cz + d * Dz };

@@ -58,7 +58,6 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		ServerLifecycleEvents.SERVER_STOPPING.register(city::detach);
 		ServerLifecycleEvents.BEFORE_SAVE.register((server, flush, force) -> city.beforeSave(server));
 		ServerLifecycleEvents.AFTER_SAVE.register((server, flush, force) -> city.afterSave(server, flush));
-		ServerChunkEvents.CHUNK_LOAD.register((level, chunk, generated) -> city.chunkLoaded(level, chunk));
 		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> city.chunkUnloading(level));
 		ServerTickEvents.END_SERVER_TICK.register(city::serverTick);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> DevWorld.creativeIfOurs(handler.player, server));

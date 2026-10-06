@@ -135,3 +135,17 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
 - Target file = private `GetSavePathName` (`:629`): `Path.Combine(DataLocation.saveLocation, PathUtils.AddExtension(PathEscaper.Escape(name), PackageManager.packageExtension))`; reproduced in `CityBackup.SavePathOf`. `PathEscaper.Escape` (ColossalManaged `PathEscaper.cs:41`) also escapes `.` and tab, so `AddExtension` never replaces part of the name. `PackageManager.packageExtension` = ".crp" (`PackageManager.cs:21`).
 - Dialogs: `ConfirmPanel.ShowModal(string title, string message, UIView.ModalPoppedReturnCallback)` (`ConfirmPanel.cs:21`; result 1 = Yes, 0 = No, `:81-89`); `UIView.library.ShowModal<ExceptionPanel>("ExceptionPanel").SetMessage(string title, string message, bool error)` (`ExceptionPanel.cs:16`, used the same way by the game in `TerrainPropertiesPanel.cs:560`).
 - `ICities.LoadMode`: `NewGame`, `NewGameFromScenario` = a city started from a map or scenario (never saved); `ISerializableData.LoadData(string)` / `SaveData(string, byte[])`. `OnSaveData` runs on the simulation thread while the main thread keeps running the save coroutine, so the EDIT_SYNC barrier can wait there for the main thread.
+
+## Collision refinements (2026-10-06, verified against the decompile)
+
+- `PropInfo.m_effects` (`PropInfo.Effect[]`, PropInfo.cs:122): `m_effect` (`EffectInfo`), `m_position` (prop-local).
+  A `LightEffect` (LightEffect.cs:6) more than 1 m sideways from the pivot marks a street light: the pole stands at the
+  pivot, so only a post there collides (`ObstacleGeometry`).
+- `PropInfo.m_mesh.vertices` is read by the game itself at runtime (`PropInfo` LOD setup, PropInfo.cs:740), so prop
+  meshes are CPU-readable; `Mesh.isReadable` is still checked.
+- `NetInfo.m_clipTerrain`, `NetInfo.m_surfaceLevel` (Basic Road: true, -0.30): the game flattens the terrain to node
+  height, hides it under the road and draws the road surface 0.3 m lower. `NetGeometry.SunkenRoadCuts` removes that
+  terrain from the collision inside the road's own collision (segment strips inset by `m_pavementWidth` + 0.25 m,
+  junction fans shrunk), so pavements are a step up.
+- `CameraController` sets `Camera.rect` to `kFullScreenWithoutMenuBarRect` (CameraController.cs:803) unless in free
+  camera mode; the takeover sets a full-screen rect while the UI is hidden.
