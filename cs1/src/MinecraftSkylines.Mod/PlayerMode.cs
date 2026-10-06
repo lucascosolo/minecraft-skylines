@@ -53,6 +53,7 @@ namespace MinecraftSkylines.Mod
         private readonly EscapeRouter _esc = new EscapeRouter();
         private readonly List<InputEvent> _escEvents = new List<InputEvent>();
         private bool _swallowModeKeyUp;
+        private bool _enterRequested;
         private bool _swallowUndergroundKeyUp;
         private bool _swallowClipKeyUp;
         private bool _swallowDumpKeyUp;
@@ -158,6 +159,18 @@ namespace MinecraftSkylines.Mod
 
         /// <summary>The Ctrl+Shift+G collision wireframe.</summary>
         public Diagnostics.CollisionViewer Viewer { get { return _streamer.Viewer; } }
+
+        /// <summary>
+        /// Asked before Ctrl+Shift+M (or a requested entry) enters or starts Minecraft, with "link connected";
+        /// null proceeds, otherwise the note to show. <see cref="EnterAt"/> (self-test) does not ask.
+        /// </summary>
+        public Func<BridgeHost, bool, string> EnterGate;
+
+        /// <summary>Enters on the next Update as if Ctrl+Shift+M was pressed (still asks <see cref="EnterGate"/>).</summary>
+        public void RequestEnter()
+        {
+            _enterRequested = true;
+        }
 
         /// <summary>Per frame from the pump's Update, after bridge events were handled.</summary>
         public void Update(BridgeHost host, bool cityReady)
@@ -393,6 +406,8 @@ namespace MinecraftSkylines.Mod
         {
             bool connected = host != null && host.State == BridgeState.Connected;
             bool key = EnterKeyPressed();
+            bool requested = _enterRequested;
+            _enterRequested = false;
             if (_launcher.Pending)
             {
                 if (key || UInput.GetKeyDown(KeyCode.Escape) || !cityReady)
@@ -403,7 +418,7 @@ namespace MinecraftSkylines.Mod
                 else if (connected)
                 {
                     _launcher.Cancel();
-                    TryEnter(host, cityReady, null, null);
+                    if (GateAllows(host, true)) TryEnter(host, cityReady, null, null);
                 }
                 else
                 {
@@ -411,7 +426,11 @@ namespace MinecraftSkylines.Mod
                 }
                 return;
             }
-            if (!key)
+            if (!key && !requested)
+            {
+                return;
+            }
+            if (cityReady && !GateAllows(host, connected))
             {
                 return;
             }
@@ -421,6 +440,15 @@ namespace MinecraftSkylines.Mod
                 return;
             }
             TryEnter(host, cityReady, null, null);
+        }
+
+        private bool GateAllows(BridgeHost host, bool connected)
+        {
+            string refusal = EnterGate == null ? null : EnterGate(host, connected);
+            if (refusal == null) return true;
+            _note = refusal;
+            _log.Info("player mode: " + refusal);
+            return false;
         }
 
         private void TryEnter(BridgeHost host, bool cityReady, Vector3? feet, float? yawDeg)

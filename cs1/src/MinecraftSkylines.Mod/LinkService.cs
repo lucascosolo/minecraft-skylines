@@ -6,6 +6,7 @@ using System.Text;
 using ColossalFramework.IO;
 using ICities;
 using MinecraftSkylines.Mod.Blocks;
+using MinecraftSkylines.Mod.City;
 using MinecraftSkylines.Mod.Diagnostics;
 using MinecraftSkylines.Mod.SelfTest;
 using MinecraftSkylines.Protocol;
@@ -33,6 +34,7 @@ namespace MinecraftSkylines.Mod
         private static StatusOverlay s_overlay;
         private static TerrainClipProbe s_probe;
         private static PlayerMode s_player;
+        private static CityLink s_city;
         private static BlockRenderer s_blocks;
         private static SelectionOutline s_selection;
         private static OverlayLink s_gui;
@@ -80,12 +82,15 @@ namespace MinecraftSkylines.Mod
                 UnityEngine.Application.platform == UnityEngine.RuntimePlatform.LinuxPlayer);
             s_gui.SetMode(s_launcher.OverlayMode);
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
+            s_city = new CityLink(s_log, s_saveId, s_player);
+            s_player.EnterGate = s_city.EnterGate;
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;
             s_selection = new SelectionOutline(() => s_player != null && s_player.IsActive);
             s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, s_gui, () => s_guest, ModVersion);
             s_autoload = new SaveAutoloader(s_log, s_launcher.Autoload);
             s_fixture = new FixtureBuilder(s_log);
+            s_selfTest.City = s_city;
             s_selfTest.CurrentFixture = () => s_fixture.Fixture;
             s_selfTest.HoldAutoStart = () => s_fixture.Busy;
             s_unattended = new UnattendedPolicy(s_launcher.SelfTestQuit);
@@ -159,6 +164,7 @@ namespace MinecraftSkylines.Mod
             s_pump = null;
             s_overlay = null;
             s_player = null;
+            s_city = null;
             s_blocks = null;
             s_selection = null;
             s_gui = null;
@@ -174,9 +180,9 @@ namespace MinecraftSkylines.Mod
         public static void OnLevelLoaded(string mode)
         {
             CityState.SetInCity(true);
-            // Milestone 1 never assigns an id: a city is only paired (and backed up first) when the
-            // player switches it to Minecraft mode, so a city merely loaded with the mod enabled is
-            // saved exactly as without it. See docs/DECISIONS.md, "player safety".
+            // No id is assigned on load: a city is only paired (after a verified backup) when the player enables
+            // Minecraft for it (CityLink), so a city merely loaded with the mod enabled is saved exactly as without it.
+            if (s_city != null) s_city.OnLevelLoaded(mode);
             if (s_fixture != null) s_fixture.OnLevelLoaded();
             if (s_selfTest != null) s_selfTest.OnLevelLoaded();
             if (s_autoloadIssued && s_unattended != null) s_unattended.AutoloadLevelLoaded(Now());
@@ -192,6 +198,7 @@ namespace MinecraftSkylines.Mod
         public static void OnLevelUnloading()
         {
             CityState.SetInCity(false);
+            if (s_city != null) s_city.OnLevelUnloading(s_host);
             s_saveId.Clear();
             if (s_selfTest != null) s_selfTest.OnLevelUnloading(s_host);
             if (s_fixture != null) s_fixture.OnLevelUnloading();
@@ -204,11 +211,15 @@ namespace MinecraftSkylines.Mod
         public static void OnLoadData(ISerializableData data)
         {
             Log("load data: " + s_saveId.Load(data));
+            CityLink city = s_city;
+            if (city != null) city.OnLoadData(data);
         }
 
         public static void OnSaveData(ISerializableData data)
         {
-            // Writes only if the city is paired (SaveIdentity.Save is a no-op for Guid.Empty).
+            // Writes only if the city is paired (SaveIdentity.Save and CityLink.OnSaveData are no-ops otherwise).
+            CityLink city = s_city;
+            if (city != null) city.OnSaveData(data);
             s_saveId.Save(data);
             if (s_saveId.Id != Guid.Empty)
             {
@@ -304,6 +315,7 @@ namespace MinecraftSkylines.Mod
             s_cityReady = city.InCity && !city.Loading;
             Guid saveId = s_saveId.Id;
             s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
+            s_city.Update(s_host, city.InCity && !city.Loading);
             s_player.Update(s_host, city.InCity && !city.Loading);
             s_gui.Tick(s_host, s_player.IsOn);
             s_fixture.Update(city.InCity && !city.Loading);
@@ -377,6 +389,7 @@ namespace MinecraftSkylines.Mod
                     s_lastDisconnect = e.CauseName + (e.Code >= 0 ? " code " + e.Code : "") + (string.IsNullOrEmpty(e.Reason) ? "" : ": " + e.Reason);
                     Log("disconnected: " + s_lastDisconnect);
                     s_guest = null;
+                    s_city.OnDisconnect();
                     s_player.SetGuestFlags(0);
                     s_gui.OnDisconnect();
                     s_selection.Hide();
@@ -435,6 +448,17 @@ namespace MinecraftSkylines.Mod
                         catch (ProtocolException ex)
                         {
                             s_log.Warn("bad BLOCK_SELECTION ignored: " + ex.Message);
+                        }
+                    }
+                    else if (e.MessageType >= AppProtocol.BlockEditsType && e.MessageType <= AppProtocol.CityStateType)
+                    {
+                        try
+                        {
+                            s_city.Handle(e.MessageType, e.Payload);
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad city message 0x" + e.MessageType.ToString("x4") + " ignored: " + ex.Message);
                         }
                     }
                     else if (e.MessageType >= AppProtocol.BlockAtlasType && e.MessageType <= AppProtocol.SectionsClearType)
@@ -506,6 +530,8 @@ namespace MinecraftSkylines.Mod
             {
                 sb.Append(saveId == Guid.Empty ? "  (not paired)" : "  save id " + saveId.ToString().Substring(0, 8));
             }
+            string blockLine = s_city.OverlayText(city.InCity);
+            if (blockLine.Length > 0) sb.Append('\n').Append(blockLine);
             sb.Append('\n').Append(s_player.OverlayText());
             string gui = s_gui.OverlayText();
             if (gui.Length > 0) sb.Append('\n').Append(gui);

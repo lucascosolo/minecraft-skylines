@@ -13,6 +13,7 @@
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\SelfTestCore.cs" Link="SelfTestCore.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\FixturePlan.cs" Link="FixturePlan.cs" />
     <Compile Include="..\..\src\MinecraftSkylines.Mod\SelfTest\UnattendedPolicy.cs" Link="UnattendedPolicy.cs" />
+    <Compile Include="..\..\src\MinecraftSkylines.Mod\City\EditSyncBarrier.cs" Link="EditSyncBarrier.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />

@@ -8,6 +8,7 @@ using ColossalFramework.IO;
 using ColossalFramework.Math;
 using ColossalFramework.UI;
 using MinecraftSkylines.Mod.Blocks;
+using MinecraftSkylines.Mod.City;
 using MinecraftSkylines.Protocol;
 using Skylines.Bridge;
 using Skylines.Core.Geometry;
@@ -96,6 +97,9 @@ namespace MinecraftSkylines.Mod.SelfTest
         }
 
         public bool Running { get { return _phase != Phase.Idle; } }
+
+        /// <summary>Pairing and the city's edit set (S10).</summary>
+        public CityLink City;
 
         /// <summary>Called after every run's report was written (finished, aborted or failed).</summary>
         public Action ReportWritten;
@@ -236,6 +240,7 @@ namespace MinecraftSkylines.Mod.SelfTest
                 Mc("S4", "under a bridge", 45, S4UnderBridge, noMinecraft),
                 Mc("S5", "slope following", 60, S5Slope, noMinecraft),
                 Mc("S6", "camera restore", 15, S6CameraRestore, noMinecraft),
+                Mc("S10", "city blocks: pairing, edits, save barrier", 60, S10CityBlocks, noMinecraft),
             };
             _runner = new ScenarioRunner(list, (id, e) => _log.Error("self-test " + id, e));
         }
@@ -568,6 +573,8 @@ namespace MinecraftSkylines.Mod.SelfTest
         // ---- S8 ----
 
         private const string DevWorldName = "skylines-dev";
+        // M4 replaced the dev world with the per-city cache world; S8 accepts either.
+        private const string CityWorldName = "skylines-city";
         private const string DebugCommandsArg = "-PmcskylinesDebugCommands";
 
         private IEnumerator S8BlockRendering(ScenarioResult r)
@@ -575,7 +582,7 @@ namespace MinecraftSkylines.Mod.SelfTest
             if (_host.NegotiatedAppMinor < 2) { r.Skip("Minecraft app minor " + _host.NegotiatedAppMinor + " has no block meshes"); yield break; }
             if (!_launcher.HasArg(DebugCommandsArg)) { r.Skip("launch.cfg args lack " + DebugCommandsArg + " (tools/install-cs1-mod.sh --selftest)"); yield break; }
             GuestStatus g = _guest();
-            if (g == null || g.WorldName != DevWorldName) { r.Skip("Minecraft world is not " + DevWorldName); yield break; }
+            if (g == null || (g.WorldName != DevWorldName && g.WorldName != CityWorldName)) { r.Skip("Minecraft world is not " + DevWorldName + " or " + CityWorldName); yield break; }
             if (!_s2HaveSpawn) { r.Skip("S2 found no spawn point"); yield break; }
 
             float yaw = (float)BlockRowPlan.SnapYaw(_s2Yaw);
@@ -687,6 +694,83 @@ namespace MinecraftSkylines.Mod.SelfTest
             LeavePlayerMode();
             if (_s8VariantWas >= 0) { _blocks.SetVariant(_s8VariantWas); _s8VariantWas = -1; }
             if (_s8Plan != null) { SendCommand(_s8Plan.ClearCommand()); _s8Plan = null; }
+        }
+
+        // S10: pairs a city started from a map (no backup: nothing to protect; CityLink logs why), waits for the guest to
+        // have applied the open, places and breaks blocks through DEBUG_COMMAND high above the player, checks the edit
+        // set follows, runs one EDIT_SYNC round trip, and removes its blocks again.
+        private IEnumerator S10CityBlocks(ScenarioResult r)
+        {
+            if (_host.NegotiatedAppMinor < 5) { r.Skip("Minecraft app minor " + _host.NegotiatedAppMinor + " has no per-city blocks"); yield break; }
+            if (City == null) { r.Error("no city link"); yield break; }
+            if (!_launcher.HasArg(DebugCommandsArg)) { r.Skip("launch.cfg args lack " + DebugCommandsArg + " (tools/install-cs1-mod.sh --selftest)"); yield break; }
+            bool wasPaired = City.Paired;
+            string refusal = City.PairForSelfTest();
+            r.Measurements.Set("was_paired", wasPaired);
+            if (refusal != null) { r.Skip(refusal); yield break; }
+
+            double start = Now();
+            while (!City.Ready && Now() - start < 20) yield return null;
+            r.Measurements.Set("open_seq", City.OpenSeq);
+            r.Measurements.Set("time_to_ready_s", City.Ready ? (double?)(Now() - start) : null);
+            if (!City.Ready) { r.Fail("no CITY_STATE ready within 20 s of pairing"); yield break; }
+
+            Vector3 feet;
+            uint flags;
+            double age;
+            int x = 0, y = 200, z = 0;
+            if (_player.TryLatestState(out feet, out flags, out age))
+            {
+                Vec3d mc = MinecraftFrame.CsToMc(new Vec3d(feet.x, feet.y, feet.z));
+                x = (int)Math.Floor(mc.X) + 4;
+                y = Math.Min((int)Math.Floor(mc.Y) + 40, 300);
+                z = (int)Math.Floor(mc.Z) + 4;
+            }
+            int before = City.EditCount;
+            r.Measurements.Set("block_origin", new[] { x, y, z });
+            r.Measurements.Set("edits_before", before);
+            SendCommand("setblock " + x + " " + y + " " + z + " minecraft:stone");
+            SendCommand("fill " + (x + 1) + " " + y + " " + z + " " + (x + 3) + " " + y + " " + z + " minecraft:oak_planks");
+            start = Now();
+            while (!S10Has(x, y, z, x + 3) && Now() - start < 10) yield return null;
+            bool placed = S10Has(x, y, z, x + 3);
+            r.Measurements.Set("placed_seen_s", placed ? (double?)(Now() - start) : null);
+            r.Measurements.Set("edits_after_place", City.EditCount);
+
+            SendCommand("setblock " + x + " " + y + " " + z + " minecraft:air");
+            start = Now();
+            string state;
+            while (City.TryGetEdit(x, y, z, out state) && Now() - start < 10) yield return null;
+            bool broken = !City.TryGetEdit(x, y, z, out state);
+            r.Measurements.Set("break_seen_s", broken ? (double?)(Now() - start) : null);
+            r.Measurements.Set("edits_after_break", City.EditCount);
+
+            uint token = City.SendEditSync(_host);
+            start = Now();
+            while (!City.SyncAcked(token) && Now() - start < 2) yield return null;
+            bool acked = City.SyncAcked(token);
+            r.Measurements.Set("sync_token", token);
+            r.Measurements.Set("sync_round_trip_ms", acked ? (double?)((Now() - start) * 1000) : null);
+
+            SendCommand("fill " + x + " " + y + " " + z + " " + (x + 3) + " " + y + " " + z + " minecraft:air");
+            start = Now();
+            while (City.EditCount != before && Now() - start < 10) yield return null;
+            r.Measurements.Set("edits_after_cleanup", City.EditCount);
+
+            if (!placed) r.Fail("the edit set did not receive the placed blocks within 10 s");
+            else if (!broken) r.Fail("the edit set still holds the broken block after 10 s");
+            else if (!acked) r.Fail("EDIT_SYNC " + token + " not acknowledged within 2 s");
+            else if (City.EditCount != before) r.Fail("cleanup left " + (City.EditCount - before) + " edits");
+            else r.Pass("placed 4, broke 1, edit sync acknowledged");
+        }
+
+        private bool S10Has(int x, int y, int z, int toX)
+        {
+            string state;
+            if (!City.TryGetEdit(x, y, z, out state) || state != "minecraft:stone") return false;
+            for (int i = x + 1; i <= toX; i++)
+                if (!City.TryGetEdit(i, y, z, out state) || state != "minecraft:oak_planks") return false;
+            return true;
         }
 
         private void SendCommand(string command)
