@@ -34,15 +34,15 @@ public final class SkyClip {
 		}
 		double[] loc = SkyRay.faceLocation(hit);
 		int[] place = SkyRay.placementCell(hit);
-		int[] outline = SkyRay.surfaceCell(hit);
 		Direction face = Direction.values()[SkyRay.dominantFace(hit.nx(), hit.ny(), hit.nz())];
 		return new HostHitResult(new Vec3(loc[0], loc[1], loc[2]), face, new BlockPos(place[0], place[1], place[2]),
-			new BlockPos(outline[0], outline[1], outline[2]));
+			new BlockPos(place[0], place[1], place[2]));
 	}
 
 	/**
 	 * A hit on city geometry. {@link #getBlockPos()} is the empty cell a placed block fills (vanilla places into a
-	 * clicked replaceable cell); {@link #outlinePos} is the virtual block behind the surface that is outlined.
+	 * clicked replaceable cell); {@link #outlinePos} is the cell that is outlined: the same cell, so the player sees where
+	 * the block will go, sunk into the surface or not (the cell behind the surface would mostly be buried).
 	 */
 	public static final class HostHitResult extends BlockHitResult {
 		public final BlockPos outlinePos;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ColossalFramework;
 using ColossalFramework.Math;
 using Skylines.Core.Geometry;
@@ -35,6 +36,8 @@ namespace Skylines.Host.Geometry
 
         private readonly TriangleBuffer _veg = new TriangleBuffer();
         private readonly TriangleBuffer _props = new TriangleBuffer();
+        // Per prop info: its mesh's base footprint, or null when the mesh is missing or not CPU-readable.
+        private readonly Dictionary<PropInfo, Obstacle.Footprint?> _footprints = new Dictionary<PropInfo, Obstacle.Footprint?>();
         private float _x0, _z0, _x1, _z1;
 
         /// <summary>Trees/bushes and props emitted (before clipping) by the last <see cref="Emit"/>.</summary>
@@ -93,7 +96,37 @@ namespace Skylines.Host.Geometry
             if (info == null || info.m_isDecal || info.m_isMarker || !info.m_hasRenderer || info.m_requireWaterMap || info.m_generatedInfo == null) return;
             Vector3 c = info.m_generatedInfo.m_center, s = info.m_generatedInfo.m_size;
             if (!Near(p, (Mathf.Abs(c.x) + Mathf.Abs(c.z) + Mathf.Max(s.x, s.z)) * scale)) return;
-            if (Obstacle.Prop(p.x, p.y, p.z, angle, c.x, c.y, c.z, s.x, s.y, s.z, scale, PropFlag, _props) > 0) LastPropCount++;
+            if (Obstacle.Prop(p.x, p.y, p.z, angle, c.x, c.y, c.z, s.x, s.y, s.z, scale, BaseFootprint(info), PropFlag, _props) > 0) LastPropCount++;
+        }
+
+        private Obstacle.Footprint? BaseFootprint(PropInfo info)
+        {
+            Obstacle.Footprint? cached;
+            if (_footprints.TryGetValue(info, out cached)) return cached;
+            cached = null;
+            try
+            {
+                Mesh mesh = info.m_mesh;
+                if (mesh != null && mesh.isReadable)
+                {
+                    Vector3[] v = mesh.vertices;
+                    var xyz = new float[v.Length * 3];
+                    for (int i = 0; i < v.Length; i++)
+                    {
+                        xyz[i * 3] = v[i].x;
+                        xyz[i * 3 + 1] = v[i].y;
+                        xyz[i * 3 + 2] = v[i].z;
+                    }
+                    Obstacle.Footprint f;
+                    if (Obstacle.BaseFootprint(xyz, v.Length, out f)) cached = f;
+                }
+            }
+            catch (Exception)
+            {
+                cached = null; // fall back to the bounds rule
+            }
+            _footprints[info] = cached;
+            return cached;
         }
 
         // TreeManager.InitializeTree files a tree under cell (posX + 32768) * 540 / 65536 with posX = x * 3.7925925, i.e. x / 32 + 270.

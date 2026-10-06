@@ -84,14 +84,24 @@ class SkyRayTest {
 	void groundFromAboveCells() {
 		SkyRay.Hit hit = SkyRay.cast(ground(10.3), 0.5, 12.0, 0.5, 0.5, 8.0, 0.5);
 		assertArrayEquals(new int[] { 0, 10, 0 }, SkyRay.surfaceCell(hit));
-		assertArrayEquals(new int[] { 0, 11, 0 }, SkyRay.placementCell(hit));
+		assertArrayEquals(new int[] { 0, 10, 0 }, SkyRay.placementCell(hit)); // sunk 0.3 rather than floating 0.7
+	}
+
+	@Test
+	void placementSinksUpToSixTenthsThenFloats() {
+		for (int i = 0; i < 20; i++) {
+			double f = i * 0.05 + 0.025;
+			SkyRay.Hit hit = SkyRay.cast(ground(10.0 + f), 0.5, 13.0, 0.5, 0.5, 8.0, 0.5);
+			assertNotNull(hit);
+			assertEquals(f < 0.6 ? 10 : 11, SkyRay.placementCell(hit)[1], "surface at 10+" + f);
+		}
 	}
 
 	@Test
 	void groundAtExactBoundaryCells() {
 		SkyRay.Hit hit = SkyRay.cast(ground(10.0), 0.5, 12.0, 0.5, 0.5, 8.0, 0.5);
 		assertArrayEquals(new int[] { 0, 9, 0 }, SkyRay.surfaceCell(hit));
-		assertArrayEquals(new int[] { 0, 10, 0 }, SkyRay.placementCell(hit));
+		assertArrayEquals(new int[] { 0, 10, 0 }, SkyRay.placementCell(hit)); // flush on the surface
 	}
 
 	@Test
@@ -111,7 +121,7 @@ class SkyRayTest {
 		int[] s = SkyRay.surfaceCell(hit);
 		int[] p = SkyRay.placementCell(hit);
 		assertEquals(5, s[0]);
-		assertEquals(4, p[0]);
+		assertEquals(5, p[0]); // wall at x 5.5: half of the block sinks in rather than standing 0.5 off
 		assertEquals(s[1], p[1]);
 		assertEquals(s[2], p[2]);
 	}
@@ -160,7 +170,7 @@ class SkyRayTest {
 		SkyRay.Hit hit = SkyRay.cast(ground(10.3), 0.5, 12.0, 0.5, 0.5, 8.0, 0.5);
 		double[] loc = SkyRay.faceLocation(hit);
 		assertEquals(0.5, loc[0], 1e-5);
-		assertEquals(11.0, loc[1], 1e-9);
+		assertEquals(10.0, loc[1], 1e-9); // bottom face of the sunk placement cell
 		assertEquals(0.5, loc[2], 1e-5);
 	}
 
@@ -180,23 +190,18 @@ class SkyRayTest {
 	}
 
 	@Test
-	void slopedPlacementCellIsNeighbourAcrossDominantFace() {
+	void slopedPlacementCellHoldsThePointOutAlongTheNormal() {
 		double[] slopes = { Math.tan(Math.toRadians(30)), Math.tan(Math.toRadians(45)), Math.tan(Math.toRadians(60)) };
 		for (double s : slopes) {
 			SkyRay.Hit hit = SkyRay.cast(ramp(10.4, s), 1.7, 100, 0.3, 1.7, -100, 0.3);
 			assertNotNull(hit);
 			int[] surf = SkyRay.surfaceCell(hit);
 			int[] place = SkyRay.placementCell(hit);
-			int[] d = offset(SkyRay.dominantFace(hit.nx(), hit.ny(), hit.nz()));
-			int changed = 0;
+			double[] out = { hit.x() + hit.nx() * SkyRay.PLACE_OUT, hit.y() + hit.ny() * SkyRay.PLACE_OUT, hit.z() + hit.nz() * SkyRay.PLACE_OUT };
 			for (int i = 0; i < 3; i++) {
-				assertEquals(surf[i] + d[i], place[i]);
-				if (place[i] != surf[i]) {
-					changed++;
-					assertEquals(1, Math.abs(place[i] - surf[i]));
-				}
+				assertTrue(out[i] >= place[i] && out[i] < place[i] + 1, "axis " + i);
+				assertTrue(Math.abs(place[i] - surf[i]) <= 1, "axis " + i);
 			}
-			assertEquals(1, changed);
 		}
 	}
 }

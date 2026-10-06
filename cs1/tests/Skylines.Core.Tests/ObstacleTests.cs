@@ -111,6 +111,71 @@ namespace Skylines.Core.Tests
             AssertFlags(b);
         }
 
+        // A double-armed street light: a 0.3 m pole at the pivot from y 0 to 9, arms reaching x -3..3 at y 8..9.
+        private static float[] DoubleArmLight()
+        {
+            return new float[]
+            {
+                -0.15f, 0, -0.15f,  0.15f, 0, -0.15f,  0.15f, 0, 0.15f,  -0.15f, 0, 0.15f,
+                -0.15f, 9, -0.15f,  0.15f, 9, 0.15f,
+                -3, 8, -0.2f,  3, 8, 0.2f,  -3, 9, -0.2f,  3, 9, 0.2f,
+            };
+        }
+
+        [Fact]
+        public void BaseFootprintTakesTheBottomSliceOnly()
+        {
+            float[] v = DoubleArmLight();
+            Obstacle.Footprint f;
+            Assert.True(Obstacle.BaseFootprint(v, v.Length / 3, out f));
+            Assert.Equal(-0.15f, f.MinX, 4); Assert.Equal(0.15f, f.MaxX, 4);
+            Assert.Equal(-0.15f, f.MinZ, 4); Assert.Equal(0.15f, f.MaxZ, 4);
+            Assert.False(Obstacle.BaseFootprint(new float[0], 0, out f));
+        }
+
+        [Fact]
+        public void CentredDoubleArmLightCollidesOnlyAtItsPole()
+        {
+            // Bounds centred on the pivot (the arms are symmetric), so the old off-centre rule kept the arms.
+            float[] v = DoubleArmLight();
+            Obstacle.Footprint f;
+            Obstacle.BaseFootprint(v, v.Length / 3, out f);
+            var b = new TriangleBuffer();
+            Assert.Equal(12, Obstacle.Prop(10, 1, 20, 0, 0, 4.5f, 0, 6, 9, 0.4f, 1, f, F, b));
+            AssertBox(b, 9.7f, 10.3f, 0.5f, 10f, 19.7f, 20.3f);
+            AssertFlags(b);
+        }
+
+        [Fact]
+        public void BaseFootprintFollowsRotationAndScale()
+        {
+            // Pole 2 m along local +x from the pivot; rotated a quarter turn, scaled 2x.
+            var f = new Obstacle.Footprint { MinX = 1.9f, MaxX = 2.1f, MinZ = -0.1f, MaxZ = 0.1f };
+            var b = new TriangleBuffer();
+            Assert.Equal(12, Obstacle.Prop(0, 0, 0, (float)(Math.PI / 2), 0, 2, 0, 6, 4, 1, 2, f, F, b));
+            AssertBox(b, -0.3f, 0.3f, -0.5f, 8f, 3.7f, 4.3f); // 0.4 m base widened to PostWidth
+        }
+
+        [Fact]
+        public void WideBaseKeepsFullBox()
+        {
+            // A shelter: its base covers most of its bounds.
+            var f = new Obstacle.Footprint { MinX = -2, MaxX = 2, MinZ = -1, MaxZ = 1 };
+            var b = new TriangleBuffer();
+            Assert.Equal(12, Obstacle.Prop(0, 0, 0, 0, 0, 1.5f, 0, 4, 3, 2, 1, f, F, b));
+            AssertBox(b, -2, 2, -0.5f, 3, -1, 1);
+        }
+
+        [Fact]
+        public void ShortPropIgnoresFootprint()
+        {
+            // A mailbox on a narrow post stays a full box: only props taller than TallHeight are reduced.
+            var f = new Obstacle.Footprint { MinX = -0.05f, MaxX = 0.05f, MinZ = -0.05f, MaxZ = 0.05f };
+            var b = new TriangleBuffer();
+            Assert.Equal(12, Obstacle.Prop(0, 0, 0, 0, 0, 0.7f, 0, 0.5f, 1.4f, 0.4f, 1, f, F, b));
+            AssertBox(b, -0.25f, 0.25f, -0.5f, 1.4f, -0.2f, 0.2f);
+        }
+
         [Fact]
         public void TallCentredPropKeepsFullBox()
         {

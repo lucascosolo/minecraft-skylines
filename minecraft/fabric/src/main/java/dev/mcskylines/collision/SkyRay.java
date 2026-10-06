@@ -73,23 +73,33 @@ public final class SkyRay {
 		};
 	}
 
-	/** Where a block placed against the surface goes: the neighbour of {@link #surfaceCell} across the dominant face. */
+	/** How far out along the surface normal a placed block's cell is chosen (SkyCraft's rule). */
+	public static final double PLACE_OUT = 0.4;
+
+	/**
+	 * Where a block placed against the surface goes: the cell {@link #PLACE_OUT} out from the hit along the normal.
+	 * On uneven city surfaces a block then sinks in by up to 0.6 of a block rather than float by more than 0.4
+	 * (owner, 2026-10-06: "I'd prefer to have the foundation clipping into the road"; SkyCraft does the same).
+	 */
 	public static int[] placementCell(Hit hit) {
-		int[] cell = surfaceCell(hit);
-		int[] f = FACE[dominantFace(hit.nx, hit.ny, hit.nz)];
-		return new int[] { cell[0] + f[0], cell[1] + f[1], cell[2] + f[2] };
+		return new int[] {
+			(int) Math.floor(hit.x + hit.nx * PLACE_OUT), (int) Math.floor(hit.y + hit.ny * PLACE_OUT), (int) Math.floor(hit.z + hit.nz * PLACE_OUT)
+		};
 	}
 
 	/**
-	 * The hit point moved onto the face shared by {@link #surfaceCell} and {@link #placementCell} along the
-	 * dominant axis, so the server's use-on-block check (hit within one block of the clicked cell's centre) holds.
+	 * The hit point clamped into {@link #placementCell} and moved onto its face toward the surface along the dominant
+	 * axis, so the server's use-on-block check (hit within one block of the clicked cell's centre) holds.
 	 */
 	public static double[] faceLocation(Hit hit) {
 		int face = dominantFace(hit.nx, hit.ny, hit.nz);
 		int axis = face < 2 ? 1 : face < 4 ? 2 : 0;
+		int[] cell = placementCell(hit);
 		double[] loc = { hit.x, hit.y, hit.z };
-		int cell = surfaceCell(hit)[axis];
-		loc[axis] = face % 2 == 1 ? cell + 1 : cell;
+		for (int i = 0; i < 3; i++) {
+			loc[i] = Math.max(cell[i], Math.min(cell[i] + 1, loc[i]));
+		}
+		loc[axis] = face % 2 == 1 ? cell[axis] : cell[axis] + 1;
 		return loc;
 	}
 

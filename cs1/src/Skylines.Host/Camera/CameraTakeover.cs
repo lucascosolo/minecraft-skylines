@@ -27,6 +27,7 @@ namespace Skylines.Host.Camera
         private float _fov;
         private float _near;
         private float _far;
+        private Rect _rect;
         private Vector3 _targetPosition;
         private Vector3 _currentPosition;
         private Vector2 _targetAngle;
@@ -81,6 +82,7 @@ namespace Skylines.Host.Camera
             _fov = cam.fieldOfView;
             _near = cam.nearClipPlane;
             _far = cam.farClipPlane;
+            _rect = cam.rect;
             _targetPosition = controller.m_targetPosition;
             _currentPosition = controller.m_currentPosition;
             _targetAngle = controller.m_targetAngle;
@@ -100,6 +102,9 @@ namespace Skylines.Host.Camera
 
             Active = true;
             controller.enabled = false;
+            // The city view leaves the bottom menu bar's strip to the UI (CameraController's
+            // kFullScreenWithoutMenuBarRect); with the UI hidden nothing would clear it.
+            cam.rect = new Rect(0f, 0f, 1f, 1f);
             foreach (Behaviour b in _effects)
             {
                 b.enabled = false;
@@ -152,6 +157,7 @@ namespace Skylines.Host.Camera
                 _camera.fieldOfView = _fov;
                 _camera.nearClipPlane = _near;
                 _camera.farClipPlane = _far;
+                _camera.rect = _rect;
             });
             for (int i = 0; i < _effects.Count; i++)
             {
