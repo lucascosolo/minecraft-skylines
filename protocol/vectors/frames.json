@@ -407,6 +407,36 @@
       "hex": "160000001201000000002041000000000200060037047f0706000500409c"
     },
     {
+      "name": "block_selection",
+      "type": 308,
+      "fields": {
+        "visible": true,
+        "minX": 10.0,
+        "minY": 64.0,
+        "minZ": -21.0,
+        "maxX": 11.0,
+        "maxY": 65.0,
+        "maxZ": -20.0,
+        "kind": 1
+      },
+      "hex": "1a000000340100000100002041000080420000a8c100003041000082420000a0c101"
+    },
+    {
+      "name": "block_selection_hidden",
+      "type": 308,
+      "fields": {
+        "visible": false,
+        "minX": 0.0,
+        "minY": 0.0,
+        "minZ": 0.0,
+        "maxX": 0.0,
+        "maxY": 0.0,
+        "maxZ": 0.0,
+        "kind": 0
+      },
+      "hex": "1a000000340100000000000000000000000000000000000000000000000000000000"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {

@@ -480,6 +480,30 @@ def cursor_code(x: int, y: int) -> int:
     return v - (1 << 32) if v >= (1 << 31) else v  # carried in an i32
 
 
+# ---- minecraft-skylines app protocol 1.4: block selection ------------------------------------
+BLOCK_SELECTION = 0x0134
+
+
+@dataclass
+class BlockSelection:
+    visible: bool
+    box: tuple  # minX minY minZ maxX maxY maxZ
+    kind: int
+
+    def encode(self) -> bytes:
+        w = Writer().bool(self.visible)
+        for v in self.box:
+            w.f32(v)
+        return w.u8(self.kind).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "BlockSelection":
+        r = Reader(p)
+        vis = r.bool()
+        box = tuple(r.f32() for _ in range(6))
+        return BlockSelection(vis, box, r.u8())
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

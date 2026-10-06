@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.3
+# `minecraft-skylines` application protocol, version 1.4
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 3`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 4`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -260,3 +260,17 @@ use 32-bit atomic exchange on the 4-byte-aligned `state` word.
 
 While `SCREEN_OPEN` is set the host shows its own mouse cursor, stops integrating mouse movement
 into yaw/pitch, and sends mouse buttons, wheel and keys as before plus cursor positions.
+
+## Milestone 3 messages, part 3 (minor 4): the block selection outline
+
+### `0x0134 BLOCK_SELECTION` (guest → host)
+
+The box Minecraft would outline under the crosshair (a block, or the cell a placement would fill when
+the crosshair hits host geometry). Sent when it changes; latest value wins.
+
+| Type | Field | Notes |
+|---|---|---|
+| bool | `visible` | false = no outline |
+| f32 × 3 | `minX`, `minY`, `minZ` | Minecraft coordinates |
+| f32 × 3 | `maxX`, `maxY`, `maxZ` | |
+| u8 | `kind` | 0 block outline (existing block), 1 placement preview (empty cell on host geometry) |

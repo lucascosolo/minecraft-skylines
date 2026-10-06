@@ -134,6 +134,14 @@ def frames() -> list[dict]:
         {"kind": 6, "action": 0, "code": sb.cursor_code(40000, 5), "cursorX": 40000, "cursorY": 5}]},
         cin.encode())
 
+    # ---- 1.4 (block selection outline)
+    add("block_selection", sb.BLOCK_SELECTION, {"visible": True, "minX": 10.0, "minY": 64.0, "minZ": -21.0,
+        "maxX": 11.0, "maxY": 65.0, "maxZ": -20.0, "kind": 1},
+        sb.BlockSelection(True, (10.0, 64.0, -21.0, 11.0, 65.0, -20.0), 1).encode())
+    add("block_selection_hidden", sb.BLOCK_SELECTION, {"visible": False, "minX": 0.0, "minY": 0.0, "minZ": 0.0,
+        "maxX": 0.0, "maxY": 0.0, "maxZ": 0.0, "kind": 0},
+        sb.BlockSelection(False, (0.0,) * 6, 0).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
