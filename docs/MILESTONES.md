@@ -40,7 +40,7 @@ Next owner run: `docs/TESTING.md`, "Owner run: self-test for M2 + M3".
 | Built | yes (C# 0 warnings; Fabric jar) |
 | Sandbox-tested | yes: `tools/check.sh` green; C# Bridge 51, Protocol 65, Core 355, Mod 220, Host 202; Java bridge 55, fabric 175; C# to Java interop |
 | Verified in game | placed blocks persist across save and reload (owner, 2026-10-06); the rest of the procedure (dialog, backup in the load menu, other city empty, quit without saving) not yet reported |
-| Open | owner playtest (`docs/TESTING.md`, "Milestone 4"); not persisted by design: chest/sign contents, entities, inventory and position |
+| Open | owner playtest (`docs/TESTING.md`, "Milestone 4"); not persisted by design: chest/sign contents, entities, inventory and position. Also built (5908c78, unverified in game): Street-View-style walk-in button (drag the figure onto the city; owner's request for CS1-native controls) |
 
 ## Finding: CS1 has no realistic tunnel interiors (owner's Ctrl+Shift+D dump, 2026-10-06)
 
@@ -63,7 +63,7 @@ model. Owner's order (2026-10-06): realistic tunnels come right after M4; underg
 | M4 | Breaking blocks; persistence across paired save/reload | Build, save city, quit both, reload: blocks back; load a different city: not there | `saveId` pairing, MC flush ordering on save |
 | M5 | Small native-terrain excavation (open pit) with matching appearance, collision, persistence | Dig a 3×3×2 pit: terrain visibly lowered/cut, walls textured, walk into it, survives reload | Terrain material reuse for cut walls; CS1 terrain edits vs MC authority; **CS1's water simulation floods lowered terrain below the water level (owner, 2026-10-05)**, so pits near water need a rule (let it flood as CS1 would, or keep pits clip-only) |
 | M6 | **Decisive volumetric test**: short tunnel with intact roof | 1×2×8 tunnel into a hillside: roof terrain still rendered above, interior faces visible, collision correct inside and on the roof, survives reload | Depends entirely on T1's answer |
-| M7 | Broader interactions guided by M1-M6: buildings and roads (bulldoze/cut), citizens and vehicles as entities, simulation reactions. Owner's named goals (2026-10-05): **zombie apocalypse** (Minecraft zombies chase CS1 citizens mirrored as villager-like proxies; citizens flee using CS1's `CitizenInstance.Flags.Panicking`; bites set `Citizen.Flags.Dead`, so hearses come; behind its own toggle, only in a backed-up Minecraft-enabled city) and **driving CS1 vehicles** | defined after M6 | rendering MC entities in CS1 (needs M3's mesh path); steering citizens/vehicles without Harmony |
+| M7 | Broader interactions guided by M1-M6: buildings and roads (bulldoze/cut), citizens and vehicles as entities, simulation reactions. Owner's named goals (2026-10-05): **zombie apocalypse** (Minecraft zombies chase CS1 citizens mirrored as villager-like proxies; citizens flee using CS1's `CitizenInstance.Flags.Panicking`; bites set `Citizen.Flags.Dead`, so hearses come; behind its own toggle, only in a backed-up Minecraft-enabled city) and **driving CS1 vehicles**; long-term (owner, 2026-10-06): **a blended survival mode** where the city's state shapes the Minecraft survival experience and Minecraft play feeds back into the city | defined after M6 | rendering MC entities in CS1 (needs M3's mesh path); steering citizens/vehicles without Harmony |
 
 ## Spike T1: can CS1's terrain be cut in a region?
 
