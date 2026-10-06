@@ -32,14 +32,14 @@ both sides.
 
 Next owner run: `docs/TESTING.md`, "Owner run: self-test for M2 + M3".
 
-## Current: M4 (per-city blocks in the save, forced backup); plan `docs/plans/m4.md`
+## M4 (per-city blocks in the save, forced backup): done (verified in game 2026-10-06); plan `docs/plans/m4.md`
 
 | | Status (2026-10-06) |
 |---|---|
 | Implemented | protocol 1.5 (CITY_OPEN, BLOCK_EDITS, CITY_CLOSE, EDIT_SYNC/ACK, CITY_STATE); C#: voxel edit set + save record (CRC-32), backup through the game's own `SavePanel.SaveGame` with verification and `continue_game.json` restore, enable dialog on Ctrl+Shift+M, save barrier in `OnSaveData`, self-test S10; Java: new void world `skylines-city`, snapshot reconcile (lazy per chunk), recording at `LevelChunk.setBlockState`, persistent touched set |
 | Built | yes (C# 0 warnings; Fabric jar) |
 | Sandbox-tested | yes: `tools/check.sh` green; C# Bridge 51, Protocol 65, Core 355, Mod 220, Host 202; Java bridge 55, fabric 175; C# to Java interop |
-| Verified in game | placed blocks persist across save and reload (owner, 2026-10-06); the rest of the procedure (dialog, backup in the load menu, other city empty, quit without saving) not yet reported |
+| Verified in game | 2026-10-06 (owner): enable dialog and backup save, placed blocks persist across save and reload and after Resume, another city has none, quitting without saving loses new blocks as intended |
 | Open | owner playtest (`docs/TESTING.md`, "Milestone 4"); not persisted by design: chest/sign contents, entities, inventory and position. Also built (5908c78, unverified in game): Street-View-style walk-in button (drag the figure onto the city; owner's request for CS1-native controls). Verified in game 2026-10-06: blocks restored after Resume, pavement step, walk-in icon, people and cars visible once unpaused. Built since, unverified: owned-land walls (f63088a), clock sync 1.6 + unpause dialog (acb6f4f), 0.4x simulation in Minecraft mode (cdcc0ec), collision with moving cars and citizens 1.7 (745bfe1), parked cars (c66c7de), lamp light 1.8 (194ac7e), Minecraft sky 1.9 (aa36940; CS1 fog not tinted). Verified in game since: stairs, street-lamp collision, people and car collision, close-up clipping for blocks |
 
 ## Finding: CS1 has no realistic tunnel interiors (owner's Ctrl+Shift+D dump, 2026-10-06)
