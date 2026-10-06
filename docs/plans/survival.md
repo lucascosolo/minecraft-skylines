@@ -14,7 +14,14 @@ material available including some ores buried in the ground. we need trees to ge
    save. Planting a sapling may later grow a CS1 tree.
 3. **Mining terrain** (milestone 5, see the terrain notes in docs/MILESTONES.md): hidden "shadow blocks" under CS1's
    ground make breaking vanilla Minecraft; the hole is drawn in CS1.
-4. **Creatures and dropped items drawn in CS1** (needed before hostile mobs).
+4. **Creatures live in the city** (needed before hostile mobs). Owner (2026-10-06): "Minecraft mobs need to exist in
+   the CS1 world even when the player leaves Minecraft mode, just like the blocks". So: (a) mobs and other entities
+   are saved in the city save and restored on load (Minecraft's world stays a cache); (b) in city view the guest keeps
+   chunks loaded and simulated around where CS1's camera looks (chunk tickets following the camera, the shadow world
+   built there too), with despawn rules adjusted so mobs do not vanish because the player is far away; (c) entities are
+   drawn in CS1 from any camera: each entity type's model (cuboids and texture) sent once like the block atlas, then
+   per entity ~20 Hz position, orientation and part rotations, animated and drawn by CS1 in its own scene (no image
+   streaming, no lag). Dropped items, arrows, minecarts the same way.
 5. **City-survival links** (trade with shops, city problems as dangers, resource depletion), then the Ender Dragon.
 
 ## The shadow world (foundation for trees, mining and mobs)
