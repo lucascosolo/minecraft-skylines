@@ -4,6 +4,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.mcskylines.bridge.BridgeGuest;
 import dev.mcskylines.bridge.ProtocolException;
 import dev.mcskylines.player.DevWorld;
+import dev.mcskylines.player.RespawnChoice;
 import dev.mcskylines.protocol.AppProtocol;
 import dev.mcskylines.protocol.BlockEdits;
 import dev.mcskylines.protocol.CityClose;
@@ -12,6 +13,8 @@ import dev.mcskylines.protocol.CityState;
 import dev.mcskylines.protocol.EditSync;
 import dev.mcskylines.protocol.GuestStatus;
 import dev.mcskylines.protocol.LightSources;
+import dev.mcskylines.protocol.PlayerData;
+import dev.mcskylines.protocol.RespawnRequest;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -28,6 +31,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -53,12 +57,17 @@ public final class CityEdits {
 	// Without UPDATE_NEIGHBORS nothing around is notified, so the world ends exactly as the snapshot says.
 	private static final int APPLY_FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_SKIP_ALL_SIDEEFFECTS;
 	private static final Object LINK_DOWN = new Object();
+	private static final Object PLAYER_JOINED = new Object();
+	private static final int PLAYER_CHECK_TICKS = 200; // PLAYER_DATA when changed, at most every 10 s
 	private static volatile CityEdits recording;
 
 	private final BridgeGuest guest;
 	private final ConcurrentLinkedQueue<Object> inbox = new ConcurrentLinkedQueue<>();
 	private volatile MinecraftServer serverRef;
 	private volatile UUID pairedSaveId = GuestStatus.NO_SAVE;
+	private volatile int appMinor;
+	private final PlayerDataSync playerSync = new PlayerDataSync();
+	private int playerCheckTicks;
 
 	private Open open;
 	private Long2ObjectOpenHashMap<String> target; // what the world must match; null: leave it as it is
@@ -80,9 +89,16 @@ public final class CityEdits {
 		long received;
 		boolean complete;
 		boolean ready;
+		// Minor 11: the city's player. playerData is the newest known (from the host, then as sent back); null until
+		// it arrives. playerBroken: it could not be applied, so this open never sends player data (the host keeps its own).
+		final boolean playerExpected;
+		byte[] playerData;
+		boolean playerApplied;
+		boolean playerBroken;
 
-		Open(CityOpen msg) {
+		Open(CityOpen msg, boolean playerExpected) {
 			this.msg = msg;
+			this.playerExpected = playerExpected;
 		}
 
 		int seq() {
@@ -99,6 +115,11 @@ public final class CityEdits {
 		return pairedSaveId;
 	}
 
+	/** Client thread, link up: the negotiated app minor (PLAYER_DATA from 11). */
+	public void linkUp(int minor) {
+		appMinor = minor;
+	}
+
 	/** Client thread: CITY_OPEN, BLOCK_EDITS, CITY_CLOSE or EDIT_SYNC from a host speaking minor 5. */
 	public void deliver(int type, byte[] payload) {
 		try {
@@ -108,6 +129,7 @@ public final class CityEdits {
 				case AppProtocol.CITY_CLOSE -> CityClose.decode(payload);
 				case AppProtocol.EDIT_SYNC -> EditSync.decode(payload);
 				case AppProtocol.LIGHT_SOURCES -> LightSources.decode(payload);
+				case AppProtocol.PLAYER_DATA -> PlayerData.decode(payload);
 				default -> throw new IllegalArgumentException("not a city message: 0x" + Integer.toHexString(type));
 			});
 		} catch (ProtocolException e) {
@@ -152,7 +174,15 @@ public final class CityEdits {
 				case CityClose c -> onClose(c);
 				case EditSync s -> onSync(s);
 				case LightSources l -> onLights(l);
-				default -> onLinkDown();
+				case PlayerData d -> onPlayerData(d);
+				default -> {
+					if (m == PLAYER_JOINED) {
+						applyPlayer();
+						maybeReady();
+					} else {
+						onLinkDown();
+					}
+				}
 			}
 		}
 	}
@@ -161,7 +191,8 @@ public final class CityEdits {
 		lamps.clear();
 		flushRecorded();
 		stopRecording();
-		open = new Open(o);
+		open = new Open(o, appMinor >= 11);
+		playerSync.reset();
 		pairedSaveId = o.saveId();
 		LOG.info(PREFIX + "CITY_OPEN {} '{}' ({} edits)", Integer.toUnsignedString(o.openSeq()), o.cityName(),
 			Integer.toUnsignedLong(o.editCount()));
@@ -263,6 +294,7 @@ public final class CityEdits {
 	private void onSync(EditSync s) {
 		if (open != null && open.ready && s.openSeq() == open.seq()) {
 			flushRecorded();
+			sendPlayer();
 		}
 		send(AppProtocol.EDIT_SYNC_ACK, s.encode());
 	}
@@ -300,8 +332,12 @@ public final class CityEdits {
 			return;
 		}
 		flushRecorded();
+		sendPlayer();
 		stopRecording();
 		writeTouched();
+		if (open != null) {
+			open.playerApplied = false;
+		}
 		if (open != null && open.ready) {
 			open.ready = false;
 			send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.APPLYING, 0).encode());
@@ -361,6 +397,104 @@ public final class CityEdits {
 			}
 		}
 		flushRecorded();
+		if (++playerCheckTicks >= PLAYER_CHECK_TICKS) {
+			playerCheckTicks = 0;
+			sendPlayer();
+		}
+	}
+
+	/** JOIN (server thread): the city's player data waits for the player to be in the world. */
+	public void playerJoined(MinecraftServer s) {
+		if (s == serverRef) {
+			inbox.add(PLAYER_JOINED);
+			dispatch();
+		}
+	}
+
+	/** AFTER_RESPAWN (server thread): a death without a spawn block of its own asks the host for the city's entry spot. */
+	public synchronized void respawned(ServerPlayer player, boolean alive) {
+		RespawnChoice.Choice choice = RespawnChoice.decide(alive, server != null && player.level().getServer() == server,
+			player.getRespawnConfig() != null);
+		LOG.info(PREFIX + "respawn: {}", choice);
+		if (choice == RespawnChoice.Choice.ASK_HOST && appMinor >= 11) {
+			send(AppProtocol.RESPAWN_REQUEST, new RespawnRequest(open == null ? 0 : open.seq()).encode());
+		}
+	}
+
+	private void onPlayerData(PlayerData d) {
+		if (open == null || d.openSeq() != open.seq() || !open.playerExpected || open.playerData != null) {
+			LOG.debug(PREFIX + "dropping stale PLAYER_DATA for open {}", Integer.toUnsignedString(d.openSeq()));
+			return;
+		}
+		open.playerData = d.data();
+		LOG.info(PREFIX + "PLAYER_DATA for open {}: {}", Integer.toUnsignedString(d.openSeq()),
+			d.data().length == 0 ? "fresh player" : d.data().length + " bytes");
+		applyPlayer();
+		maybeReady();
+	}
+
+	/** The open's player data onto the (single) player, once it is in the city world. */
+	private void applyPlayer() {
+		if (open == null || open.playerData == null || open.playerApplied || open.playerBroken || server == null) {
+			return;
+		}
+		ServerPlayer p = player();
+		if (p == null) {
+			return;
+		}
+		try {
+			PlayerSnapshot.apply(p, open.playerData);
+			LOG.info(PREFIX + "city player applied ({})", open.playerData.length == 0 ? "fresh survival player" : open.playerData.length + " bytes");
+		} catch (Exception e) {
+			open.playerBroken = true;
+			LOG.error(PREFIX + "could not apply the city's player data ({} bytes); the host keeps it, nothing is sent back for this open",
+				open.playerData.length, e);
+		}
+		open.playerApplied = true;
+	}
+
+	/** PLAYER_DATA to the host when it changed since the last one sent (after ready only: never another city's player). */
+	private void sendPlayer() {
+		if (open == null || !open.ready || !open.playerApplied || open.playerBroken || server == null) {
+			return;
+		}
+		ServerPlayer p = player();
+		if (p == null) {
+			return;
+		}
+		byte[] data;
+		try {
+			data = PlayerSnapshot.capture(p);
+		} catch (Exception e) {
+			LOG.error(PREFIX + "could not capture the player's data", e);
+			return;
+		}
+		if (data.length > PlayerData.MAX_LENGTH) {
+			LOG.error(PREFIX + "player data {} bytes is above {}; not sent", data.length, PlayerData.MAX_LENGTH);
+			return;
+		}
+		if (playerSync.shouldSend(data)) {
+			send(AppProtocol.PLAYER_DATA, new PlayerData(open.seq(), data).encode());
+			playerSync.sent(data);
+			open.playerData = data;
+		}
+	}
+
+	private ServerPlayer player() {
+		List<ServerPlayer> players = server.getPlayerList().getPlayers();
+		return players.isEmpty() ? null : players.get(0);
+	}
+
+	private void maybeReady() {
+		if (open == null || !open.complete || open.ready || !targetApplied || level == null) {
+			return;
+		}
+		if (open.playerExpected && !open.playerApplied) {
+			return;
+		}
+		open.ready = true;
+		recording = this;
+		send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.READY, target.size()).encode());
 	}
 
 	/** LevelChunkMixin: a block state in a loaded chunk changed (any level, any side). */
@@ -400,11 +534,8 @@ public final class CityEdits {
 		targetApplied = true;
 		LOG.info(PREFIX + "city world reconciled: {} edits, {} reverts; {} applied now, {} chunks queued until loaded",
 			plan.edits(), plan.reverts(), now, pending.size());
-		if (open != null && open.complete && !open.ready) {
-			open.ready = true;
-			recording = this;
-			send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.READY, target.size()).encode());
-		}
+		applyPlayer();
+		maybeReady();
 	}
 
 	private void applyChunk(Long2ObjectMap<String> edits) {

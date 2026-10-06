@@ -8,6 +8,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -60,7 +61,9 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		ServerLifecycleEvents.AFTER_SAVE.register((server, flush, force) -> city.afterSave(server, flush));
 		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> city.chunkUnloading(level));
 		ServerTickEvents.END_SERVER_TICK.register(city::serverTick);
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> DevWorld.creativeIfOurs(handler.player, server));
+		// The city's player (survival unless its own data says otherwise; creative only via DEBUG_COMMAND /gamemode).
+		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> city.playerJoined(server));
+		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> city.respawned(newPlayer, alive));
 
 		ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
 			LOG.info(PREFIX + "connecting to Cities: Skylines on 127.0.0.1:{}", port);

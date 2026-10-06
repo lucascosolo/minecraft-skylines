@@ -190,6 +190,7 @@ final class LinkController {
 					everConnected = true;
 					peer = guest.peer();
 					sentStatus = null;
+					city.linkUp(peer == null ? 0 : peer.appMinor());
 					playerMode.onLinkUp(mc);
 					sections.linkUp();
 					selection.linkUp();
@@ -253,8 +254,9 @@ final class LinkController {
 					}
 				} else if (m.type() == AppProtocol.CITY_OPEN || m.type() == AppProtocol.BLOCK_EDITS
 						|| m.type() == AppProtocol.CITY_CLOSE || m.type() == AppProtocol.EDIT_SYNC
-						|| m.type() == AppProtocol.LIGHT_SOURCES) {
-					if (peer != null && peer.appMinor() >= (m.type() == AppProtocol.LIGHT_SOURCES ? 8 : 5)) {
+						|| m.type() == AppProtocol.LIGHT_SOURCES || m.type() == AppProtocol.PLAYER_DATA) {
+					int needs = m.type() == AppProtocol.LIGHT_SOURCES ? 8 : m.type() == AppProtocol.PLAYER_DATA ? 11 : 5;
+					if (peer != null && peer.appMinor() >= needs) {
 						city.deliver(m.type(), m.payload());
 					}
 				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES) {
