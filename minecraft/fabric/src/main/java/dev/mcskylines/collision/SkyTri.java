@@ -14,6 +14,8 @@ public final class SkyTri {
 	public static final int ROAD_SURFACE = 2;
 	public static final int BRIDGE_DECK = 4;
 	public static final int BUILDING = 8;
+	/** Terrain the host cut away over dug columns, kept so the shadow world sees the original ground; never solid. */
+	public static final int DUG_SURFACE = 512;
 
 	public final double ax, ay, az, bx, by, bz, cx, cy, cz;
 	public final double nx, ny, nz; // unit normal (winding is not trusted; use |ny|)

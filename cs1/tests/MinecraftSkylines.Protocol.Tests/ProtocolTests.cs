@@ -726,7 +726,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(12, AppProtocol.Minor);
+            Assert.Equal(13, AppProtocol.Minor);
             Assert.Equal(0x01C0, AppProtocol.TreesType);
             Assert.Equal(0x01C1, AppProtocol.TreeFelledType);
             Assert.Equal(0x01B0, AppProtocol.PlayerDataType);

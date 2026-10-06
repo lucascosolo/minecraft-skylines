@@ -41,7 +41,7 @@ namespace MinecraftSkylines.Protocol.Tests
         [Fact]
         public void ConstantsMatchSpec()
         {
-            Assert.Equal(12, AppProtocol.Minor);
+            Assert.Equal(13, AppProtocol.Minor);
             Assert.Equal(0x01B0, AppProtocol.PlayerDataType);
             Assert.Equal(0x01B1, AppProtocol.RespawnRequestType);
             Assert.Equal(4194304, PlayerData.MaxLength);

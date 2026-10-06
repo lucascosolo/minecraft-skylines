@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -62,6 +63,7 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		ServerLifecycleEvents.AFTER_SAVE.register((server, flush, force) -> city.afterSave(server, flush));
 		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> city.chunkUnloading(level));
 		ServerTickEvents.END_SERVER_TICK.register(city::serverTick);
+		PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, be) -> !CityEdits.refusesBreak(level, pos));
 		// The city's player (survival unless its own data says otherwise; creative only via DEBUG_COMMAND /gamemode).
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> city.playerJoined(server));
 		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> city.respawned(newPlayer, alive));

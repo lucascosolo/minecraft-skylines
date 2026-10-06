@@ -566,6 +566,22 @@ public final class CityEdits {
 		return id < 0 ? new long[0] : shadow.treeCells(id).toLongArray();
 	}
 
+	/** PlayerBlockBreakEvents.BEFORE: true when the city's shadow world protects the block (a road or building above it). */
+	public static boolean refusesBreak(Level l, BlockPos pos) {
+		CityEdits r = recording;
+		if (r == null || l != r.level) {
+			return false;
+		}
+		boolean refuse;
+		synchronized (r) {
+			refuse = r.shadow.refusesBreak(BlockKey.pack(pos.getX(), pos.getY(), pos.getZ()));
+		}
+		if (refuse) {
+			LOG.debug(PREFIX + "break refused at {}", pos);
+		}
+		return refuse;
+	}
+
 	/** LevelChunkMixin: a block state in a loaded chunk changed (any level, any side). */
 	public static void blockChanged(Level l, BlockPos pos, BlockState state) {
 		CityEdits r = recording;

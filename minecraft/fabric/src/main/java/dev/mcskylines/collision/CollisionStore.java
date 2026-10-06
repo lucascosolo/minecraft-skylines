@@ -15,6 +15,7 @@ public final class CollisionStore {
 	private static final SkyTri[] NONE = new SkyTri[0];
 
 	private final ConcurrentHashMap<Long, SkyTri[]> regions = new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<Long, SkyTri[]> dugRegions = new ConcurrentHashMap<>();
 	private final Object writeLock = new Object();
 	private volatile int epoch;
 	/** Furthest any stored triangle reaches outside its own region; widens queries so none is missed. */
@@ -26,12 +27,12 @@ public final class CollisionStore {
 
 	/** Replaces the region's triangles. Returns false when the region is older than the current epoch. */
 	public boolean accept(CollisionRegion region) {
-		SkyTri[] tris = new SkyTri[region.triangleCount()];
+		java.util.ArrayList<SkyTri> solid = new java.util.ArrayList<>(), dug = new java.util.ArrayList<>();
 		double reach = 0;
 		double minX = region.regionX() * (double) REGION_SIZE, minZ = region.regionZ() * (double) REGION_SIZE;
-		for (int i = 0; i < tris.length; i++) {
+		for (int i = 0; i < region.triangleCount(); i++) {
 			SkyTri t = new SkyTri(region.vertices(), 9 * i, Short.toUnsignedInt(region.flags()[i]));
-			tris[i] = t;
+			((t.flags & SkyTri.DUG_SURFACE) != 0 ? dug : solid).add(t);
 			reach = Math.max(reach, Math.max(Math.max(minX - t.minX, t.maxX - (minX + REGION_SIZE)),
 					Math.max(minZ - t.minZ, t.maxZ - (minZ + REGION_SIZE))));
 		}
@@ -39,7 +40,9 @@ public final class CollisionStore {
 			if (Integer.compareUnsigned(region.epoch(), epoch) < 0) {
 				return false;
 			}
-			regions.put(key(region.regionX(), region.regionZ()), tris.length == 0 ? NONE : tris);
+			long k = key(region.regionX(), region.regionZ());
+			regions.put(k, solid.isEmpty() ? NONE : solid.toArray(NONE));
+			dugRegions.put(k, dug.isEmpty() ? NONE : dug.toArray(NONE));
 			overhang = Math.max(overhang, reach);
 			return true;
 		}
@@ -50,6 +53,7 @@ public final class CollisionStore {
 		synchronized (writeLock) {
 			epoch = reset.epoch();
 			regions.clear();
+			dugRegions.clear();
 			overhang = 0;
 		}
 	}
@@ -84,7 +88,7 @@ public final class CollisionStore {
 		return true;
 	}
 
-	/** Adds every triangle whose bounds overlap the box. */
+	/** Adds every solid triangle whose bounds overlap the box (never {@link SkyTri#DUG_SURFACE} ones). */
 	public void trianglesNear(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, List<SkyTri> out) {
 		if (regions.isEmpty()) {
 			return;
@@ -95,6 +99,29 @@ public final class CollisionStore {
 		for (int rx = rx0; rx <= rx1; rx++) {
 			for (int rz = rz0; rz <= rz1; rz++) {
 				SkyTri[] tris = regions.get(key(rx, rz));
+				if (tris == null) {
+					continue;
+				}
+				for (SkyTri t : tris) {
+					if (t.maxX >= minX && t.minX <= maxX && t.maxY >= minY && t.minY <= maxY && t.maxZ >= minZ && t.minZ <= maxZ) {
+						out.add(t);
+					}
+				}
+			}
+		}
+	}
+
+	/** Adds every {@link SkyTri#DUG_SURFACE} triangle whose bounds overlap the box. */
+	public void surfaceNear(double minX, double minY, double minZ, double maxX, double maxY, double maxZ, List<SkyTri> out) {
+		if (dugRegions.isEmpty()) {
+			return;
+		}
+		double m = overhang;
+		int rx0 = Math.floorDiv((int) Math.floor(minX - m), REGION_SIZE), rx1 = Math.floorDiv((int) Math.floor(maxX + m), REGION_SIZE);
+		int rz0 = Math.floorDiv((int) Math.floor(minZ - m), REGION_SIZE), rz1 = Math.floorDiv((int) Math.floor(maxZ + m), REGION_SIZE);
+		for (int rx = rx0; rx <= rx1; rx++) {
+			for (int rz = rz0; rz <= rz1; rz++) {
+				SkyTri[] tris = dugRegions.get(key(rx, rz));
 				if (tris == null) {
 					continue;
 				}

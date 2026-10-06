@@ -6,6 +6,27 @@ namespace Skylines.Core.Geometry
     public static class Heightfield
     {
         /// <summary>
+        /// Height at (x, z) of the surface <see cref="Triangulate(Func{float, float, float}, float, float, float, float, float, ushort, TriangleBuffer)"/>
+        /// builds over any rectangle whose min corner lies on the grid of multiples of <paramref name="step"/>: the cell's
+        /// corners are sampled and the point is interpolated on the cell's triangle (diagonal from low to high corner).
+        /// </summary>
+        public static float HeightAt(Func<float, float, float> sampleHeight, float x, float z, float step)
+        {
+            if (!(step > 0)) throw new ArgumentOutOfRangeException("step");
+            float x0 = (float)Math.Floor(x / step) * step, z0 = (float)Math.Floor(z / step) * step;
+            float x1 = x0 + step, z1 = z0 + step;
+            float u = (x - x0) / step, v = (z - z0) / step;
+            float y00 = sampleHeight(x0, z0), y11 = sampleHeight(x1, z1);
+            if (v >= u)
+            {
+                float y01 = sampleHeight(x0, z1);
+                return y00 + v * (y01 - y00) + u * (y11 - y01);
+            }
+            float y10 = sampleHeight(x1, z0);
+            return y00 + u * (y10 - y00) + v * (y11 - y10);
+        }
+
+        /// <summary>
         /// Samples <paramref name="sampleHeight"/> once per grid vertex (x = minX + i * step, last column and row clamped to
         /// max) and adds two up-facing triangles per cell, split along the diagonal from the low corner to the high corner.
         /// </summary>

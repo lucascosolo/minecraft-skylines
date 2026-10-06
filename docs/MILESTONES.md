@@ -4,6 +4,16 @@ Status per milestone uses five separate columns, never merged: **implemented**, 
 **sandbox-tested** (automated, no game running), **verified in game**, **blocked / unverified**.
 A sandbox test is never evidence that engine integration works.
 
+## M5, dug ground as holes in CS1 (2026-10-06)
+
+| | Status (2026-10-06) |
+|---|---|
+| Implemented | Host: `DugGround` (Core), `DigLink` (clip, surface patches, skirts, collision cut and cavity faces, region re-stream), `TerrainClipMask` groups; protocol 1.13 bit 9; guest: shadow faces toward cave air in `SECTION_MESH`, bit-9 surface for the shadow ground, no digging under roads and buildings |
+| Built | C# 0 warnings; Fabric jar (see the commit) |
+| Sandbox-tested | `DugGroundTests`, `HeightfieldHeightAtTests`; Java `CollisionStoreTest`, `ShadowColumnTest`, `ShadowPlannerTest`, `ShadowWorldTest` additions |
+| Verified in game | nothing yet |
+| Blocked / unverified | the look of the patches against CS1's terrain shader, the clip on patches without detail, collision in a pit and a tunnel, reload |
+
 ## M1, the bridge: done (verified in game 2026-10-05)
 
 | | Status (2026-10-05) |

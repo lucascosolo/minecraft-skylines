@@ -31,6 +31,7 @@ namespace MinecraftSkylines.Mod
         private readonly TriangleBuffer _buffer = new TriangleBuffer();
         private readonly System.Collections.Generic.List<TreeSample> _treeSamples = new System.Collections.Generic.List<TreeSample>();
         private readonly TriangleBuffer _spawnTris = new TriangleBuffer();
+        private readonly System.Collections.Generic.List<long> _dug = new System.Collections.Generic.List<long>();
         private int _regionsSent;
         private long _trianglesSent;
         private double _lastBuildMs;
@@ -73,6 +74,17 @@ namespace MinecraftSkylines.Mod
         {
             float mcX = csFeet.x, mcZ = -csFeet.z;
             Viewer.Track(csFeet);
+            if (Terrain.DigLink.Current != null)
+            {
+                _dug.Clear();
+                Terrain.DigLink.Current.TakeDirtyRegions(_dug);
+                foreach (long k in _dug)
+                {
+                    int dx, dz;
+                    RegionGrid.Unkey(k, out dx, out dz);
+                    _planner.Invalidate(dx, dz);
+                }
+            }
             var clock = Stopwatch.StartNew();
             do
             {
@@ -292,6 +304,12 @@ namespace MinecraftSkylines.Mod
                 if (roads != null)
                 {
                     _log.Error("collision region (" + rx + "," + rz + "): roads, buildings, trees or props failed to build, sending what built", roads);
+                }
+                // Milestone 5: dug ground opens the terrain (minor 13 guests also get the cut surface as bit 9).
+                if (Terrain.DigLink.Current != null)
+                {
+                    try { Terrain.DigLink.Current.AddCollision(rx, rz, _buffer, host.NegotiatedAppMinor >= 13); }
+                    catch (Exception e) { _log.Error("collision region (" + rx + "," + rz + "): dug ground failed", e); }
                 }
                 Viewer.Store(key, minX, minZ, maxX, maxZ, _buffer, csFeet);
                 region = CollisionConversion.ToRegion(_buffer, _planner.Epoch, rx, rz);
