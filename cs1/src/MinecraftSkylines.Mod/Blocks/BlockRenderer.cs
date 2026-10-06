@@ -221,6 +221,16 @@ namespace MinecraftSkylines.Mod.Blocks
             return g;
         }
 
+        /// <summary>A material like the blocks' current variant drawing <paramref name="texture"/> (entities, minor 14).</summary>
+        public Material CreateEntityMaterial(Texture2D texture)
+        {
+            Material template = MaterialFor(Variant) ?? MaterialFor(3);
+            if (template == null) return null;
+            var m = new Material(template) { name = "MinecraftSkylines.Entity" };
+            m.SetTexture("_MainTex", texture);
+            return m;
+        }
+
         private Material MaterialFor(int v)
         {
             if (_materials[v] != null || _materialFailed[v]) return _materials[v];

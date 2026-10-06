@@ -12,6 +12,7 @@ import dev.mcskylines.bridge.ProtocolException;
 import dev.mcskylines.bridge.Welcome;
 import dev.mcskylines.collision.CollisionStore;
 import dev.mcskylines.collision.DynamicObstacleStore;
+import dev.mcskylines.entity.EntityExporter;
 import dev.mcskylines.protocol.AppProtocol;
 import dev.mcskylines.protocol.CollisionRegion;
 import dev.mcskylines.protocol.CollisionReset;
@@ -56,6 +57,8 @@ final class LinkController {
 	private final OverlayExporter overlay;
 	private final SelectionExporter selection;
 	private final SkyExporter sky;
+	private final EntityExporter entities;
+	private int entityErrors;
 	private int skyErrors;
 	private final CityEdits city;
 	private final CityClock clock = new CityClock();
@@ -84,6 +87,7 @@ final class LinkController {
 		this.overlay = new OverlayExporter(guest);
 		this.selection = new SelectionExporter(guest);
 		this.sky = new SkyExporter(guest);
+		this.entities = new EntityExporter(guest);
 	}
 
 	/** Start of every frame: input and look arrive at host frame rate, not tick rate. */
@@ -156,6 +160,15 @@ final class LinkController {
 			mc.stop();
 			return;
 		}
+		if (state == BridgeState.CONNECTED && peer != null && peer.appMinor() >= 14) {
+			try {
+				entities.tick(mc);
+			} catch (RuntimeException e) {
+				if (entityErrors++ < 5) {
+					LOG.error(PREFIX + "entity export failed", e);
+				}
+			}
+		}
 		if (state == BridgeState.CONNECTED) {
 			GuestStatus now = currentStatus(mc);
 			if (!now.equals(sentStatus) && guest.send(AppProtocol.GUEST_STATUS, now.encode())) {
@@ -197,6 +210,7 @@ final class LinkController {
 					sections.linkUp();
 					selection.linkUp();
 					sky.linkUp();
+					entities.linkUp();
 					if (peer != null) {
 						chat(mc, "Connected to " + peer.peerName() + " (" + peer.peerVersion() + ")");
 					}

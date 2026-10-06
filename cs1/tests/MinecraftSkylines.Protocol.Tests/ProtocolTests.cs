@@ -390,6 +390,80 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
                         return m.Encode();
                     }
+                case AppProtocol.EntityModelType:
+                    {
+                        EntityModel m = EntityModel.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("modelId").GetUInt32(), m.ModelId);
+                        Assert.Equal(f.GetProperty("name").GetString(), m.Name);
+                        JsonElement parts = f.GetProperty("parts");
+                        Assert.Equal(parts.GetArrayLength(), m.Parts.Length);
+                        int pi = 0;
+                        foreach (JsonElement p in parts.EnumerateArray())
+                        {
+                            EntityModelPart a = m.Parts[pi++];
+                            Assert.Equal(p.GetProperty("parent").GetUInt16(), a.Parent);
+                            AssertFloats(p.GetProperty("quads"), a.Quads);
+                        }
+                        return m.Encode();
+                    }
+                case AppProtocol.EntityTextureType:
+                    {
+                        EntityTexture m = EntityTexture.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("textureId").GetUInt32(), m.TextureId);
+                        Assert.Equal(f.GetProperty("width").GetUInt32(), m.Width);
+                        Assert.Equal(f.GetProperty("height").GetUInt32(), m.Height);
+                        Assert.Equal(f.GetProperty("format").GetByte(), m.Format);
+                        Assert.Equal(Hex(f.GetProperty("dataHex").GetString()), m.Data);
+                        return m.Encode();
+                    }
+                case AppProtocol.EntityStatesType:
+                    {
+                        EntityStates m = EntityStates.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("seq").GetUInt32(), m.Seq);
+                        JsonElement ents = f.GetProperty("entities");
+                        Assert.Equal(ents.GetArrayLength(), m.Entities.Length);
+                        int ei = 0;
+                        foreach (JsonElement e in ents.EnumerateArray())
+                        {
+                            EntityState a = m.Entities[ei++];
+                            Assert.Equal(e.GetProperty("entityId").GetUInt32(), a.EntityId);
+                            Assert.Equal(e.GetProperty("x").GetSingle(), a.X);
+                            Assert.Equal(e.GetProperty("y").GetSingle(), a.Y);
+                            Assert.Equal(e.GetProperty("z").GetSingle(), a.Z);
+                            Assert.Equal(e.GetProperty("bodyYaw").GetSingle(), a.BodyYaw);
+                            Assert.Equal(e.GetProperty("headYaw").GetSingle(), a.HeadYaw);
+                            Assert.Equal(e.GetProperty("pitch").GetSingle(), a.Pitch);
+                            JsonElement draws = e.GetProperty("draws");
+                            Assert.Equal(draws.GetArrayLength(), a.Draws.Length);
+                            int di = 0;
+                            foreach (JsonElement d in draws.EnumerateArray())
+                            {
+                                EntityDraw ad = a.Draws[di++];
+                                Assert.Equal(d.GetProperty("modelId").GetUInt32(), ad.ModelId);
+                                Assert.Equal(d.GetProperty("textureId").GetUInt32(), ad.TextureId);
+                                Assert.Equal(d.GetProperty("color").GetUInt32(), ad.Color);
+                                AssertFloats(d.GetProperty("matrix"), ad.Matrix);
+                                JsonElement dp = d.GetProperty("parts");
+                                Assert.Equal(dp.GetArrayLength(), ad.Parts.Length);
+                                int qi = 0;
+                                foreach (JsonElement q in dp.EnumerateArray())
+                                {
+                                    EntityPartPose pose = ad.Parts[qi++];
+                                    Assert.Equal(q.GetProperty("px").GetSingle(), pose.Px);
+                                    Assert.Equal(q.GetProperty("py").GetSingle(), pose.Py);
+                                    Assert.Equal(q.GetProperty("pz").GetSingle(), pose.Pz);
+                                    Assert.Equal(q.GetProperty("xRot").GetSingle(), pose.XRot);
+                                    Assert.Equal(q.GetProperty("yRot").GetSingle(), pose.YRot);
+                                    Assert.Equal(q.GetProperty("zRot").GetSingle(), pose.ZRot);
+                                    Assert.Equal(q.GetProperty("xScale").GetSingle(), pose.XScale);
+                                    Assert.Equal(q.GetProperty("yScale").GetSingle(), pose.YScale);
+                                    Assert.Equal(q.GetProperty("zScale").GetSingle(), pose.ZScale);
+                                    Assert.Equal(q.GetProperty("flags").GetByte(), pose.Flags);
+                                }
+                            }
+                        }
+                        return m.Encode();
+                    }
                 case AppProtocol.TreesType:
                     {
                         Trees m = Trees.Decode(frame.Payload);
@@ -726,7 +800,10 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(12, AppProtocol.Minor);
+            Assert.Equal(14, AppProtocol.Minor);
+            Assert.Equal(0x01E0, AppProtocol.EntityModelType);
+            Assert.Equal(0x01E1, AppProtocol.EntityTextureType);
+            Assert.Equal(0x01E2, AppProtocol.EntityStatesType);
             Assert.Equal(0x01C0, AppProtocol.TreesType);
             Assert.Equal(0x01C1, AppProtocol.TreeFelledType);
             Assert.Equal(0x01B0, AppProtocol.PlayerDataType);

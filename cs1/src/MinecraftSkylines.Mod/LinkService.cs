@@ -42,6 +42,7 @@ namespace MinecraftSkylines.Mod
         private static SkyLink s_sky;
         private static WalkInButton s_walkIn;
         private static BlockRenderer s_blocks;
+        private static Entities.EntityLink s_entities;
         private static SelectionOutline s_selection;
         private static OverlayLink s_gui;
         private static SelfTestController s_selfTest;
@@ -100,6 +101,7 @@ namespace MinecraftSkylines.Mod
             s_pump.Updated += s_walkIn.Update;
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;
+            s_entities = new Entities.EntityLink(s_log, s_blocks);
             s_selection = new SelectionOutline(() => s_player != null && s_player.IsActive);
             s_selfTest = new SelfTestController(s_log, s_player, s_launcher, s_blocks, s_gui, () => s_guest, ModVersion);
             s_autoload = new SaveAutoloader(s_log, s_launcher.Autoload);
@@ -131,6 +133,7 @@ namespace MinecraftSkylines.Mod
             // the camera is placed) draws in city and Minecraft mode alike. Meshes are kept across city reloads (the
             // guest only resends changed sections) but drawn only while a city is loaded.
             s_pump.LateUpdated += () => s_blocks.LateUpdate(s_cityReady);
+            s_pump.LateUpdated += () => s_entities.LateUpdate(s_cityReady);
             s_pump.Gui += s_player.OnGui;
             s_pump.Updated += s_player.Viewer.Update;
             s_pump.Updated += new NetRenderDump(s_log, () => s_player != null && s_player.IsOn).Update;
@@ -172,6 +175,7 @@ namespace MinecraftSkylines.Mod
             s_walkIn.Dispose();
             s_player.Viewer.Dispose();
             s_blocks.Dispose();
+            s_entities.Dispose();
             s_sky.Dispose();
             s_selection.Dispose();
             s_gui.Dispose();
@@ -185,6 +189,7 @@ namespace MinecraftSkylines.Mod
             s_city = null;
             s_walkIn = null;
             s_blocks = null;
+            s_entities = null;
             s_sky = null;
             s_selection = null;
             s_gui = null;
@@ -220,6 +225,7 @@ namespace MinecraftSkylines.Mod
         {
             CityState.SetInCity(false);
             if (s_city != null) s_city.OnLevelUnloading(s_host);
+            if (s_entities != null) s_entities.OnLevelUnloading();
             s_saveId.Clear();
             if (s_selfTest != null) s_selfTest.OnLevelUnloading(s_host);
             if (s_fixture != null) s_fixture.OnLevelUnloading();
@@ -421,6 +427,7 @@ namespace MinecraftSkylines.Mod
                     s_gui.OnDisconnect();
                     s_selection.Hide();
                     s_sky.Reset();
+                    s_entities.OnDisconnect();
                     s_player.Exit("link lost: " + s_lastDisconnect, s_host, false);
                     break;
                 case BridgeEventKind.Message:
@@ -502,6 +509,17 @@ namespace MinecraftSkylines.Mod
                             s_log.Warn("bad sky message 0x" + e.MessageType.ToString("x4") + " ignored: " + ex.Message);
                         }
                     }
+                    else if (Entities.EntityLink.Handles(e.MessageType) && s_host.NegotiatedAppMinor >= 14)
+                    {
+                        try
+                        {
+                            s_entities.Handle(e.MessageType, e.Payload);
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad entity message 0x" + e.MessageType.ToString("x4") + " ignored: " + ex.Message);
+                        }
+                    }
                     else if (e.MessageType >= AppProtocol.BlockAtlasType && e.MessageType <= AppProtocol.SectionsClearType)
                     {
                         try
@@ -577,7 +595,9 @@ namespace MinecraftSkylines.Mod
             string gui = s_gui.OverlayText();
             if (gui.Length > 0) sb.Append('\n').Append(gui);
             string blocks = s_blocks.OverlayText();
+            string entities = s_entities.OverlayText();
             if (blocks.Length > 0) sb.Append('\n').Append(blocks);
+            if (entities.Length > 0) sb.Append('\n').Append(entities);
             if (s_selfTest.OverlayText.Length > 0) sb.Append('\n').Append(s_selfTest.OverlayText);
             if (s_probe.Status.Length > 0)
             {

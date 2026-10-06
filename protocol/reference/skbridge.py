@@ -925,6 +925,169 @@ class TreeFelled:
         return TreeFelled(r.u32(), r.u32())
 
 
+# ---- minecraft-skylines app protocol 1.14: entities --------------------------------------------
+ENTITY_MODEL = 0x01E0
+ENTITY_TEXTURE = 0x01E1
+ENTITY_STATES = 0x01E2
+ENTITY_MODEL_MAX_PARTS = 1024
+ENTITY_MODEL_MAX_QUADS = 4096
+ENTITY_TEXTURE_MAX = 4194304
+ENTITY_STATES_MAX = 2048
+ENTITY_DRAWS_MAX = 16
+ENTITY_PARTS_MAX = 1024
+ENTITY_NO_PARENT = 0xFFFF
+
+
+@dataclass
+class EntityModelPart:
+    """parent: index of an earlier part or 0xFFFF; quads: 23 floats per quad (4 x x,y,z,u,v then nx,ny,nz)."""
+    parent: int
+    quads: list
+
+
+@dataclass
+class EntityModel:
+    model_id: int
+    name: str
+    parts: list
+
+    def encode(self) -> bytes:
+        if len(self.parts) > ENTITY_MODEL_MAX_PARTS:
+            raise ValueError("too many parts")
+        w = Writer().u32(self.model_id).string(self.name).u16(len(self.parts))
+        for part in self.parts:
+            if len(part.quads) % 23 != 0 or len(part.quads) // 23 > ENTITY_MODEL_MAX_QUADS:
+                raise ValueError("bad quads")
+            w.u16(part.parent).u16(len(part.quads) // 23)
+            for f in part.quads:
+                w.f32(f)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "EntityModel":
+        r = Reader(p)
+        model_id, name, n = r.u32(), r.string(), r.u16()
+        if n > ENTITY_MODEL_MAX_PARTS:
+            raise ProtocolError(f"part count {n} above {ENTITY_MODEL_MAX_PARTS}")
+        parts = []
+        for i in range(n):
+            parent, q = r.u16(), r.u16()
+            if parent != ENTITY_NO_PARENT and parent >= i:
+                raise ProtocolError(f"part {i} has parent {parent}, which does not come before it")
+            if q > ENTITY_MODEL_MAX_QUADS:
+                raise ProtocolError(f"quad count {q} above {ENTITY_MODEL_MAX_QUADS}")
+            parts.append(EntityModelPart(parent, [r.f32() for _ in range(23 * q)]))
+        return EntityModel(model_id, name, parts)
+
+
+@dataclass
+class EntityTexture:
+    texture_id: int
+    width: int
+    height: int
+    format: int
+    data: bytes
+
+    def encode(self) -> bytes:
+        if len(self.data) > ENTITY_TEXTURE_MAX:
+            raise ValueError("texture too long")
+        return (Writer().u32(self.texture_id).u32(self.width).u32(self.height).u8(self.format)
+                .u32(len(self.data)).bytes() + self.data)
+
+    @staticmethod
+    def decode(p: bytes) -> "EntityTexture":
+        r = Reader(p)
+        tid, w, h, fmt, n = r.u32(), r.u32(), r.u32(), r.u8(), r.u32()
+        if n > ENTITY_TEXTURE_MAX:
+            raise ProtocolError(f"texture length {n} above {ENTITY_TEXTURE_MAX}")
+        return EntityTexture(tid, w, h, fmt, r._take(n))
+
+
+@dataclass
+class EntityPartPose:
+    px: float
+    py: float
+    pz: float
+    x_rot: float
+    y_rot: float
+    z_rot: float
+    x_scale: float
+    y_scale: float
+    z_scale: float
+    flags: int
+
+
+@dataclass
+class EntityDraw:
+    model_id: int
+    texture_id: int
+    color: int
+    matrix: list
+    parts: list
+
+
+@dataclass
+class EntityState:
+    entity_id: int
+    x: float
+    y: float
+    z: float
+    body_yaw: float
+    head_yaw: float
+    pitch: float
+    draws: list
+
+
+@dataclass
+class EntityStates:
+    seq: int
+    entities: list
+
+    def encode(self) -> bytes:
+        if len(self.entities) > ENTITY_STATES_MAX:
+            raise ValueError("too many entities")
+        w = Writer().u32(self.seq).u16(len(self.entities))
+        for e in self.entities:
+            if len(e.draws) > ENTITY_DRAWS_MAX:
+                raise ValueError("too many draws")
+            w.u32(e.entity_id).f32(e.x).f32(e.y).f32(e.z).f32(e.body_yaw).f32(e.head_yaw).f32(e.pitch).u8(len(e.draws))
+            for d in e.draws:
+                if len(d.matrix) != 12 or len(d.parts) > ENTITY_PARTS_MAX:
+                    raise ValueError("bad draw")
+                w.u32(d.model_id).u32(d.texture_id).u32(d.color)
+                for f in d.matrix:
+                    w.f32(f)
+                w.u16(len(d.parts))
+                for q in d.parts:
+                    for f in (q.px, q.py, q.pz, q.x_rot, q.y_rot, q.z_rot, q.x_scale, q.y_scale, q.z_scale):
+                        w.f32(f)
+                    w.u8(q.flags)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "EntityStates":
+        r = Reader(p)
+        seq, n = r.u32(), r.u16()
+        if n > ENTITY_STATES_MAX:
+            raise ProtocolError(f"entity count {n} above {ENTITY_STATES_MAX}")
+        entities = []
+        for _ in range(n):
+            eid, x, y, z, by, hy, pitch, dc = r.u32(), r.f32(), r.f32(), r.f32(), r.f32(), r.f32(), r.f32(), r.u8()
+            if dc > ENTITY_DRAWS_MAX:
+                raise ProtocolError(f"draw count {dc} above {ENTITY_DRAWS_MAX}")
+            draws = []
+            for _ in range(dc):
+                mid, tid, color = r.u32(), r.u32(), r.u32()
+                matrix = [r.f32() for _ in range(12)]
+                pc = r.u16()
+                if pc > ENTITY_PARTS_MAX:
+                    raise ProtocolError(f"part count {pc} above {ENTITY_PARTS_MAX}")
+                parts = [EntityPartPose(*[r.f32() for _ in range(9)], r.u8()) for _ in range(pc)]
+                draws.append(EntityDraw(mid, tid, color, matrix, parts))
+            entities.append(EntityState(eid, x, y, z, by, hy, pitch, draws))
+        return EntityStates(seq, entities)
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

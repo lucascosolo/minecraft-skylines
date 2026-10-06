@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.12
+# `minecraft-skylines` application protocol, version 1.14
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 12`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 14`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: reserved (excavation). 1.14: Minecraft's entities drawn by the host. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -603,3 +603,71 @@ The guest sends it when the player has broken every log of the Minecraft tree it
 only when `openSeq` is the current `CITY_OPEN`'s and the city is Minecraft-enabled (the condition under which it sends
 `CITY_OPEN`), and the tree still exists (`m_flags` not 0, and not burning); it removes the tree as the bulldozer does
 (`TreeManager.ReleaseTree`, on the simulation thread). Repeats are harmless.
+
+## Minor 13: reserved (excavation)
+
+## Minor 14: entities
+
+Minecraft's mobs, dropped items, minecarts and other entities near the simulated area are drawn by the host in its own
+scene from any camera, in and out of player mode. The guest sends each model (a tree of parts with textured quads) and
+each texture once, then about 20 times a second the complete set of entities with their pose. Minecraft-free on the
+host: a "skinned box model" is parts, quads, a texture and per-part transforms.
+
+Model space: quad vertices and part offsets are in model units of 1/16 m; a part's local transform is
+`T(x/16, y/16, z/16) · Rz(zRot) · Ry(yRot) · Rx(xRot) · S(xScale, yScale, zScale)` (right-handed, radians, Minecraft's
+`ModelPart.translateAndRotate`), a part's transform is its parent's times its local one, and a vertex `v` of a part is
+drawn at `position + matrix · part · (v / 16)`, everything in the Minecraft frame.
+
+### `0x01E0 ENTITY_MODEL` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `modelId` | the guest's id for this model, stable for the connection |
+| string | `name` | diagnostic, e.g. `CowModel` |
+| u16 | `partCount` | at most 1024; anything above is a protocol error, checked before the parts |
+| per part: u16 | `parent` | index of the parent part, `0xFFFF` for none; a parent must come before its child (a parent index at or above the part's own is a protocol error) |
+| u16 | `quadCount` | at most 4096; anything above is a protocol error, checked before the quads |
+| per quad: 4 × (f32 × 5) | `x`, `y`, `z`, `u`, `v` | vertex in the part's model units; texture coordinates 0..1, origin top-left |
+| f32 × 3 | `nx`, `ny`, `nz` | the quad's outward normal in the part's frame; the quad is seen from this side only |
+
+### `0x01E1 ENTITY_TEXTURE` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `textureId` | the guest's id for this texture, stable for the connection |
+| u32 | `width`, `height` | pixels |
+| u8 | `format` | 1 = PNG |
+| u32 | `byteLength` | at most 4 MiB (4194304); anything above is a protocol error, checked before the bytes |
+| bytes | `data` | the encoded image, top row first |
+
+Models and textures are sent once per connection, before the first `ENTITY_STATES` that uses them; the host keeps them
+until the link is lost (a repeated id replaces the earlier one).
+
+### `0x01E2 ENTITY_STATES` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `seq` | increases by one per message on this connection |
+| u16 | `count` | at most 2048; anything above is a protocol error, checked before the entities |
+| per entity: u32 | `entityId` | the guest's entity id |
+| f32 × 3 | `x`, `y`, `z` | the entity's position, Minecraft frame |
+| f32 × 3 | `bodyYaw`, `headYaw`, `pitch` | degrees, Minecraft convention; informational (the pose below already contains them) |
+| u8 | `drawCount` | at most 16; anything above is a protocol error, checked before the draws |
+| per draw: u32 | `modelId` | from `ENTITY_MODEL` |
+| u32 | `textureId` | from `ENTITY_TEXTURE` |
+| u32 | `color` | RGBA8 as bytes R,G,B,A multiplied with the texture (layer tint, hurt flash) |
+| f32 × 12 | `matrix` | row-major 3 × 4 affine transform from model space (metres) to the Minecraft frame relative to `x, y, z` (yaw, scale, death tilt, item bob and spin already applied) |
+| u16 | `partCount` | at most 1024; anything above is a protocol error, checked before the parts |
+| per part: f32 × 3 | `px`, `py`, `pz` | the part's offset, model units |
+| f32 × 3 | `xRot`, `yRot`, `zRot` | radians |
+| f32 × 3 | `xScale`, `yScale`, `zScale` | |
+| u8 | `flags` | bit 0 hidden (the part and its children are not drawn), bit 1 skip (the part's own quads are not drawn; its children are) |
+
+The complete set of entities the guest draws, in the order of the model's parts (Minecraft's pose after
+`EntityModel.setupAnim`); the latest message replaces the previous one, so an entity missing from it is gone and an
+empty message clears all. Sent about 20 times a second while a world is loaded (newest only: an unsent older message
+is dropped), for every entity within 96 m (horizontally) of the player except the player itself; a draw whose model or
+texture the host does not have, or whose `partCount` differs from the model's, is skipped. The host interpolates each
+entity's position, matrix (element-wise) and part transforms (angles the short way) between the last two messages,
+draws them lit in its own scene within a distance it chooses, and drops everything when the link is lost or the city
+unloads.

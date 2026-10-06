@@ -222,6 +222,36 @@ def frames() -> list[dict]:
             for t in ts]}, sb.Trees(7, -3, 128, ts).encode())
     add("tree_felled", sb.TREE_FELLED, {"openSeq": 3, "treeId": 70000}, sb.TreeFelled(3, 70000).encode())
 
+    # ---- 1.14 (entities)
+    quad = [0.0, 0.0, 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.25, 0.0, 8.0, 12.0, 0.0, 0.25, 0.5, 0.0, 12.0, 0.0, 0.0, 0.5,
+            0.0, 0.0, -1.0]
+    quad_b = [-4.0, 2.5, 1.0, 0.125, 0.75, 4.0, 2.5, 1.0, 0.375, 0.75, 4.0, -2.5, 1.0, 0.375, 1.0, -4.0, -2.5, 1.0,
+              0.125, 1.0, 0.0, 0.0, 1.0]
+    parts = [sb.EntityModelPart(sb.ENTITY_NO_PARENT, quad), sb.EntityModelPart(0, quad + quad_b)]
+    add("entity_model_two_parts", sb.ENTITY_MODEL, {"modelId": 7, "name": "CowModel",
+        "parts": [{"parent": q.parent, "quads": q.quads} for q in parts]}, sb.EntityModel(7, "CowModel", parts).encode())
+    png = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+    add("entity_texture_png", sb.ENTITY_TEXTURE, {"textureId": 4294967295, "width": 64, "height": 32, "format": 1,
+        "dataHex": png.hex()}, sb.EntityTexture(4294967295, 64, 32, 1, png).encode())
+    add("entity_states_empty", sb.ENTITY_STATES, {"seq": 1, "entities": []}, sb.EntityStates(1, []).encode())
+    pose = lambda *a: sb.EntityPartPose(*a)
+    pose_fields = lambda q: {"px": q.px, "py": q.py, "pz": q.pz, "xRot": q.x_rot, "yRot": q.y_rot, "zRot": q.z_rot,
+                             "xScale": q.x_scale, "yScale": q.y_scale, "zScale": q.z_scale, "flags": q.flags}
+    matrix = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0625, 0.0, 0.0, -1.0, 0.0]
+    draws = [sb.EntityDraw(7, 4294967295, 0xFF8080FF, matrix, [
+                 pose(0.0, 24.0, 0.0, 0.5, -0.25, 0.0, 1.0, 1.0, 1.0, 0),
+                 pose(-4.0, 12.0, 0.5, 0.0, 1.5, -0.125, 1.0, 0.5, 2.0, 3)]),
+             sb.EntityDraw(8, 2, 0x00000000, matrix[:], [pose(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1)])]
+    ents = [sb.EntityState(4294967295, 120.5, 64.0, -2048.25, 90.0, -45.5, 12.25, draws),
+            sb.EntityState(2, -3.5, 40.875, 12.0, 0.0, 0.0, 0.0, [])]
+    def draw_fields(d):
+        return {"modelId": d.model_id, "textureId": d.texture_id, "color": d.color, "matrix": d.matrix,
+                "parts": [pose_fields(q) for q in d.parts]}
+    add("entity_states_two", sb.ENTITY_STATES, {"seq": 4294967295, "entities": [
+        {"entityId": e.entity_id, "x": e.x, "y": e.y, "z": e.z, "bodyYaw": e.body_yaw, "headYaw": e.head_yaw,
+         "pitch": e.pitch, "draws": [draw_fields(d) for d in e.draws]} for e in ents]},
+        sb.EntityStates(4294967295, ents).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
@@ -252,6 +282,15 @@ def invalid_frames() -> list[dict]:
         bad("trees_truncated", sb.frame(sb.TREES, sb.Writer().u32(1).i32(0).i32(0).u16(1).u32(5).bytes()), "payload ends inside a tree"),
         bad("trees_trailing_bytes", sb.frame(sb.TREES, sb.Trees(1, 0, 0, []).encode() + b"\x00"), "payload longer than its count says"),
         bad("tree_felled_truncated", sb.frame(sb.TREE_FELLED, sb.Writer().u32(1).bytes()), "payload ends before treeId"),
+        # ---- 1.14 (entities)
+        bad("entity_model_too_many_parts", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(sb.ENTITY_MODEL_MAX_PARTS + 1).bytes()), "part count > 1024 (checked before the parts)"),
+        bad("entity_model_parent_not_before", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(0).u16(0).bytes()), "parent index at or above the part's own"),
+        bad("entity_model_too_many_quads", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(sb.ENTITY_NO_PARENT).u16(sb.ENTITY_MODEL_MAX_QUADS + 1).bytes()), "quad count > 4096 (checked before the quads)"),
+        bad("entity_texture_too_long", sb.frame(sb.ENTITY_TEXTURE, sb.Writer().u32(1).u32(1).u32(1).u8(1).u32(sb.ENTITY_TEXTURE_MAX + 1).bytes()), "texture length > 4 MiB (checked before the bytes)"),
+        bad("entity_states_too_many", sb.frame(sb.ENTITY_STATES, sb.Writer().u32(1).u16(sb.ENTITY_STATES_MAX + 1).bytes()), "entity count > 2048 (checked before the entities)"),
+        bad("entity_states_too_many_draws", sb.frame(sb.ENTITY_STATES, sb.Writer().u32(1).u16(1).u32(1).f32(0).f32(0).f32(0).f32(0).f32(0).f32(0).u8(sb.ENTITY_DRAWS_MAX + 1).bytes()), "draw count > 16 (checked before the draws)"),
+        bad("entity_states_too_many_parts", sb.frame(sb.ENTITY_STATES, sb.Writer().u32(1).u16(1).u32(1).f32(0).f32(0).f32(0).f32(0).f32(0).f32(0).u8(1).u32(1).u32(1).u32(0).bytes() + bytes(48) + sb.Writer().u16(sb.ENTITY_PARTS_MAX + 1).bytes()), "part count > 1024 in a draw (checked before the parts)"),
+        bad("entity_states_truncated", sb.frame(sb.ENTITY_STATES, sb.Writer().u32(1).u16(1).u32(1).f32(0).f32(0).bytes()), "payload ends inside an entity"),
         bad("unknown_bridge_type", sb.frame(0x0042, b""), "types below 0x0100 are reserved"),
     ]
 

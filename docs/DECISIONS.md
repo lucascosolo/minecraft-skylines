@@ -147,3 +147,22 @@ do not collide either (the CS1 trunk box already does). Barrier over a custom in
 or asset risk), solid to path-finding, no spawns on it, unbreakable; the crosshair skips it explicitly in `SkyClip`.
 Rejected: writing chunk sections directly (fast, but lighting, heightmaps and client resend would be ours to keep
 right); filling the full column depth up front (millions of `setBlock` calls for a loaded city).
+
+## 2026-10-06: entities drawn by the host (protocol 1.14)
+
+The guest captures what Minecraft's own entity renderers submit: `EntityRenderDispatcher.extractEntity` then `submit`
+into a recording `SubmitNodeCollector` (`dev.mcskylines.entity.EntityCapture`), so every model (base model and
+layers such as sheep wool, saddles, armour), its texture (the render type's `Sampler0`), tint, hurt overlay and the
+full pose matrix (yaw, scale, death tilt, baby scale) come from vanilla, and each model is posed with
+`Model.setupAnim(state)`. Models (ModelPart trees as textured quads with normals) and textures (the resource PNG) go
+once per connection (`ENTITY_MODEL`, `ENTITY_TEXTURE`); every client tick `ENTITY_STATES` carries the complete set
+within 96 m with per-part transforms and flags. Items are one-part models of their baked quads with their sprites
+packed into a texture of their own; the spin and bob are in the matrix. The host's `Skylines.Host.Rendering.BoxModelRenderer`
+is Minecraft-free (parts, quads, texture, transforms; pure maths in `Skylines.Core.Models.BoxModelMath`), interpolates
+between the last two snapshots and draws with `Graphics.DrawMesh` on the Props layer within 256 m of the camera, in
+city and player mode. Rejected: replicating vanilla's per-type transforms on the host (yaw, scale, death flip, item
+spin: duplicated Minecraft knowledge that drifts per type); streaming rendered images (lag, no occlusion with the
+city). Not drawn yet: anything submitted as custom geometry (arrows, fishing lines, end crystals' beams), block-model
+entities (falling blocks, minecarts' contents), name tags, shadows, fire; player skins and other textures that are not
+resource-pack files.
+
