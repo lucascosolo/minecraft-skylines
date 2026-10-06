@@ -17,6 +17,19 @@ namespace Skylines.Host.Geometry
         {
             vertices = null;
             triangles = null;
+            CachedMesh m;
+            if (!TryGetMesh(mesh, out m)) return false;
+            float[] p = m.Positions;
+            triangles = m.Indices;
+            vertices = new Vector3[p.Length / 3];
+            for (int i = 0; i < vertices.Length; i++) vertices[i] = new Vector3(p[3 * i], p[3 * i + 1], p[3 * i + 2]);
+            return true;
+        }
+
+        /// <summary>Everything the cache holds for <paramref name="mesh"/> (vertex channels only from a version 2 cache), or false.</summary>
+        public static bool TryGetMesh(Mesh mesh, out CachedMesh cached)
+        {
+            cached = null;
             if (mesh == null) return false;
             if (s_cache == null)
             {
@@ -26,11 +39,7 @@ namespace Skylines.Host.Geometry
             if (!s_cache.Available) return false;
             Bounds b = mesh.bounds;
             Vector3 c = b.center, e = b.extents;
-            float[] p;
-            if (!s_cache.TryGet(mesh.name, mesh.vertexCount, c.x, c.y, c.z, e.x, e.y, e.z, out p, out triangles)) return false;
-            vertices = new Vector3[p.Length / 3];
-            for (int i = 0; i < vertices.Length; i++) vertices[i] = new Vector3(p[3 * i], p[3 * i + 1], p[3 * i + 2]);
-            return true;
+            return s_cache.TryGetMesh(mesh.name, mesh.vertexCount, c.x, c.y, c.z, e.x, e.y, e.z, out cached);
         }
     }
 }

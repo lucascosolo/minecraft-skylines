@@ -16,13 +16,18 @@ namespace Skylines.Host.Geometry
         public const float BoundsTolerance = 1e-3f;
 
         private static readonly byte[] Magic = Encoding.ASCII.GetBytes("CS1MESH\0");
-        private const uint Version = 1;
+        private const uint Version1 = 1, Version2 = 2;
+
+        /// <summary>Channel mask bits of a version 2 entry, stored after the indices in this order.</summary>
+        public const int ChannelNormals = 1, ChannelTangents = 2, ChannelColors = 4, ChannelUv = 8, ChannelUv2 = 16, ChannelUv3 = 32, ChannelUv4 = 64;
+        private const int KnownChannels = 127;
 
         private sealed class Entry
         {
             public string Name;
             public float Cx, Cy, Cz, Ex, Ey, Ez;
             public int IndexCount;
+            public int Mask;
             public long Offset; // of the positions
         }
 
@@ -80,7 +85,7 @@ namespace Skylines.Host.Geometry
                 for (int i = 0; i < 8; i++)
                     if (magic[i] != Magic[i]) return _path + ": not a mesh cache (bad magic)";
                 uint version = r.ReadUInt32();
-                if (version != Version) return _path + ": unsupported version " + version;
+                if (version != Version1 && version != Version2) return _path + ": unsupported version " + version;
                 uint count = r.ReadUInt32();
                 for (uint n = 0; n < count; n++)
                 {
@@ -94,8 +99,14 @@ namespace Skylines.Host.Geometry
                     uint indexCount = r.ReadUInt32();
                     if (vertexCount > 65535 || indexCount > int.MaxValue / 2 || indexCount % 3 != 0) return _path + ": bad entry " + n;
                     e.IndexCount = (int)indexCount;
+                    if (version == Version2)
+                    {
+                        if (s.Position + 4 > length) return _path + ": truncated at entry " + n;
+                        e.Mask = (int)r.ReadUInt32();
+                        if ((e.Mask & ~KnownChannels) != 0) return _path + ": bad channel mask at entry " + n;
+                    }
                     e.Offset = s.Position;
-                    long next = e.Offset + 12L * vertexCount + 2L * indexCount;
+                    long next = e.Offset + 12L * vertexCount + 2L * indexCount + ChannelBytes(e.Mask) * vertexCount;
                     if (next > length) return _path + ": truncated at entry " + n;
                     s.Position = next;
                     List<Entry> list;
@@ -117,6 +128,20 @@ namespace Skylines.Host.Geometry
         {
             positions = null;
             indices = null;
+            CachedMesh mesh;
+            if (!TryGetMesh(name, vertexCount, cx, cy, cz, ex, ey, ez, out mesh)) return false;
+            positions = mesh.Positions;
+            indices = mesh.Indices;
+            return true;
+        }
+
+        /// <summary>
+        /// Like <see cref="TryGet"/>, with every vertex channel the cache holds for the mesh (version 2 caches; a version 1
+        /// cache gives positions and indices only).
+        /// </summary>
+        public bool TryGetMesh(string name, int vertexCount, float cx, float cy, float cz, float ex, float ey, float ez, out CachedMesh mesh)
+        {
+            mesh = null;
             List<Entry> list;
             if (!Available || !_byVertexCount.TryGetValue(vertexCount, out list)) return false;
             Entry found = null;
@@ -131,12 +156,12 @@ namespace Skylines.Host.Geometry
             if (matches != 1) return false;
             try
             {
-                return Read(found, vertexCount, out positions, out indices);
+                mesh = Read(found, vertexCount);
+                return true;
             }
             catch (Exception)
             {
-                positions = null;
-                indices = null;
+                mesh = null;
                 return false;
             }
         }
@@ -146,22 +171,66 @@ namespace Skylines.Host.Geometry
             return Math.Abs(a - b) <= BoundsTolerance;
         }
 
-        private bool Read(Entry e, int vertexCount, out float[] positions, out int[] indices)
+        private static long ChannelBytes(int mask)
         {
-            positions = new float[3 * vertexCount];
-            indices = new int[e.IndexCount];
+            long b = 0;
+            if ((mask & ChannelNormals) != 0) b += 12;
+            if ((mask & ChannelTangents) != 0) b += 16;
+            if ((mask & ChannelColors) != 0) b += 4;
+            for (int bit = ChannelUv; bit <= ChannelUv4; bit <<= 1)
+                if ((mask & bit) != 0) b += 8;
+            return b;
+        }
+
+        private CachedMesh Read(Entry e, int vertexCount)
+        {
+            var m = new CachedMesh { Indices = new int[e.IndexCount] };
             using (var s = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read))
             using (var r = new BinaryReader(s))
             {
                 s.Position = e.Offset;
-                for (int i = 0; i < positions.Length; i++) positions[i] = r.ReadSingle();
-                for (int i = 0; i < indices.Length; i++)
+                m.Positions = Floats(r, 3 * vertexCount);
+                for (int i = 0; i < m.Indices.Length; i++)
                 {
-                    indices[i] = r.ReadUInt16();
-                    if (indices[i] >= vertexCount) throw new InvalidDataException("index out of range");
+                    m.Indices[i] = r.ReadUInt16();
+                    if (m.Indices[i] >= vertexCount) throw new InvalidDataException("index out of range");
                 }
+                if ((e.Mask & ChannelNormals) != 0) m.Normals = Floats(r, 3 * vertexCount);
+                if ((e.Mask & ChannelTangents) != 0) m.Tangents = Floats(r, 4 * vertexCount);
+                if ((e.Mask & ChannelColors) != 0) m.Colors = r.ReadBytes(4 * vertexCount);
+                if ((e.Mask & ChannelUv) != 0) m.Uv = Floats(r, 2 * vertexCount);
+                if ((e.Mask & ChannelUv2) != 0) m.Uv2 = Floats(r, 2 * vertexCount);
+                if ((e.Mask & ChannelUv3) != 0) m.Uv3 = Floats(r, 2 * vertexCount);
+                if ((e.Mask & ChannelUv4) != 0) m.Uv4 = Floats(r, 2 * vertexCount);
             }
-            return true;
+            return m;
         }
+
+        private static float[] Floats(BinaryReader r, int count)
+        {
+            var a = new float[count];
+            for (int i = 0; i < count; i++) a[i] = r.ReadSingle();
+            return a;
+        }
+    }
+}
+
+namespace Skylines.Host.Geometry
+{
+    /// <summary>One cached mesh: flat per-vertex arrays (positions and normals 3, tangents 4, colors 4 bytes RGBA, uvs 2 per vertex); absent channels are null.</summary>
+    public sealed class CachedMesh
+    {
+        /// <summary>Mesh-local xyz.</summary>
+        public float[] Positions;
+        /// <summary>Triangle list over all submeshes.</summary>
+        public int[] Indices;
+        /// <summary>xyz normals, or null.</summary>
+        public float[] Normals;
+        /// <summary>xyzw tangents, or null.</summary>
+        public float[] Tangents;
+        /// <summary>RGBA colours, or null.</summary>
+        public byte[] Colors;
+        /// <summary>Texture coordinate sets 0 to 3 (Unity uv, uv2, uv3, uv4), or null.</summary>
+        public float[] Uv, Uv2, Uv3, Uv4;
     }
 }

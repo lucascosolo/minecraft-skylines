@@ -59,6 +59,13 @@ with the ground road's own segment meshes and materials fed the tunnel segment's
 junction floors and all ceilings/walls as one concrete mesh (`TunnelShell`) along the collision tube's edges, and swaps
 every vehicle's underground material and layer for its surface ones. The MetroTunnels layer is not added in mode 4.
 
+Phase B (2026-10-06; implemented, built, sandbox-tested; **not verified in game**): in mode 4 every road slope NetInfo's
+portal segment mesh (found generically: a cached mesh with a deep-end cap, `PortalCap`) is swapped for a copy without the
+end wall (the planes at local z -30 and -32 in all 30-odd built-in road/rail/path slope meshes), restored when leaving mode 4
+or Minecraft mode. Needs the version 2 mesh cache with vertex channels: **rerun `tools/extract-cs1-meshes.sh`**; with the old
+cache Player.log says `portals: 0 ... left as they are` and the wall stays. The portal structure above the road (roof,
+lintel, parapets; local y >= 0.5 m) is collision too, bent with CS1's own segment bend (`NetBend`, tunnel flag bit 5).
+
 ## Backlog
 
 | # | Milestone | Done when | Highest risk, investigated first |

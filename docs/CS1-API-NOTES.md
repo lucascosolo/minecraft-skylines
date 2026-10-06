@@ -219,3 +219,20 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
   Minecraft mode (`PrefabCollection<PropInfo>.LoadedCount/GetLoaded`, PrefabCollection.cs:38-43) and restores it on exit.
 - Sky fallback: CS1 ships without Unity's Particles shaders; sun, moon and clouds use the shader of
   `UIView.GetAView().defaultAtlas.material` instead.
+
+## Tunnel portals (2026-10-06, verified against the decompile; compiles against the real assemblies; not seen in game)
+
+- `NetInfo.Segment.m_segmentMesh` is a public `Mesh` field (NetInfo.cs:285) set from `m_mesh` in `InitSegmentInfo`
+  (NetInfo.cs:1569) and drawn with `Graphics.DrawMesh(segment.m_segmentMesh, ...)` by `NetSegment.RenderSegments`
+  (NetSegment.cs:615), bend nodes (NetNode.cs:1021) and the net tool preview (NetTool.cs:2509). `PortalMeshes` swaps it for
+  a `new Mesh()` with the cached vertices, `normals`, `tangents`, `colors32`, `uv`..`uv4` (UnityEngine 5.6 setters,
+  compile-verified) and `bounds` of the original, and puts the original back. Beyond the individual draw distance
+  (`m_lodRenderDistance`) the combined LOD mesh is drawn and keeps its wall.
+- Bend (`NetBend`, port of static `NetSegment.PopulateGroupData(NetInfo, NetInfo.Segment, Matrix4x4 left, Matrix4x4 right,
+  Vector4 meshScale, ...)`, NetSegment.cs:3495-3540): `x' = x * meshScale.x + 0.5`, `t = z * meshScale.y + 0.5`, Bernstein
+  weights of t on the control matrices' columns, lerp left to right by x', then `+ y`. `meshScale = (0.5 / m_halfWidth,
+  1 / m_segmentLength, 1, 1)` (NetSegment.cs:310), both negated when turned around (RenderSegments :580-585). The control
+  matrices' columns are the corners and middle points of `RenderInstance` (:365-372): left = start-left to end-right corner,
+  right = start-right to end-left; row 3 (lengths) only drives texture v, not positions.
+- No built-in slope node mesh has a cap (checked over the cache), so node meshes are not swapped.
+
