@@ -20,7 +20,7 @@ namespace Skylines.Host.Geometry
         /// <summary>How far below the ground a building reaches, in metres.</summary>
         public const float Sink = 1f;
         /// <summary>Most building triangles one region carries; beyond it the smallest are dropped.</summary>
-        public const int RegionBudget = 4000;
+        public const int RegionBudget = 12000;
         /// <summary>How far past the region's edges building triangles are kept, in metres.</summary>
         public const float ClipMargin = 0.05f;
 
@@ -160,14 +160,65 @@ namespace Skylines.Host.Geometry
             return !checkFlags2 || ((mi.m_flagsRequired2 | mi.m_flagsForbidden2) & b.m_flags2) == mi.m_flagsRequired2;
         }
 
-        // Appends one LOD mesh, with its foundation skirt, in world space. False when it has no usable triangles.
+        /// <summary>A detailed mesh with more triangles than this is not used for collision (the LOD mesh is).</summary>
+        public const int DetailTriangleLimit = 20000;
+
+        private static readonly Dictionary<BuildingInfoBase, KeyValuePair<Vector3[], int[]>> s_detail = new Dictionary<BuildingInfoBase, KeyValuePair<Vector3[], int[]>>();
+
+        // The building's full-detail mesh when the game lets mods read it (custom assets usually; built-in meshes are
+        // GPU-only), else its LOD data. Owner, 2026-10-06: a narrow side staircase blocked the player; the LOD mesh
+        // simplifies such details away. Each info's choice is logged once to Player.log.
+        private static bool MeshFor(BuildingInfoBase info, out Vector3[] v, out int[] t)
+        {
+            KeyValuePair<Vector3[], int[]> cached;
+            if (!s_detail.TryGetValue(info, out cached))
+            {
+                string why;
+                cached = new KeyValuePair<Vector3[], int[]>(null, null);
+                try
+                {
+                    Mesh mesh = info.m_mesh;
+                    if (mesh == null) why = "no detailed mesh";
+                    else if (!mesh.isReadable) why = "detailed mesh not readable";
+                    else
+                    {
+                        int[] tris = mesh.triangles;
+                        if (tris.Length / 3 > DetailTriangleLimit) why = "detailed mesh has " + tris.Length / 3 + " triangles (limit " + DetailTriangleLimit + ")";
+                        else
+                        {
+                            cached = new KeyValuePair<Vector3[], int[]>(mesh.vertices, tris);
+                            why = "detailed mesh, " + tris.Length / 3 + " triangles";
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    why = "detailed mesh failed: " + e.GetType().Name;
+                }
+                s_detail[info] = cached;
+                RenderGroup.MeshData lod = info.m_lodMeshData;
+                Debug.Log("[MinecraftSkylines] building collision: '" + info.name + "' uses " + (cached.Key != null ? why
+                    : "the LOD mesh (" + (lod == null || lod.m_triangles == null ? 0 : lod.m_triangles.Length / 3) + " triangles; " + why + ")"));
+            }
+            if (cached.Key != null)
+            {
+                v = cached.Key;
+                t = cached.Value;
+                return true;
+            }
+            RenderGroup.MeshData data = info.m_lodMeshData;
+            v = data == null ? null : data.m_vertices;
+            t = data == null ? null : data.m_triangles;
+            return v != null && t != null;
+        }
+
+        // Appends one mesh (detailed when readable, else LOD), with its foundation skirt, in world space. False when it has no usable triangles.
         private static bool AddMesh(BuildingInfoBase info, Matrix4x4 m, bool followTerrain, float depth, TerrainSampler terrain, TriangleBuffer into)
         {
             if (info == null) return false;
-            RenderGroup.MeshData data = info.m_lodMeshData;
-            if (data == null || data.m_vertices == null || data.m_triangles == null) return false;
-            Vector3[] v = data.m_vertices;
-            int[] t = data.m_triangles;
+            Vector3[] v;
+            int[] t;
+            if (!MeshFor(info, out v, out t)) return false;
             if (t.Length < 3) return false;
             int start = into.Count;
             for (int i = 0; i + 2 < t.Length; i += 3)
