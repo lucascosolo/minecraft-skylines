@@ -256,6 +256,10 @@ Water surface (`Skylines.Host.Terrain.WaterSampler`, WATER_SURFACE, minor 10), A
   one joint piece (`NetGeometry.UndergroundJoint`, `JointEdges`): the edges `NetNode.RefreshBendData` builds
   (NetNode.cs:2569-2600) from `NetSegment.CalculateCorner(ushort, bool heightOffset, bool start, bool leftSide, out Vector3,
   out Vector3, out bool)` and `NetSegment.CalculateMiddlePoints`, drawn with `NetSegment.CalculateControlMatrix`.
-- Tunnel ceilings sit `TunnelProfile.Headroom` (8 m) above the higher road edge, capped inside a tunnel segment at
-  `TerrainManager.SampleDetailHeightSmooth(Vector3)` minus 1 m but never below `Clearance(info)`: CS1 keeps terrain at
-  least `m_maxHeight` above a non-slope tunnel (`TerrainModify.Heights.SecondaryMin`, NetSegment.cs:1403-1477).
+- Tunnel cross-section (2026-10-06, replaces the 8 m headroom and terrain cap): `NetGeometry.Dims(info)` measures the
+  slope variant's portal mesh (`RoadAI.m_slopeInfo`, `NetInfo.m_segments[].m_segmentMesh` via `PortalShapes.TryGet`, i.e.
+  the mesh cache) with `TunnelProfile.FromPortal`: inner walls at the smallest |x| of geometry above 2 m (Basic Road
+  'small-tunnel-slope': 6.0 of `m_halfWidth` 8, ratio 0.75), ceiling underside at the lowest geometry spanning x = 0
+  above 2 m (6.0 m), roofed from the lower end over z -32..-8 of the 64 m mesh (fraction 0.375; the net shader maps mesh
+  z linearly onto the bezier t). Without a cached portal: half-width - 2 m, 6 m, height rule. Every section's ceiling is
+  mean edge y + lintel, so segments, bend and slope joints and junction mouths meet without steps. No new CS1 API.
