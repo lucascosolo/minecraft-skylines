@@ -90,6 +90,9 @@ class FrameVectorsTest {
         for (JsonElement el : load().getAsJsonArray("invalid")) {
             JsonObject v = el.getAsJsonObject();
             byte[] bytes = hex(v.get("hex").getAsString());
+            if (bytes.length >= 6 && ((bytes[4] & 0xFF) | (bytes[5] & 0xFF) << 8) >= FrameCodec.APP_MIN) {
+                continue; // a well-formed frame with an invalid application payload: the app layer's tests reject it
+            }
             tests.add(DynamicTest.dynamicTest(v.get("name").getAsString(),
                     () -> assertThrows(ProtocolException.class,
                             () -> Messages.decodeBody(FrameCodec.decode(bytes)))));
@@ -100,7 +103,7 @@ class FrameVectorsTest {
     @Test
     void vectorCounts() throws Exception {
         JsonObject root = load();
-        assertEquals(29, root.getAsJsonArray("valid").size()); // 17 of 1.1 + 6 of 1.2 + 4 of 1.3 + 2 of 1.4
-        assertEquals(7, root.getAsJsonArray("invalid").size());
+        assertEquals(37, root.getAsJsonArray("valid").size()); // 17 of 1.1 + 6 of 1.2 + 4 of 1.3 + 2 of 1.4 + 8 of 1.5
+        assertEquals(10, root.getAsJsonArray("invalid").size()); // 3 of them application-level (1.5)
     }
 }
