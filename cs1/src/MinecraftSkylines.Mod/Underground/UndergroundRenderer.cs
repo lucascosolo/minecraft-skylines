@@ -9,7 +9,8 @@ namespace MinecraftSkylines.Mod.Underground
     /// Applies an <see cref="UndergroundMode"/> to the main camera and TransportManager each frame while in Minecraft
     /// mode. <see cref="Begin"/> records the camera's culling mask and TunnelsVisible; <see cref="End"/> restores both
     /// exactly, is idempotent and never throws. In mode 4 it draws the tunnel interior (<see cref="TunnelInteriorRenderer"/>)
-    /// and keeps underground vehicles on their surface look (<see cref="UndergroundVehicles"/>); End undoes both. Main thread only.
+    /// keeps underground vehicles on their surface look (<see cref="UndergroundVehicles"/>) and takes the black end wall out of
+    /// tunnel portals (<see cref="PortalMeshes"/>); End, or leaving mode 4, undoes all three. Main thread only.
     /// </summary>
     internal sealed class UndergroundRenderer
     {
@@ -18,6 +19,7 @@ namespace MinecraftSkylines.Mod.Underground
         private readonly HostLog _log;
         private readonly TunnelInteriorRenderer _interior;
         private readonly UndergroundVehicles _vehicles;
+        private readonly PortalMeshes _portals;
         private Camera _camera;
         private int _originalMask;
         // World-space overlays that belong to the city-builder view, not a first-person view (owner, 2026-10-06:
@@ -37,6 +39,7 @@ namespace MinecraftSkylines.Mod.Underground
             _log = log;
             _interior = new TunnelInteriorRenderer(log);
             _vehicles = new UndergroundVehicles(log);
+            _portals = new PortalMeshes(log);
             Mode = mode;
         }
 
@@ -93,11 +96,13 @@ namespace MinecraftSkylines.Mod.Underground
             if (UndergroundMode.WantsInterior(Mode))
             {
                 _vehicles.Begin();
+                _portals.Apply();
                 _interior.Draw(eye);
             }
             else
             {
                 _vehicles.End();
+                _portals.Restore();
             }
         }
 
@@ -112,6 +117,7 @@ namespace MinecraftSkylines.Mod.Underground
             try { if (TransportManager.exists) TransportManager.instance.TunnelsVisible = _originalTunnels; }
             catch (Exception e) { _log.Error("underground: restore TunnelsVisible", e); }
             _vehicles.End();
+            _portals.Restore();
             _interior.Release();
             _camera = null;
         }
@@ -122,7 +128,7 @@ namespace MinecraftSkylines.Mod.Underground
             if (UndergroundMode.WantsInterior(Mode))
             {
                 text += "; tunnels: " + _interior.LastSegments + " segments, " + _interior.LastRoadDraws + " road draws, "
-                    + _interior.ShellVertices + " wall vertices; cars " + (_vehicles.Active ? "surface look" : "unchanged");
+                    + _interior.ShellVertices + " wall vertices, " + _portals.Swapped + " open portals; cars " + (_vehicles.Active ? "surface look" : "unchanged");
             }
             return text;
         }

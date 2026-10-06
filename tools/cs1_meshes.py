@@ -7,9 +7,12 @@ files with UnityPy and writes one cache file. Custom assets (.crp) are not read:
 builds them with `new Mesh()`, so they are CPU-readable in game already.
 
 Cache format (little-endian, no padding):
-    header: 8 bytes b"CS1MESH\\0", u32 version (1), u32 entry count
+    header: 8 bytes b"CS1MESH\\0", u32 version (2; version 1 files are still read), u32 entry count
     entry:  u16 name length, UTF-8 name, u32 vertex count, 6 x f32 bounds centre xyz and extent xyz (Mesh.bounds),
-            u32 index count (multiple of 3), vertex count x 3 x f32 mesh-local positions, index count x u16 indices
+            u32 index count (multiple of 3), u32 channel mask (version 2 only), vertex count x 3 x f32 mesh-local
+            positions, index count x u16 indices, then each channel in the mask in ascending bit order, per vertex:
+            1 normals 3 x f32, 2 tangents 4 x f32, 4 colors 4 x u8 RGBA, 8/16/32/64 uv/uv2/uv3/uv4 2 x f32
+The channels let the mod rebuild a GPU-only mesh for drawing (tunnel portals without their end wall).
 Read by cs1/src/Skylines.Host/Geometry/MeshCache.cs.
 
 Usage: cs1_meshes.py extract <Cities_Data dir> <output file>   (tools/extract-cs1-meshes.sh finds both)
@@ -22,11 +25,18 @@ from array import array
 from typing import Iterable, List, NamedTuple, Optional, Tuple
 
 MAGIC = b"CS1MESH\0"
-VERSION = 1
+VERSION = 2
+READABLE_VERSIONS = (1, 2)
+CH_NORMALS, CH_TANGENTS, CH_COLORS, CH_UV, CH_UV2, CH_UV3, CH_UV4 = 1, 2, 4, 8, 16, 32, 64
+# (field, bit, components, struct code) in storage order
+_CHANNELS = (("normals", CH_NORMALS, 3, "f"), ("tangents", CH_TANGENTS, 4, "f"), ("colors", CH_COLORS, 4, "B"),
+             ("uv", CH_UV, 2, "f"), ("uv2", CH_UV2, 2, "f"), ("uv3", CH_UV3, 2, "f"), ("uv4", CH_UV4, 2, "f"))
+_KNOWN = sum(c[1] for c in _CHANNELS)
 MAX_VERTICES = 65535
 
 _HEADER = struct.Struct("<8sII")
 _ENTRY = struct.Struct("<I6fI")
+_MASK = struct.Struct("<I")
 _ASSET_FILE = re.compile(r"^(level\d+|sharedassets\d+\.assets|resources\.assets)$")
 
 Vec3 = Tuple[float, float, float]
@@ -38,6 +48,28 @@ class MeshEntry(NamedTuple):
     extent: Vec3
     positions: List[Vec3]
     indices: List[int]
+    normals: Optional[list] = None
+    tangents: Optional[list] = None
+    colors: Optional[list] = None
+    uv: Optional[list] = None
+    uv2: Optional[list] = None
+    uv3: Optional[list] = None
+    uv4: Optional[list] = None
+
+
+def channel(values, n, dim):
+    """The first `dim` components of each of n per-vertex values, or None when missing or of the wrong length."""
+    if not values or len(values) != n:
+        return None
+    return [tuple(v[:dim]) for v in values]
+
+
+def colors32(values, n):
+    """RGBA bytes for n per-vertex colours given as 0..1 floats or as 0..255 values, or None when missing or wrong length."""
+    if not values or len(values) != n:
+        return None
+    scale = 255 if all(c <= 1.0 for v in values for c in v[:4]) else 1
+    return [tuple(min(255, max(0, int(round(c * scale)))) for c in v[:4]) for v in values]
 
 
 def check_mesh(positions, indices) -> Optional[str]:
@@ -60,12 +92,23 @@ def _pack(e: MeshEntry) -> bytes:
     name = e.name.encode("utf-8")
     pos = array("f", (c for p in e.positions for c in p[:3]))
     idx = array("H", e.indices)
+    mask = 0
+    extra = b""
+    for field, bit, dim, code in _CHANNELS:
+        values = getattr(e, field)
+        if values is None:
+            continue
+        mask |= bit
+        a = array(code, (c for v in values for c in v[:dim]))
+        if sys.byteorder != "little" and code == "f":
+            a.byteswap()
+        extra += a.tobytes()
     if sys.byteorder != "little":
         pos.byteswap()
         idx.byteswap()
     return (struct.pack("<H", len(name)) + name
-            + _ENTRY.pack(len(e.positions), *e.center, *e.extent, len(e.indices))
-            + pos.tobytes() + idx.tobytes())
+            + _ENTRY.pack(len(e.positions), *e.center, *e.extent, len(e.indices)) + _MASK.pack(mask)
+            + pos.tobytes() + idx.tobytes() + extra)
 
 
 def write_cache(path, entries: Iterable[MeshEntry]) -> int:
@@ -93,7 +136,7 @@ def read_cache(path) -> List[MeshEntry]:
     magic, version, count = _HEADER.unpack_from(data, 0)
     if magic != MAGIC:
         raise ValueError("bad magic")
-    if version != VERSION:
+    if version not in READABLE_VERSIONS:
         raise ValueError("unsupported version %d" % version)
     off = _HEADER.size
     out = []
@@ -107,14 +150,30 @@ def read_cache(path) -> List[MeshEntry]:
             off += nlen
             vc, cx, cy, cz, ex, ey, ez, ic = _ENTRY.unpack_from(data, off)
             off += _ENTRY.size
+            mask = 0
+            if version >= 2:
+                (mask,) = _MASK.unpack_from(data, off)
+                off += _MASK.size
+                if mask & ~_KNOWN:
+                    raise ValueError("unknown channel mask bits 0x%x" % (mask & ~_KNOWN))
             end = off + 12 * vc + 2 * ic
             if end > len(data):
                 raise ValueError("truncated geometry")
             pos = struct.unpack_from("<%df" % (3 * vc), data, off)
             idx = struct.unpack_from("<%dH" % ic, data, off + 12 * vc)
             off = end
+            channels = {}
+            for field, bit, dim, code in _CHANNELS:
+                if not mask & bit:
+                    continue
+                size = struct.calcsize("<%d%s" % (dim * vc, code))
+                if off + size > len(data):
+                    raise ValueError("truncated channel " + field)
+                flat = struct.unpack_from("<%d%s" % (dim * vc, code), data, off)
+                off += size
+                channels[field] = [tuple(flat[i:i + dim]) for i in range(0, len(flat), dim)]
             out.append(MeshEntry(name, (cx, cy, cz), (ex, ey, ez),
-                                 [tuple(pos[i:i + 3]) for i in range(0, len(pos), 3)], list(idx)))
+                                 [tuple(pos[i:i + 3]) for i in range(0, len(pos), 3)], list(idx), **channels))
     except struct.error as e:
         raise ValueError("truncated entry: %s" % e)
     return out
@@ -155,6 +214,10 @@ def meshes_in(path, summary: Summary):
             indices = [i for sub in h.get_triangles() for tri in sub for i in tri]
             aabb = mesh.m_LocalAABB
             c, x = aabb.m_Center, aabb.m_Extent
+            n = len(positions)
+            channels = dict(normals=channel(h.m_Normals, n, 3), tangents=channel(h.m_Tangents, n, 4),
+                            colors=colors32(h.m_Colors, n), uv=channel(h.m_UV0, n, 2), uv2=channel(h.m_UV1, n, 2),
+                            uv3=channel(h.m_UV2, n, 2), uv4=channel(h.m_UV3, n, 2))
         except Exception as e:  # one bad mesh must not end the run
             summary.skip("read failed: " + type(e).__name__)
             continue
@@ -162,7 +225,7 @@ def meshes_in(path, summary: Summary):
         if why:
             summary.skip(why)
             continue
-        yield MeshEntry(mesh.m_Name, (c.x, c.y, c.z), (x.x, x.y, x.z), positions, indices)
+        yield MeshEntry(mesh.m_Name, (c.x, c.y, c.z), (x.x, x.y, x.z), positions, indices, **channels)
 
 
 def extract(data_dir, out_path, log=print) -> Summary:

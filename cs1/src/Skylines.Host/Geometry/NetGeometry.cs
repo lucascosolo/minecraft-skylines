@@ -13,7 +13,8 @@ namespace Skylines.Host.Geometry
     /// slabs whose top is the drawn surface; bridge and elevated segments are 1 m decks (walkable underneath) with a
     /// railing along each edge; raised pavements are slabs at the pedestrian lanes' height. Road tunnels are tubes
     /// (floor, side walls, ceiling, open ends); tunnel slopes get the floor, walls up to the portal's ground level and
-    /// a ceiling where the slope is deep enough to be roofed. Other underground segments are skipped. Main thread only.
+    /// a ceiling where the slope is deep enough to be roofed, plus the portal structure above the road from the slope's own
+    /// mesh (<see cref="PortalShapes.EmitCollision"/>). Other underground segments are skipped. Main thread only.
     /// </summary>
     public sealed class NetGeometry
     {
@@ -370,6 +371,7 @@ namespace Skylines.Host.Geometry
             if (kind == Kind.Tunnel || kind == Kind.Slope)
             {
                 Tube(l, r, Clearance(info), kind == Kind.Tunnel, into);
+                if (kind == Kind.Slope) PortalShapes.EmitCollision(id, ref seg, info, TunnelFlag, into);
             }
             else
             {
