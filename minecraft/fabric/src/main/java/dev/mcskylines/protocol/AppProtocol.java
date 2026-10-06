@@ -4,7 +4,7 @@ package dev.mcskylines.protocol;
 public final class AppProtocol {
 	public static final String NAME = "minecraft-skylines";
 	public static final int MAJOR = 1;
-	public static final int MINOR = 9;
+	public static final int MINOR = 10;
 	public static final int HOST_STATUS = 0x0100;
 	public static final int GUEST_STATUS = 0x0101;
 	public static final int ENTER_PLAYER_MODE = 0x0110;
@@ -32,6 +32,7 @@ public final class AppProtocol {
 	public static final int LIGHT_SOURCES = 0x0180;
 	public static final int SKY_STATE = 0x0190;
 	public static final int SKY_TEXTURES = 0x0191;
+	public static final int WATER_SURFACE = 0x01A0;
 	public static final int DEBUG_COMMAND = 0x01F0;
 
 	private AppProtocol() {

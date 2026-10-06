@@ -792,6 +792,39 @@ class SkyTextures:
         return SkyTextures(out)
 
 
+# ---- minecraft-skylines app protocol 1.10: the city's water ------------------------------------
+WATER_SURFACE = 0x01A0
+WATER_MAX_SIZE = 128
+
+
+@dataclass
+class WaterSurface:
+    """Water surface and ground (Minecraft y) per block column, index dz * size + dx."""
+    origin_x: int
+    origin_z: int
+    size: int
+    surface: list
+    bottom: list
+
+    def encode(self) -> bytes:
+        w = Writer().i32(self.origin_x).i32(self.origin_z).u16(self.size)
+        for s, b in zip(self.surface, self.bottom):
+            w.f32(s).f32(b)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "WaterSurface":
+        r = Reader(p)
+        ox, oz, size = r.i32(), r.i32(), r.u16()
+        if size > WATER_MAX_SIZE:
+            raise ProtocolError(f"water grid size {size} above {WATER_MAX_SIZE}")
+        surface, bottom = [], []
+        for _ in range(size * size):
+            surface.append(r.f32())
+            bottom.append(r.f32())
+        return WaterSurface(ox, oz, size, surface, bottom)
+
+
 # ---- socket helpers ---------------------------------------------------------------------------
 class Conn:
     """A blocking connection with a receive deadline, for scripted tests."""

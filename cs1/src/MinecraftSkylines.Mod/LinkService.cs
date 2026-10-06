@@ -38,6 +38,7 @@ namespace MinecraftSkylines.Mod
         private static ClockLink s_cityClock;
         private static ObstacleLink s_obstacles;
         private static LightLink s_lights;
+        private static WaterLink s_water;
         private static SkyLink s_sky;
         private static WalkInButton s_walkIn;
         private static BlockRenderer s_blocks;
@@ -91,6 +92,7 @@ namespace MinecraftSkylines.Mod
             s_cityClock = new ClockLink(s_log);
             s_obstacles = new ObstacleLink(s_log);
             s_lights = new LightLink(s_log);
+            s_water = new WaterLink(s_log);
             s_sky = new SkyLink(s_log);
             var pause = new PauseGate(s_log, s_player);
             s_player.EnterGate = (host, connected) => pause.Check() ?? s_city.EnterGate(host, connected);
@@ -341,6 +343,7 @@ namespace MinecraftSkylines.Mod
             s_player.Update(s_host, city.InCity && !city.Loading);
             s_obstacles.Update(s_host, s_player, s_clock.Elapsed.TotalSeconds);
             s_lights.Update(s_host, s_player, s_clock.Elapsed.TotalSeconds);
+            s_water.Update(s_host, s_player, s_clock.Elapsed.TotalSeconds);
             s_gui.Tick(s_host, s_player.IsOn);
             s_fixture.Update(city.InCity && !city.Loading);
             s_selfTest.Update(s_host, city.InCity && !city.Loading);

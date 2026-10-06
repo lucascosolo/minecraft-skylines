@@ -200,6 +200,13 @@ def frames() -> list[dict]:
         sb.SkyTextures(texs).encode())
     add("sky_textures_empty", sb.SKY_TEXTURES, {"textures": []}, sb.SkyTextures([]).encode())
 
+    # ---- 1.10 (the city's water)
+    ws = sb.WaterSurface(-33, 2015, 2, [40.5, 38.0, 12.25, -1.0], [36.0, 38.0, 11.75, -1.0])
+    add("water_surface", sb.WATER_SURFACE, {"originX": ws.origin_x, "originZ": ws.origin_z, "size": ws.size,
+        "surface": ws.surface, "bottom": ws.bottom}, ws.encode())
+    add("water_surface_empty", sb.WATER_SURFACE, {"originX": 0, "originZ": 0, "size": 0, "surface": [], "bottom": []},
+        sb.WaterSurface(0, 0, 0, [], []).encode())
+
     # Forward compatibility: trailing bytes after the last field must be accepted and ignored.
     add("heartbeat_trailing_bytes", sb.HEARTBEAT, {"seq": 1, "senderUptimeMs": "0"},
         sb.Heartbeat(1, 0).encode() + b"\xAA\xBB")
@@ -223,6 +230,7 @@ def invalid_frames() -> list[dict]:
         bad("sky_state_moon_phase_8", sb.frame(sb.SKY_STATE, sb.SkyState(1, (0, 0, 0), (0, 0, 0), (0, 0, 0, 0), 0, 0, 8, (0, 0, 0, 0), 0, 0, 0).encode()), "moonPhase > 7"),
         bad("sky_textures_moon_phase_8", sb.frame(sb.SKY_TEXTURES, sb.Writer().u8(1).u8(1).u8(8).u8(1).u32(0).bytes()), "moon texture phase > 7"),
         bad("light_sources_level_zero", sb.frame(sb.LIGHT_SOURCES, sb.Writer().u16(1).i32(0).i32(64).i32(0).u8(0).bytes()), "light level outside 1..15"),
+        bad("water_surface_size_129", sb.frame(sb.WATER_SURFACE, sb.Writer().i32(0).i32(0).u16(129).bytes()), "water grid size > 128 (checked before the columns)"),
         bad("unknown_bridge_type", sb.frame(0x0042, b""), "types below 0x0100 are reserved"),
     ]
 
