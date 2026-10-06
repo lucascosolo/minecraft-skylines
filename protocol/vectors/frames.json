@@ -757,6 +757,40 @@
       "hex": "010000009101000000"
     },
     {
+      "name": "water_surface",
+      "type": 416,
+      "fields": {
+        "originX": -33,
+        "originZ": 2015,
+        "size": 2,
+        "surface": [
+          40.5,
+          38.0,
+          12.25,
+          -1.0
+        ],
+        "bottom": [
+          36.0,
+          38.0,
+          11.75,
+          -1.0
+        ]
+      },
+      "hex": "2a000000a0010000dfffffffdf0700000200000022420000104200001842000018420000444100003c41000080bf000080bf"
+    },
+    {
+      "name": "water_surface_empty",
+      "type": 416,
+      "fields": {
+        "originX": 0,
+        "originZ": 0,
+        "size": 0,
+        "surface": [],
+        "bottom": []
+      },
+      "hex": "0a000000a001000000000000000000000000"
+    },
+    {
       "name": "heartbeat_trailing_bytes",
       "type": 3,
       "fields": {
@@ -826,6 +860,11 @@
       "name": "light_sources_level_zero",
       "hex": "0f00000080010000010000000000400000000000000000",
       "why": "light level outside 1..15"
+    },
+    {
+      "name": "water_surface_size_129",
+      "hex": "0a000000a001000000000000000000008100",
+      "why": "water grid size > 128 (checked before the columns)"
     },
     {
       "name": "unknown_bridge_type",

@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.9
+# `minecraft-skylines` application protocol, version 1.10
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 9`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 10`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -480,3 +480,42 @@ Minecraft 26.3 sends `textures/environment/celestial/sun.png`, the eight
 `textures/environment/celestial/moon/<phase>.png` and `textures/environment/clouds.png`; an image over 2 MiB is left
 out (and logged). The host draws them point-filtered. Sun and moon are additive (black is transparent), drawn as
 squares facing their direction with half-size 0.30 (sun) and 0.20 (moon) at distance 1, as Minecraft's 30 and 20 at 100.
+
+
+## Minor 10: the city's water
+
+The host's water (CS1: lakes, rivers, the sea) behaves like Minecraft water for the player: below the host's water
+surface and above the host's ground, the guest's entity physics treat air as water source (swim, float, sink slowly,
+drown, slowed movement). No blocks are placed. Separately, Minecraft fluids flow over and stop against the host's
+collision triangles (see the guest notes below); that needs no message.
+
+### `0x01A0 WATER_SURFACE` (host → guest)
+
+The water surface over the block columns around the player. Sent while in player mode about once a second when the
+grid differs from the last one sent (origin or any value), so also right after entering player mode; the newest grid
+replaces the previous one. The guest drops it on `EXIT_PLAYER_MODE` and when the link is lost.
+
+| Type | Field | Notes |
+|---|---|---|
+| i32 | `originX` | Minecraft x of the grid's first column |
+| i32 | `originZ` | Minecraft z of the grid's first column |
+| u16 | `size` | columns per side, 0-128 (0: no grid); anything above 128 is a protocol error. Each column is one block |
+| per column, `size × size`, index `dz × size + dx`: f32 | `surface` | Minecraft y of the water surface over block column (`originX + dx`, `originZ + dz`), sampled at its centre |
+| f32 | `bottom` | Minecraft y of the host's ground (the bed under the water) there |
+
+A column holds water only where `surface > bottom`; a column without water sends `surface = bottom` (the ground).
+The block cell at y is host water when `y + 1 > bottom` and `surface - y ≥ 0.02`, filled to `min(1, surface - y)` of
+its height; cells wholly under the host's ground (`y + 1 ≤ bottom`, e.g. a tunnel under a river) are dry. Columns
+outside the grid are dry. Only cells that are air in Minecraft count; a block the player placed displaces the water.
+
+CS1: `surface = TerrainManager.SampleRawHeightSmoothWithWater(pos, true, 0)`, `bottom =
+TerrainManager.SampleRawHeightSmooth(pos)`; a column whose depth is under 0.05 m sends `surface = bottom`. The grid is
+64 × 64 around the player's feet (`originX = floor(x) - 32`, same for z); see `docs/CS1-API-NOTES.md`.
+
+Guest notes (no message), ported from SkyCraft's `FlowingFluidMixin`: while collision regions are loaded, a Minecraft
+fluid is refused a move into an air cell whose collision region the host has not sent; downwards it rests on host
+geometry in its own cell and never falls through it, nor into a cell whose host ground reaches 8/9 − 0.05 of the cell;
+sideways it is refused where the target cell has no host geometry but the cell above has (under the ground or an
+overhang), and where the target's host ground top is more than 0.13 above the source's and reaches the fluid's spread
+surface − 0.05. A cell's host ground top is the highest point (0-1 of the cell) of the triangles crossing it; a steep
+triangle (a wall) crossing it fills it to 1.
