@@ -45,8 +45,8 @@ namespace Skylines.Core.Geometry
     }
 
     /// <summary>
-    /// The visible inside of a road tunnel (walls and ceiling) along the same drawn edges and with the same clearance
-    /// rules as the collision tube (Skylines.Host NetGeometry.Tube), and the floor and ceiling of an underground junction.
+    /// The visible inside of a road tunnel (walls and a level ceiling) over the same <see cref="TunnelProfile"/> sections
+    /// as the collision tube (Skylines.Host NetGeometry.Tube), and the floor, ceiling and walls of an underground junction.
     /// Every face is one-sided and faces the inside: for each triangle (a, b, c), cross(b - a, c - a) points the same way
     /// as its vertices' normals (Unity draws clockwise front faces, and that cross product points at the viewer).
     /// UVs are in metres divided by the tile size. Unity-free.
@@ -57,42 +57,31 @@ namespace Skylines.Core.Geometry
         public const float WallFoot = 0.5f;
 
         /// <summary>
-        /// Appends the shell of one tunnel or slope segment between its drawn edges <paramref name="left"/> and
-        /// <paramref name="right"/> (both running start to end). The segment is split into n = max(1, ceil(chord / step))
-        /// intervals, chord = straight distance from left.A to left.D, interval k covering t in [k/n, (k+1)/n] of both
-        /// edges (Bezier3D.Cut). An interval is covered when <paramref name="tunnel"/> is true, or when
-        /// floorTop + clearance &lt;= ground, where floorTop = max of the mean edge y at the interval's two ends and
-        /// ground = max of the mean edge y at t = 0 and t = 1 (the slope's portal level). Uncovered intervals get nothing.
-        /// A covered interval gets: per side, a vertical wall quad on the edge inset by <paramref name="wallInset"/>
-        /// towards the other edge (Strip.Inset with lift 0 on the cut curves), from the inset curve's end points' y minus
-        /// <see cref="WallFoot"/> up to y + clearance - ceilingThickness, its normal horizontal, perpendicular to the
-        /// interval's chord and pointing towards the other edge; and a ceiling quad between the two inset curves' end points
-        /// raised by clearance - ceilingThickness, normal (0, -1, 0). Returns the number of covered intervals; 0 and nothing
-        /// appended when the edges are not more than 2 * wallInset apart.
+        /// Appends the shell over the covered intervals of <paramref name="sections"/> (<see cref="TunnelProfile.Build"/>):
+        /// per side a vertical wall quad from each section's foot point minus <see cref="WallFoot"/> up to its Top minus
+        /// <paramref name="ceilingThickness"/>, normal horizontal and towards the other side; and a ceiling quad between the
+        /// four foot points at their section's Top minus ceilingThickness (level across the width), normal (0, -1, 0).
+        /// Returns the number of covered intervals.
         /// </summary>
-        public static int Segment(Bezier3D left, Bezier3D right, float clearance, bool tunnel, float step, float wallInset,
-            float ceilingThickness, float tileMetres, ShellMesh into)
+        public static int Segment(IList<TunnelSection> sections, float ceilingThickness, float tileMetres, ShellMesh into)
         {
-            float wx = (right.Ax + right.Dx - left.Ax - left.Dx) * 0.5f, wy = (right.Ay + right.Dy - left.Ay - left.Dy) * 0.5f;
-            float wz = (right.Az + right.Dz - left.Az - left.Dz) * 0.5f;
-            if (!(Math.Sqrt(wx * wx + wy * wy + wz * wz) > 2 * wallInset)) return 0;
-            float dx = left.Dx - left.Ax, dy = left.Dy - left.Ay, dz = left.Dz - left.Az;
-            int n = Math.Max(1, (int)Math.Ceiling(Math.Sqrt(dx * dx + dy * dy + dz * dz) / step));
-            float ground = Math.Max((left.Ay + right.Ay) * 0.5f, (left.Dy + right.Dy) * 0.5f);
-            float top = clearance - ceilingThickness;
             float run = 0f;
             int covered = 0;
-            for (int k = 0; k < n; k++)
+            for (int k = 0; k + 1 < sections.Count; k++)
             {
-                float t0 = k / (float)n, t1 = (k + 1) / (float)n;
-                Bezier3D lk = left.Cut(t0, t1), rk = right.Cut(t0, t1), il, ir;
-                float floorTop = Math.Max((lk.Ay + rk.Ay) * 0.5f, (lk.Dy + rk.Dy) * 0.5f);
-                if (!(tunnel || floorTop + clearance <= ground)) continue;
-                if (!Strip.Inset(lk, rk, wallInset, 0f, out il) || !Strip.Inset(rk, lk, wallInset, 0f, out ir)) return covered;
-                float len = (float)Math.Sqrt(Sq(il.Dx - il.Ax) + Sq(il.Dz - il.Az));
-                Wall(il, ir, top, run, len, tileMetres, into);
-                Wall(ir, il, top, run, len, tileMetres, into);
-                Ceiling(il, ir, top, run, len, tileMetres, into);
+                TunnelSection a = sections[k], b = sections[k + 1];
+                float len = (float)Math.Sqrt(Sq(b.Lx - a.Lx) + Sq(b.Lz - a.Lz));
+                if (!a.Covered) { run += len; continue; }
+                float ya = a.Top - ceilingThickness, yb = b.Top - ceilingThickness;
+                float ox = (a.Rx + b.Rx - a.Lx - b.Lx) * 0.5f, oz = (a.Rz + b.Rz - a.Lz - b.Lz) * 0.5f;
+                Wall(a.Lx, a.Ly, a.Lz, ya, b.Lx, b.Ly, b.Lz, yb, ox, oz, run, len, tileMetres, into);
+                Wall(a.Rx, a.Ry, a.Rz, ya, b.Rx, b.Ry, b.Rz, yb, -ox, -oz, run, len, tileMetres, into);
+                float w = (float)Math.Sqrt(Sq(a.Rx - a.Lx) + Sq(a.Rz - a.Lz)) / tileMetres;
+                int p = into.Add(a.Lx, ya, a.Lz, 0f, -1f, 0f, run / tileMetres, 0f);
+                int q = into.Add(b.Lx, yb, b.Lz, 0f, -1f, 0f, (run + len) / tileMetres, 0f);
+                int r = into.Add(b.Rx, yb, b.Rz, 0f, -1f, 0f, (run + len) / tileMetres, w);
+                int s = into.Add(a.Rx, ya, a.Rz, 0f, -1f, 0f, run / tileMetres, w);
+                Face(into, p, q, r, s, 0f, -1f, 0f);
                 run += len;
                 covered++;
             }
@@ -104,32 +93,21 @@ namespace Skylines.Core.Geometry
             return v * v;
         }
 
-        // A vertical quad on `edge` (its end points), facing `other`.
-        private static void Wall(Bezier3D edge, Bezier3D other, float top, float run, float len, float tile, ShellMesh into)
+        // A vertical quad from (x0, y0 - WallFoot, z0)-(x1, ...) up to tops t0, t1, facing the horizontal direction (ox, oz)
+        // as far as it is perpendicular to the wall.
+        private static void Wall(float x0, float y0, float z0, float t0, float x1, float y1, float z1, float t1, float ox, float oz,
+            float run, float len, float tile, ShellMesh into)
         {
-            float ex = edge.Dx - edge.Ax, ez = edge.Dz - edge.Az;
-            float nx = -ez, nz = ex;
-            float ox = (other.Ax + other.Dx - edge.Ax - edge.Dx) * 0.5f, oz = (other.Az + other.Dz - edge.Az - edge.Dz) * 0.5f;
+            float nx = -(z1 - z0), nz = x1 - x0;
             if (nx * ox + nz * oz < 0f) { nx = -nx; nz = -nz; }
             float m = (float)Math.Sqrt(nx * nx + nz * nz);
             if (m < 1e-6f) return;
             nx /= m; nz /= m;
-            float h = top + WallFoot;
-            int a = into.Add(edge.Ax, edge.Ay - WallFoot, edge.Az, nx, 0f, nz, run / tile, 0f);
-            int b = into.Add(edge.Dx, edge.Dy - WallFoot, edge.Dz, nx, 0f, nz, (run + len) / tile, 0f);
-            int c = into.Add(edge.Dx, edge.Dy + top, edge.Dz, nx, 0f, nz, (run + len) / tile, h / tile);
-            int d = into.Add(edge.Ax, edge.Ay + top, edge.Az, nx, 0f, nz, run / tile, h / tile);
+            int a = into.Add(x0, y0 - WallFoot, z0, nx, 0f, nz, run / tile, 0f);
+            int b = into.Add(x1, y1 - WallFoot, z1, nx, 0f, nz, (run + len) / tile, 0f);
+            int c = into.Add(x1, t1, z1, nx, 0f, nz, (run + len) / tile, (t1 - y1 + WallFoot) / tile);
+            int d = into.Add(x0, t0, z0, nx, 0f, nz, run / tile, (t0 - y0 + WallFoot) / tile);
             Face(into, a, b, c, d, nx, 0f, nz);
-        }
-
-        private static void Ceiling(Bezier3D l, Bezier3D r, float top, float run, float len, float tile, ShellMesh into)
-        {
-            float w = (float)Math.Sqrt(Sq(r.Ax - l.Ax) + Sq(r.Az - l.Az)) / tile;
-            int a = into.Add(l.Ax, l.Ay + top, l.Az, 0f, -1f, 0f, run / tile, 0f);
-            int b = into.Add(l.Dx, l.Dy + top, l.Dz, 0f, -1f, 0f, (run + len) / tile, 0f);
-            int c = into.Add(r.Dx, r.Dy + top, r.Dz, 0f, -1f, 0f, (run + len) / tile, w);
-            int d = into.Add(r.Ax, r.Ay + top, r.Az, 0f, -1f, 0f, run / tile, w);
-            Face(into, a, b, c, d, 0f, -1f, 0f);
         }
 
         // Adds quad a-b-c-d with the winding whose cross product points along (nx, ny, nz).
@@ -149,39 +127,62 @@ namespace Skylines.Core.Geometry
         }
 
         /// <summary>
-        /// Appends the floor and ceiling of an underground junction: a fan from (cx, cy, cz) over the <paramref name="count"/>
-        /// ring points in <paramref name="ring"/> (x, y, z each), visited in order of their angle around the centre in xz
-        /// (whatever order they are given in). Floor triangles (centre, p_i, p_i+1 at the ring points' own heights, centre at
-        /// cy) face up, normal (0, 1, 0); ceiling triangles are the same points raised by clearance - ceilingThickness and
-        /// face down, normal (0, -1, 0). Returns the number of triangles appended (2 * count); 0 when count &lt; 3.
+        /// Appends the floor, ceiling and walls of an underground junction of at least three segments, each given by its
+        /// section at the node (<paramref name="mouths"/>). The ring is every mouth's L and R, visited in order of angle
+        /// around (cx, cz). Per consecutive ring pair: a floor triangle from the centre at the points' own heights, normal
+        /// (0, 1, 0); a ceiling triangle at each point's mouth Top minus ceilingThickness, normal (0, -1, 0) (centre at the
+        /// mean of each); and between points of different mouths a wall from floor minus <see cref="WallFoot"/> up to the
+        /// ceiling, facing the centre. Returns the triangles appended; 0 when there are fewer than three mouths.
         /// </summary>
-        public static int Junction(float cx, float cy, float cz, float[] ring, int count, float clearance, float ceilingThickness,
-            float tileMetres, ShellMesh into)
+        public static int Junction(float cx, float cz, IList<TunnelSection> mouths, float ceilingThickness, float tileMetres, ShellMesh into)
         {
+            int count = mouths.Count;
             if (count < 3) return 0;
-            var order = new int[count];
-            var angle = new double[count];
+            int ring = 2 * count;
+            var x = new float[ring];
+            var y = new float[ring];
+            var z = new float[ring];
+            var top = new float[ring];
+            var order = new int[ring];
+            var angle = new double[ring];
+            float cy = 0f, ctop = 0f;
             for (int i = 0; i < count; i++)
+            {
+                TunnelSection m = mouths[i];
+                x[2 * i] = m.Lx; y[2 * i] = m.Ly; z[2 * i] = m.Lz;
+                x[2 * i + 1] = m.Rx; y[2 * i + 1] = m.Ry; z[2 * i + 1] = m.Rz;
+                top[2 * i] = top[2 * i + 1] = m.Top - ceilingThickness;
+            }
+            for (int i = 0; i < ring; i++)
             {
                 order[i] = i;
-                angle[i] = Math.Atan2(ring[3 * i + 2] - cz, ring[3 * i] - cx);
+                angle[i] = Math.Atan2(z[i] - cz, x[i] - cx);
+                cy += y[i] / ring;
+                ctop += top[i] / ring;
             }
             Array.Sort(angle, order);
-            float top = clearance - ceilingThickness;
-            for (int i = 0; i < count; i++)
+            int triangles = 0;
+            for (int i = 0; i < ring; i++)
             {
-                int p = order[i], q = order[(i + 1) % count];
-                FanTriangle(into, cx, cy, cz, ring, p, q, 0f, 1f, tileMetres);
-                FanTriangle(into, cx, cy, cz, ring, p, q, top, -1f, tileMetres);
+                int p = order[i], q = order[(i + 1) % ring];
+                Triangle(into, cx, cy, cz, x[p], y[p], z[p], x[q], y[q], z[q], 1f, tileMetres);
+                Triangle(into, cx, ctop, cz, x[p], top[p], z[p], x[q], top[q], z[q], -1f, tileMetres);
+                triangles += 2;
+                if (p / 2 == q / 2) continue;
+                float len = (float)Math.Sqrt(Sq(x[q] - x[p]) + Sq(z[q] - z[p]));
+                Wall(x[p], y[p], z[p], top[p], x[q], y[q], z[q], top[q], cx - (x[p] + x[q]) * 0.5f, cz - (z[p] + z[q]) * 0.5f,
+                    0f, len, tileMetres, into);
+                triangles += 2;
             }
-            return 2 * count;
+            return triangles;
         }
 
-        private static void FanTriangle(ShellMesh m, float cx, float cy, float cz, float[] ring, int p, int q, float lift, float ny, float tile)
+        private static void Triangle(ShellMesh m, float ax, float ay, float az, float bx, float by, float bz, float cx, float cy, float cz,
+            float ny, float tile)
         {
-            int a = m.Add(cx, cy + lift, cz, 0f, ny, 0f, cx / tile, cz / tile);
-            int b = m.Add(ring[3 * p], ring[3 * p + 1] + lift, ring[3 * p + 2], 0f, ny, 0f, ring[3 * p] / tile, ring[3 * p + 2] / tile);
-            int c = m.Add(ring[3 * q], ring[3 * q + 1] + lift, ring[3 * q + 2], 0f, ny, 0f, ring[3 * q] / tile, ring[3 * q + 2] / tile);
+            int a = m.Add(ax, ay, az, 0f, ny, 0f, ax / tile, az / tile);
+            int b = m.Add(bx, by, bz, 0f, ny, 0f, bx / tile, bz / tile);
+            int c = m.Add(cx, cy, cz, 0f, ny, 0f, cx / tile, cz / tile);
             if (Facing(m, a, b, c, 0f, ny, 0f)) { m.Indices.Add(a); m.Indices.Add(b); m.Indices.Add(c); }
             else { m.Indices.Add(a); m.Indices.Add(c); m.Indices.Add(b); }
         }
