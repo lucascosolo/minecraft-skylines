@@ -4,7 +4,7 @@ package dev.mcskylines.protocol;
 public final class AppProtocol {
 	public static final String NAME = "minecraft-skylines";
 	public static final int MAJOR = 1;
-	public static final int MINOR = 12;
+	public static final int MINOR = 13; // minor 13, COLLISION_REGION bit 9 dug surface
 	public static final int HOST_STATUS = 0x0100;
 	public static final int GUEST_STATUS = 0x0101;
 	public static final int ENTER_PLAYER_MODE = 0x0110;

@@ -277,3 +277,17 @@ Assembly-CSharp:
 - `TreeInfo.name` (`PrefabInfo`/`UnityEngine.Object.name`, string; the kind comes from it), `TreeInfo.m_generatedInfo.m_size`
   (`Vector3`), `TreeInfo.m_minScale/m_maxScale` (float); scale from `ColossalFramework.Math.Randomizer(treeID).Int32(10000u)`
   as `TreeInstance.RenderInstance` does.
+
+## Dug ground (milestone 5; verified against the decompile 2026-10-06, compiles against the real assemblies; not seen in game)
+
+Assembly-CSharp:
+- `TerrainManager.Data.Serialize(DataSerializer)` (TerrainManager.cs:46) writes `m_rawHeights`, `m_blockHeights`,
+  `m_blockHeights2`, the dirt buffer and three notification objects; never the surface (`SurfaceCell.m_clipped`), which
+  `TerrainModify.UpdateArea` rebuilds from every `ITerrainManager` on load. A clip therefore never reaches a save; the
+  mod clears its clips on level unload (no recompute) and recomputes them away when the mod stops.
+- `SimulationManagerBase<TerrainManager, TerrainProperties>.m_properties` (public field, SimulationManagerBase.cs:15);
+  `TerrainProperties.m_grassDiffuse` (`Texture2D`, TerrainProperties.cs:32) and `m_grassTiling` (float, 0.029 by
+  default, :80): the texture and world tiling of the drawn surface patches.
+- `TerrainModify.UpdateArea(float, float, float, float, bool, bool, bool)` (TerrainModify.cs:87) and
+  `TerrainModify.ApplyQuad(Vector3 x4, Edges, Heights, Surface)` (:639), as for Spike T1; heights are never modified.
+- `TerrainManager.SampleDetailHeightSmooth(Vector3)` (TerrainManager.cs:1449) for the patch and skirt heights.

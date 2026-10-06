@@ -121,4 +121,72 @@ class CollisionStoreTest {
 		}
 		writer.join();
 	}
+
+	private static CollisionRegion flagged(int epoch, double y, short... flags) {
+		float[] v = new float[flags.length * 9];
+		for (int i = 0; i < flags.length; i++) {
+			float x0 = 2 + i * 3;
+			float[] t = { x0, (float) y, 2, x0, (float) y, 4, x0 + 2, (float) y, 2 };
+			System.arraycopy(t, 0, v, i * 9, 9);
+		}
+		return new CollisionRegion(epoch, 0, 0, v, flags);
+	}
+
+	private static List<SkyTri> surface(CollisionStore s, double x0, double y0, double z0, double x1, double y1, double z1) {
+		List<SkyTri> out = new ArrayList<>();
+		s.surfaceNear(x0, y0, z0, x1, y1, z1, out);
+		return out;
+	}
+
+	@Test
+	void dugSurfaceFlagIsBit9() {
+		assertEquals(512, SkyTri.DUG_SURFACE);
+	}
+
+	@Test
+	void dugSurfaceIsKeptApartFromCollision() {
+		CollisionStore s = new CollisionStore();
+		s.accept(flagged(0, 5, (short) SkyTri.TERRAIN, (short) SkyTri.DUG_SURFACE));
+		List<SkyTri> solid = near(s, -100, -100, -100, 100, 100, 100);
+		assertEquals(1, solid.size());
+		assertEquals(SkyTri.TERRAIN, solid.get(0).flags);
+		List<SkyTri> dug = surface(s, -100, -100, -100, 100, 100, 100);
+		assertEquals(1, dug.size());
+		assertEquals(SkyTri.DUG_SURFACE, dug.get(0).flags & SkyTri.DUG_SURFACE);
+	}
+
+	@Test
+	void surfaceNearHonoursTheBox() {
+		CollisionStore s = new CollisionStore();
+		s.accept(flagged(0, 5, (short) SkyTri.DUG_SURFACE));
+		assertEquals(1, surface(s, 0, 4, 0, 16, 6, 16).size());
+		assertEquals(0, surface(s, 0, 6, 0, 16, 7, 16).size(), "above in Y");
+		assertEquals(0, surface(s, 10, 4, 10, 12, 6, 12).size(), "no overlap in XZ");
+	}
+
+	@Test
+	void onlyDugRegionHasNoCollisionTriangles() {
+		CollisionStore s = new CollisionStore();
+		s.accept(flagged(0, 5, (short) SkyTri.DUG_SURFACE));
+		assertTrue(s.isLoaded(0, 0));
+		assertEquals(0, near(s, -100, -100, -100, 100, 100, 100).size());
+	}
+
+	@Test
+	void laterRegionReplacesBothKinds() {
+		CollisionStore s = new CollisionStore();
+		s.accept(flagged(0, 5, (short) SkyTri.TERRAIN, (short) SkyTri.DUG_SURFACE));
+		s.accept(flagged(0, 9, (short) SkyTri.TERRAIN));
+		assertEquals(1, near(s, -100, -100, -100, 100, 100, 100).size());
+		assertEquals(9, near(s, -100, -100, -100, 100, 100, 100).get(0).ay, 1e-6);
+		assertEquals(0, surface(s, -100, -100, -100, 100, 100, 100).size());
+	}
+
+	@Test
+	void resetDropsDugSurfaceToo() {
+		CollisionStore s = new CollisionStore();
+		s.accept(flagged(0, 5, (short) SkyTri.DUG_SURFACE));
+		s.accept(new CollisionReset(3));
+		assertEquals(0, surface(s, -100, -100, -100, 100, 100, 100).size());
+	}
 }

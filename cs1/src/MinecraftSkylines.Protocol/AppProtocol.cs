@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 12;
+        public const ushort Minor = 13;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>

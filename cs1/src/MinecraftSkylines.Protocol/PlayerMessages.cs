@@ -165,6 +165,8 @@ namespace MinecraftSkylines.Protocol
         public const ushort BridgeDeck = 1 << 2;
         /// <summary>Bit 3 of a triangle's flags.</summary>
         public const ushort Building = 1 << 3;
+        /// <summary>Bit 9 (minor 13): terrain surface cut away over dug columns; never solid, sent so the guest's shadow ground keeps its height.</summary>
+        public const ushort DugSurface = 1 << 9;
 
         private const int BytesPerTriangle = 9 * 4 + 2;
 

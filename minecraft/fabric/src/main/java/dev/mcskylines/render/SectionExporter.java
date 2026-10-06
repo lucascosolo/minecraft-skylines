@@ -29,6 +29,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.CardinalLighting;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -204,17 +205,28 @@ public final class SectionExporter {
 						pos.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
 						BlockState state = chunk.getBlockState(pos);
 						// CS1 draws its own city: shadow blocks (docs/plans/survival.md) are never sent.
-						if (state.isAir() || dev.mcskylines.shadow.ShadowCells.INSTANCE.contains(pos.getX(), pos.getY(), pos.getZ())) {
+						if (state.isAir()) {
 							continue;
 						}
+						// The host clips CS1's terrain over dug columns; the walls, floors and ceilings of the cavity are the
+						// shadow blocks' faces toward dug (cave air) cells (docs/plans/survival.md).
+						boolean shadow = dev.mcskylines.shadow.ShadowCells.INSTANCE.contains(pos.getX(), pos.getY(), pos.getZ());
+						if (shadow) {
+							int faces = caveFaces(level, pos);
+							if (faces == 0) {
+								continue;
+							}
+							mesh.faceMask = faces;
+						}
 						FluidState fluid = state.getFluidState();
-						if (!fluid.isEmpty()) {
+						if (!shadow && !fluid.isEmpty()) {
 							fluidRenderer.tesselate(level, pos, mesh, state, fluid);
 						}
 						if (state.getRenderShape() == RenderShape.MODEL) {
 							var model = mc.getModelManager().getBlockStateModelSet().get(state);
 							blockRenderer.tesselateBlock(mesh, x, y, z, level, pos.immutable(), state, model, state.getSeed(pos));
 						}
+						mesh.faceMask = -1;
 					}
 				}
 			}
@@ -236,6 +248,17 @@ public final class SectionExporter {
 		return true;
 	}
 
+	/** Bit per Direction ordinal for each neighbour that is cave air. */
+	private static int caveFaces(ClientLevel level, BlockPos pos) {
+		int mask = 0;
+		for (Direction d : Direction.values()) {
+			if (level.getBlockState(pos.relative(d)).is(Blocks.CAVE_AIR)) {
+				mask |= 1 << d.ordinal();
+			}
+		}
+		return mask;
+	}
+
 	private static int flags(ChunkSectionLayer layer) {
 		return layer == ChunkSectionLayer.TRANSLUCENT ? SectionMesh.TRANSLUCENT : layer == ChunkSectionLayer.CUTOUT ? SectionMesh.CUTOUT : 0;
 	}
@@ -249,15 +272,21 @@ public final class SectionExporter {
 		private final float[] fq = new float[4 * 7];
 		private int fqCount;
 		private int fluidFlags;
+		/** Direction ordinals whose quads are kept; -1 keeps all. */
+		int faceMask = -1;
 
 		void reset(CardinalLighting cardinal) {
 			this.cardinal = cardinal;
 			out.reset();
 			fqCount = 0;
+			faceMask = -1;
 		}
 
 		@Override
 		public void put(float x, float y, float z, BakedQuad quad, QuadInstance instance) {
+			if (faceMask != -1 && (faceMask & 1 << quad.direction().ordinal()) == 0) {
+				return;
+			}
 			TextureAtlasSprite sprite = quad.materialInfo().sprite();
 			if (!sprite.atlasLocation().equals(TextureAtlas.LOCATION_BLOCKS)) {
 				return; // UVs would not index the block atlas

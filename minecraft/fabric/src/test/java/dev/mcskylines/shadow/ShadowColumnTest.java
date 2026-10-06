@@ -62,4 +62,22 @@ class ShadowColumnTest {
         assertEquals(10, ShadowColumn.solidTop(10.6));
         assertEquals(-1, ShadowColumn.solidTop(0.2));
     }
+
+    @Test
+    void dugSurfaceCountsAsTerrainWithoutTerrainBit() {
+        ShadowColumn.Sample s = ShadowColumn.sample(quad(12, SkyTri.DUG_SURFACE), 20, 30);
+        assertEquals(12, s.terrain(), 1e-6);
+        assertEquals(1.0, s.terrainNy(), 1e-6);
+        assertTrue(Double.isNaN(s.road()) && Double.isNaN(s.building()));
+    }
+
+    @Test
+    void highestOfTerrainAndDugSurfaceWins() {
+        List<SkyTri> t = quad(10, SkyTri.TERRAIN);
+        t.addAll(quad(15, SkyTri.DUG_SURFACE));
+        assertEquals(15, ShadowColumn.sample(t, 5, 5).terrain(), 1e-6);
+        List<SkyTri> u = quad(20, SkyTri.TERRAIN);
+        u.addAll(quad(15, SkyTri.DUG_SURFACE));
+        assertEquals(20, ShadowColumn.sample(u, 5, 5).terrain(), 1e-6);
+    }
 }

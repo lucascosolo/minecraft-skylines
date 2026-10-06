@@ -147,3 +147,23 @@ do not collide either (the CS1 trunk box already does). Barrier over a custom in
 or asset risk), solid to path-finding, no spawns on it, unbreakable; the crosshair skips it explicitly in `SkyClip`.
 Rejected: writing chunk sections directly (fast, but lighting, heightmaps and client resend would be ours to keep
 right); filling the full column depth up front (millions of `setBlock` calls for a loaded city).
+
+## 2026-10-06: dug ground is a hole in CS1 (milestone 5, protocol 1.13)
+
+Everything derives from the city's edit set on the host (`Skylines.Core.Voxels.DugGround`): an edit at or below a
+column's solid top (the shadow world's rule, on the collision's own 2 m triangulation) is dug; a column whose solid-top
+cell is dug is open. Open columns: the 4 m surface cells they touch are clipped with the game's own surface Clip
+(`TerrainClipMask` group "dig"; the save keeps heights only, so nothing persists without the mod), the undug 1 m squares
+of those cells and the skirts between the block grid and the smooth surface are drawn by `DigLink` with CS1's grass
+texture on the prop shader, and collision gets the exact cut plus the cavity faces. The cavity's walls, floors and
+ceilings are the guest's own shadow blocks: `SECTION_MESH` now carries a shadow block's faces toward `cave_air`, so the
+textures are exactly the block (dirt, stone, ore) the player would mine. Rejected: the host drawing cavity faces itself
+(it does not know the seeded ore layout; duplicating `ShadowMaterials` in C# would drift) and a new "material query"
+message (more protocol for the same result). Collision regions keep the cut-away terrain as flag bit 9 (minor 13) so the
+guest's shadow ground keeps its surface height over open columns (otherwise the pit floor and its material bands would
+be rebuilt from the floor); bit 9 is never solid. Heights are never changed, so CS1's water never floods a pit. The
+guest refuses breaking a shadow cell in a column under a non-bridge road or a building (`PlayerBlockBreakEvents.BEFORE`,
+`ShadowWorld.refusesBreak`). Limits: tunnels under intact ground keep CS1's surface even where a cliff steeper than 45°
+dips into a dug cell; a non-cave-air block placed in a pit keeps the hole open but its wall faces are not drawn; walls
+appear only where the guest has the shadow world loaded (around the Minecraft player); CS1 terraforming over a hole needs
+a reload to move it.

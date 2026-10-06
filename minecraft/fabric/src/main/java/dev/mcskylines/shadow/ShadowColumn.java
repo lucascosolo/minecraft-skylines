@@ -17,14 +17,14 @@ public final class ShadowColumn {
 	public static Sample sample(List<SkyTri> tris, double x, double z) {
 		double terrain = Double.NaN, road = Double.NaN, building = Double.NaN, ny = Double.NaN;
 		for (SkyTri t : tris) {
-			if ((t.flags & (SkyTri.TERRAIN | ROAD | SkyTri.BUILDING)) == 0) {
+			if ((t.flags & (SkyTri.TERRAIN | SkyTri.DUG_SURFACE | ROAD | SkyTri.BUILDING)) == 0) {
 				continue;
 			}
 			double h = t.heightAt(x, z);
 			if (Double.isNaN(h)) {
 				continue;
 			}
-			if ((t.flags & SkyTri.TERRAIN) != 0 && !(h <= terrain)) {
+			if ((t.flags & (SkyTri.TERRAIN | SkyTri.DUG_SURFACE)) != 0 && !(h <= terrain)) {
 				terrain = h;
 				ny = Math.abs(t.ny);
 			}
