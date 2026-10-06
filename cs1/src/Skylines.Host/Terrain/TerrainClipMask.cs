@@ -28,6 +28,7 @@ namespace Skylines.Host.Terrain
 
         private readonly object _sync = new object();
         private readonly List<Rect> _areas = new List<Rect>();
+        private readonly Dictionary<string, List<Rect>> _groups = new Dictionary<string, List<Rect>>();
 
         private TerrainClipMask()
         {
@@ -87,6 +88,31 @@ namespace Skylines.Host.Terrain
         }
 
         /// <summary>
+        /// Replaces the rectangles of <paramref name="group"/> (kept apart from <see cref="Add"/>'s and other groups')
+        /// and recomputes the rectangles that were added or dropped; with <paramref name="recompute"/> false nothing is
+        /// recomputed (the level is unloading). Returns the group's previous count.
+        /// </summary>
+        public int SetGroup(string group, IList<Rect> rects, bool recompute)
+        {
+            List<Rect> old;
+            var now = new List<Rect>(rects);
+            lock (_sync)
+            {
+                if (!_groups.TryGetValue(group, out old)) old = new List<Rect>();
+                if (now.Count == 0) _groups.Remove(group);
+                else _groups[group] = now;
+            }
+            if (recompute)
+            {
+                var before = new HashSet<Rect>(old);
+                var after = new HashSet<Rect>(now);
+                foreach (Rect r in old) if (!after.Contains(r)) RequestRecompute(r);
+                foreach (Rect r in now) if (!before.Contains(r)) RequestRecompute(r);
+            }
+            return old.Count;
+        }
+
+        /// <summary>
         /// Forgets every rectangle and returns how many there were. With <paramref name="recompute"/>
         /// the game rebuilds those areas without the clip; skip it while the level is unloading.
         /// </summary>
@@ -137,19 +163,24 @@ namespace Skylines.Host.Terrain
                     // ApplyQuad clamps to the area being recomputed and returns unless the surface is.
                     // Corner order a(min,min) b(min,max) c(max,max) d(max,min) keeps the inside on the
                     // non-negative side of every edge test; Edges.None gives full clip (255), no fade.
-                    foreach (Rect r in _areas)
-                    {
-                        TerrainModify.ApplyQuad(
-                            new Vector3(r.xMin, 0f, r.yMin), new Vector3(r.xMin, 0f, r.yMax),
-                            new Vector3(r.xMax, 0f, r.yMax), new Vector3(r.xMax, 0f, r.yMin),
-                            TerrainModify.Edges.None, TerrainModify.Heights.None, TerrainModify.Surface.Clip);
-                    }
+                    foreach (Rect r in _areas) Clip(r);
+                    foreach (List<Rect> g in _groups.Values)
+                        foreach (Rect r in g)
+                            Clip(r);
                 }
             }
             catch (Exception e)
             {
                 Report("TerrainUpdated", e);
             }
+        }
+
+        private static void Clip(Rect r)
+        {
+            TerrainModify.ApplyQuad(
+                new Vector3(r.xMin, 0f, r.yMin), new Vector3(r.xMin, 0f, r.yMax),
+                new Vector3(r.xMax, 0f, r.yMax), new Vector3(r.xMax, 0f, r.yMin),
+                TerrainModify.Edges.None, TerrainModify.Heights.None, TerrainModify.Surface.Clip);
         }
 
         /// <inheritdoc />

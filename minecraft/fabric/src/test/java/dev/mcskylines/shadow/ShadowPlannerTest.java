@@ -137,4 +137,43 @@ class ShadowPlannerTest {
         }
         assertTrue(sawShort && sawTall);
     }
+
+    @Test
+    void protectsIsFalseWithoutTerrain() {
+        assertFalse(ShadowPlanner.protects(smp(NaN, 10, 20, NaN)));
+    }
+
+    @Test
+    void bareGroundIsNotProtected() {
+        assertFalse(ShadowPlanner.protects(smp(50.3, NaN, NaN, 1)));
+    }
+
+    @Test
+    void roadAtGroundLevelProtects() {
+        assertTrue(ShadowPlanner.protects(smp(50.3, 51.0, NaN, 1)));
+        assertTrue(ShadowPlanner.protects(smp(50.3, 50.1, NaN, 1)), "within 0.25 below terrain still a road");
+        assertTrue(ShadowPlanner.protects(smp(50.3, 53.3, NaN, 1)), "rise of exactly 3 is not a bridge");
+    }
+
+    @Test
+    void roadWellBelowTerrainDoesNotProtect() {
+        assertFalse(ShadowPlanner.protects(smp(50.3, 49.0, NaN, 1)));
+    }
+
+    @Test
+    void bridgeAloneDoesNotProtect() {
+        assertFalse(ShadowPlanner.protects(smp(50.3, 60.0, NaN, 1)));
+    }
+
+    @Test
+    void buildingProtects() {
+        assertTrue(ShadowPlanner.protects(smp(50.3, NaN, 60.0, 1)));
+        assertFalse(ShadowPlanner.protects(smp(50.3, NaN, 50.0, 1)), "building not above ground");
+    }
+
+    @Test
+    void buildingAboveABridgeCountsAboveTheDeck() {
+        assertTrue(ShadowPlanner.protects(smp(50.3, 60.0, 70.0, 1)));
+        assertFalse(ShadowPlanner.protects(smp(50.3, 60.0, 55.0, 1)), "ground is max(terrain, road)");
+    }
 }

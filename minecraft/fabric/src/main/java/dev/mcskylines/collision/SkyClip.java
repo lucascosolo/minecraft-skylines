@@ -45,14 +45,19 @@ public final class SkyClip {
 		double[] loc = SkyRay.faceLocation(hit);
 		int[] place = SkyRay.placementCell(hit);
 		Direction face = Direction.values()[SkyRay.dominantFace(hit.nx(), hit.ny(), hit.nz())];
-		// A real block at the surface wins over the bare surface: first a plant in the cell above it (shadow grass), then
-		// the block just behind it (the shadow ground), so breaking works as vanilla mining.
+		// A real block at the surface wins over the bare surface: first a plant on it (shadow grass, in the placement cell
+		// or on top of the ground block behind the surface, which differ when the surface sits near a block's middle),
+		// then the block just behind it (the shadow ground), so breaking works as vanilla mining.
 		BlockPos above = new BlockPos(place[0], place[1], place[2]);
 		Vec3 dir = to.subtract(from).normalize();
 		BlockPos behind = BlockPos.containing(hit.x() + dir.x * 0.05, hit.y() + dir.y * 0.05, hit.z() + dir.z * 0.05);
 		Vec3 at = new Vec3(loc[0], loc[1], loc[2]);
 		if (targetable(level, above)) {
 			return new BlockHitResult(at, face, above, false);
+		}
+		BlockPos onGround = behind.above();
+		if (!onGround.equals(above) && targetable(level, onGround) && level.getBlockState(onGround).getCollisionShape(level, onGround).isEmpty()) {
+			return new BlockHitResult(at, face, onGround, false);
 		}
 		if (targetable(level, behind)) {
 			return new BlockHitResult(at, face, behind, false);

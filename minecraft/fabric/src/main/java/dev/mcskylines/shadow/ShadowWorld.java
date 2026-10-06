@@ -51,6 +51,7 @@ public final class ShadowWorld {
 
 	private static final class Chunk {
 		final int[] floor = new int[256];
+		final boolean[] protectedCols = new boolean[256]; // columns under a road or building when last built
 		LongOpenHashSet cells = new LongOpenHashSet(); // shadow blocks now in the world
 		LongOpenHashSet planned = new LongOpenHashSet(); // every cell the plan fills, owned by the player or not
 		final Long2IntOpenHashMap logs = new Long2IntOpenHashMap(); // standing generated logs: position to tree id
@@ -130,10 +131,41 @@ public final class ShadowWorld {
 		return c != null && c.planned.contains(key);
 	}
 
+	/** The server refuses breaking planned cells in columns under a road or building. */
+	public boolean refusesBreak(long key) {
+		Chunk c = chunks.get(BlockKey.chunkKey(key));
+		return c != null && c.planned.contains(key) && c.protectedCols[(BlockKey.x(key) & 15) | (BlockKey.z(key) & 15) << 4];
+	}
+
 	/**
 	 * The player changed a cell (recorded as an edit). Returns the CS1 tree id whose last generated log this was, or -1.
 	 * Digging at the bottom of the filled crust deepens the surrounding columns.
 	 */
+	/** The generated tree a standing log belongs to, or -1. Server thread. */
+	public int treeOfLog(long key) {
+		Chunk c = chunks.get(BlockKey.chunkKey(key));
+		return c == null ? -1 : c.logs.getOrDefault(key, -1);
+	}
+
+	/** Every cell of generated tree {@code treeId} (logs and leaves) that is still a shadow block. Server thread. */
+	public it.unimi.dsi.fastutil.longs.LongArrayList treeCells(int treeId) {
+		it.unimi.dsi.fastutil.longs.LongArrayList out = new it.unimi.dsi.fastutil.longs.LongArrayList();
+		for (List<Trees.Tree> list : TREES.values()) {
+			for (Trees.Tree t : list) {
+				if (t.id() != treeId) {
+					continue;
+				}
+				TreeLayout.blocks(t.kind(), t.x(), t.y(), t.z(), t.height(), t.radius(), (x, y, z, block) -> {
+					if (BlockKey.fits(x, y, z) && ShadowCells.INSTANCE.contains(x, y, z)) {
+						out.add(BlockKey.pack(x, y, z));
+					}
+				});
+				return out;
+			}
+		}
+		return out;
+	}
+
 	public int playerChanged(long key, boolean nowAir) {
 		Chunk c = chunks.get(BlockKey.chunkKey(key));
 		if (c == null || !c.planned.contains(key)) {
@@ -207,6 +239,7 @@ public final class ShadowWorld {
 		int x0 = cx << 4, z0 = cz << 4;
 		List<SkyTri> tris = new ArrayList<>();
 		CollisionStore.INSTANCE.trianglesNear(x0, -1e9, z0, x0 + 16, 1e9, z0 + 16, tris);
+		CollisionStore.INSTANCE.surfaceNear(x0, -1e9, z0, x0 + 16, 1e9, z0 + 16, tris);
 		Chunk c = chunks.computeIfAbsent(ck, k -> new Chunk());
 		Long2ObjectOpenHashMap<String> want = new Long2ObjectOpenHashMap<>();
 		CellSink sink = (x, y, z, block) -> {
@@ -227,6 +260,7 @@ public final class ShadowWorld {
 					}
 					ShadowColumn.Sample s = ShadowColumn.sample(column, px, pz);
 					int i = dx | dz << 4;
+					c.protectedCols[i] = ShadowPlanner.protects(s);
 					if (c.floor[i] == Integer.MAX_VALUE) {
 						c.floor[i] = ShadowPlanner.defaultFloor(s);
 					}

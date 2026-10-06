@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -53,6 +54,7 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 			.withLogger(msg -> LOG.info(PREFIX + "bridge: {}", msg)));
 		CityEdits city = new CityEdits(guest);
 		LinkController link = new LinkController(guest, city);
+		dev.mcskylines.world.TreeFeller.register(city);
 		MinecraftSkylinesClient.link = link;
 		ServerLifecycleEvents.SERVER_STARTED.register(DevWorld::configureIfOurs);
 		ServerLifecycleEvents.SERVER_STARTED.register(city::attach);
@@ -62,6 +64,7 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> city.chunkUnloading(level));
 		ServerTickEvents.END_SERVER_TICK.register(city::serverTick);
 		ServerTickEvents.END_SERVER_TICK.register(dev.mcskylines.world.AnimalSpawner::tick);
+		PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, be) -> !CityEdits.refusesBreak(level, pos));
 		// The city's player (survival unless its own data says otherwise; creative only via DEBUG_COMMAND /gamemode).
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> city.playerJoined(server));
 		ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> city.respawned(newPlayer, alive));

@@ -5,7 +5,7 @@ Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, 
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: reserved (excavation). 1.14: Minecraft's entities drawn by the host. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -102,9 +102,20 @@ the guest holds for that region.
 | i32 | `regionX`, `regionZ` | `floor(x / 16)`, `floor(z / 16)` |
 | u32 | `triCount` | 0 = the region is known to be empty |
 | per triangle: f32 × 9 | `ax ay az bx by bz cx cy cz` | absolute coordinates; counter-clockwise seen from the solid side's outward normal, i.e. `(b-a)×(c-a)` points out of the solid (up for ground) |
-| u16 | `flags` | bit 0 terrain, bit 1 road surface, bit 2 bridge deck, bit 3 building (the building's LOD mesh, the one the game raycasts, clipped to the region; an oriented box when no LOD data exists), bit 4 railing, bit 5 tunnel wall or ceiling, bit 6 vegetation (a tree's trunk box, or a bush's full box), bit 7 prop (an oriented box from the prop's mesh bounds: standalone, building and road-lane props; a tall prop whose pivot is off its bounds' centre, such as a street light, is only its post) bit 8 boundary (an invisible wall at the edge of the land the player owns; minor 5 hosts send it, older guests treat it as solid like any other), (bits 1-8 informational; the guest treats every triangle as solid and does not let the crosshair target bit-8 walls), bits 9-15 reserved. Terrain triangles are omitted where the game clipped its terrain surface (tunnel portals, clip-terrain buildings and roads), so the guest can walk into tunnel portals |
+| u16 | `flags` | bit 0 terrain, bit 1 road surface, bit 2 bridge deck, bit 3 building (the building's LOD mesh, the one the game raycasts, clipped to the region; an oriented box when no LOD data exists), bit 4 railing, bit 5 tunnel wall or ceiling, bit 6 vegetation (a tree's trunk box, or a bush's full box), bit 7 prop (an oriented box from the prop's mesh bounds: standalone, building and road-lane props; a tall prop whose pivot is off its bounds' centre, such as a street light, is only its post) bit 8 boundary (an invisible wall at the edge of the land the player owns; minor 5 hosts send it, older guests treat it as solid like any other), (bits 1-8 informational; the guest treats every triangle as solid and does not let the crosshair target bit-8 walls), bit 9 dug surface (minor 13, below), bits 10-15 reserved. Terrain triangles are omitted where the game clipped its terrain surface (tunnel portals, clip-terrain buildings and roads), so the guest can walk into tunnel portals |
 
 A triangle may extend past its region's bounds; the guest files it under the region it arrived in.
+
+**Dug ground (minor 13).** A cell is *dug* when the city's edit set has any state at it and it lies at or below its
+column's solid top (the highest cell whose centre is below the terrain surface at the column centre, the surface being
+the region's own terrain triangulation); a column is *open* when its solid-top cell is dug. The host cuts the terrain
+triangles exactly out of every open column's 1 × 1 footprint, adds the cavity: one quad (two triangles, flag bit 0) on
+every face between a dug cell and an undug cell at or below its solid top, facing into the dug cell, and on each edge
+between an open column O and a column N that is not open a vertical band facing O from `min(top(N), top(O)) + 1` up to
+the terrain surface at the edge's corners. When the negotiated minor is at least 13 it also sends the cut-away pieces
+of the terrain with flag **bit 9** only: never solid and never targeted, they let the guest's ground model keep the
+original surface height over open columns. Hosts never send bit 9 to a minor-12 guest. A region is re-sent when an
+edit within one block of it changes.
 
 ### `0x0114 COLLISION_RESET` (host → guest)
 
@@ -179,7 +190,7 @@ The complete mesh of one 16×16×16 section of placed Minecraft blocks; replaces
 | u32 | `light` | low byte block light 0-15, next byte sky light 0-15 |
 | u32 | `flags` | bit 0 cutout (alpha test), bit 1 translucent |
 
-Triangles are counter-clockwise seen from outside in Minecraft's right-handed frame; a host in a
+Blocks the guest generates itself under the city (the shadow world) are not part of a mesh, except their faces toward a dug (`minecraft:cave_air`) cell, which are the walls, floors and ceilings of a dug hole. Triangles are counter-clockwise seen from outside in Minecraft's right-handed frame; a host in a
 left-handed frame that mirrors z must reverse the winding (as for collision).
 
 ### `0x0133 SECTIONS_CLEAR` (guest → host)
@@ -604,7 +615,9 @@ only when `openSeq` is the current `CITY_OPEN`'s and the city is Minecraft-enabl
 `CITY_OPEN`), and the tree still exists (`m_flags` not 0, and not burning); it removes the tree as the bulldozer does
 (`TreeManager.ReleaseTree`, on the simulation thread). Repeats are harmless.
 
-## Minor 13: reserved (excavation)
+## Minor 13: dug ground
+
+Only `COLLISION_REGION` flag bit 9 (see "Dug ground (minor 13)" above); no new messages.
 
 ## Minor 14: entities
 

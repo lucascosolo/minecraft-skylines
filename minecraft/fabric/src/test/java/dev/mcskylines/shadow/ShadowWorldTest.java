@@ -3,6 +3,7 @@ package dev.mcskylines.shadow;
 import static org.junit.jupiter.api.Assertions.*;
 
 import dev.mcskylines.collision.CollisionStore;
+import dev.mcskylines.collision.SkyTri;
 import dev.mcskylines.protocol.CollisionRegion;
 import dev.mcskylines.protocol.CollisionReset;
 import dev.mcskylines.protocol.Trees;
@@ -201,17 +202,75 @@ class ShadowWorldTest {
         build();
         assertNotNull(world.get(k(1, 9, 1)));
         owned.add(k(2, 7, 2));
-        // The ground drops to solidTop 4; the floor (y=4) is kept, so cells 5..9 are no longer planned.
+        // The ground drops to solidTop 4; the floor (y=4) is kept and grass grows at y=5, so cells 6..9 are no longer planned.
         CollisionStore.INSTANCE.accept(flat(5.3f));
         ShadowWorld.regionChanged(0, 0);
         ticks();
         assertNull(world.get(k(1, 9, 1)), "old top cell must be cleared");
-        assertNull(world.get(k(1, 5, 1)), "old unplanned cell must be cleared");
+        assertNull(world.get(k(1, 6, 1)), "old unplanned cell must be cleared");
+        assertTrue(world.get(k(1, 5, 1)).contains("grass"), "grass on the new top");
         assertTrue(cleared.contains(k(1, 9, 1)));
         assertNotNull(world.get(k(2, 7, 2)), "owned cell must stay in the world");
         assertFalse(cleared.contains(k(2, 7, 2)), "owned cell must not be cleared");
         assertEquals("minecraft:grass_block", world.get(k(1, 4, 1)));
         assertTrue(ShadowCells.INSTANCE.contains(1, 4, 1));
         assertFalse(ShadowCells.INSTANCE.contains(1, 9, 1));
+    }
+
+    /** Axis-aligned quad over x in [x0,x1], z in [0,16] at height y, as two triangles. */
+    private static float[] quadX(float x0, float x1, float y) {
+        return new float[] {x0, y, 0, x1, y, 0, x1, y, 16, x0, y, 0, x1, y, 16, x0, y, 16};
+    }
+
+    private void feed(float[] a, short fa, float[] b, short fb) {
+        float[] v = new float[a.length + b.length];
+        System.arraycopy(a, 0, v, 0, a.length);
+        System.arraycopy(b, 0, v, a.length, b.length);
+        CollisionStore.INSTANCE.accept(new CollisionRegion(epoch, 0, 0, v, new short[] {fa, fa, fb, fb}));
+    }
+
+    @Test
+    void refusesBreakUnderBuildingButNotOnBareGround() {
+        feed(quadX(0, 16, 10.3f), (short) 1, quadX(0, 8, 20f), (short) 8);
+        build();
+        assertTrue(sw.refusesBreak(k(3, 9, 3)), "planned crust under a building");
+        assertTrue(sw.refusesBreak(k(3, 12, 3)), "planned building fill");
+        assertFalse(sw.refusesBreak(k(12, 9, 12)), "bare ground column");
+        assertFalse(sw.refusesBreak(k(3, 3, 3)), "unplanned cell");
+        assertFalse(sw.refusesBreak(k(100, 9, 100)), "unbuilt chunk");
+    }
+
+    @Test
+    void refusesBreakUnderGroundLevelRoad() {
+        feed(quadX(0, 16, 10.3f), (short) 1, quadX(0, 8, 11f), (short) 2);
+        build();
+        assertTrue(sw.refusesBreak(k(3, 9, 3)));
+        assertFalse(sw.refusesBreak(k(12, 9, 12)));
+    }
+
+    @Test
+    void bridgeDeckCellIsPlannedButNotRefused() {
+        feed(quadX(0, 16, 10.3f), (short) 1, quadX(0, 8, 20f), (short) 4);
+        build();
+        assertTrue(sw.wouldFill(k(3, 19, 3)), "deck cell planned");
+        assertFalse(sw.refusesBreak(k(3, 19, 3)));
+        assertFalse(sw.refusesBreak(k(3, 9, 3)));
+    }
+
+    @Test
+    void refusesBreakIsFalseBeforeAnyBuild() {
+        assertFalse(sw.refusesBreak(k(3, 9, 3)));
+    }
+
+    @Test
+    void dugSurfaceAloneStillGetsACrust() {
+        CollisionStore.INSTANCE.accept(new CollisionRegion(epoch, 0, 0, quadX(0, 16, 10.3f), new short[] {(short) SkyTri.DUG_SURFACE, (short) SkyTri.DUG_SURFACE}));
+        build();
+        int bottom = 9 - ShadowPlanner.CRUST + 1;
+        for (int y = bottom; y <= 9; y++) {
+            assertTrue(sw.wouldFill(k(3, y, 3)), "crust cell y=" + y);
+        }
+        assertFalse(sw.wouldFill(k(3, bottom - 1, 3)));
+        assertFalse(sw.refusesBreak(k(3, 9, 3)), "bare dug surface is not protected");
     }
 }

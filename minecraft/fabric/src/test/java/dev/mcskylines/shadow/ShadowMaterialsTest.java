@@ -112,7 +112,8 @@ class ShadowMaterialsTest {
                 else assertNull(p);
             }
         }
-        assertTrue(shortG >= n * 0.10 && shortG <= n * 0.35, "short " + shortG);
+        assertEquals(n, shortG + tall);
+        assertTrue(shortG >= n * 0.90, "short " + shortG);
         assertTrue(tall > 0 && tall < n * 0.10 && tall < shortG, "tall " + tall);
     }
 }

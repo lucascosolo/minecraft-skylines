@@ -20,6 +20,26 @@ public final class ShadowPlanner {
 		return Math.max(ShadowMaterials.BOTTOM_Y, ShadowColumn.solidTop(s.terrain()) - CRUST + 1);
 	}
 
+	private static boolean road(ShadowColumn.Sample s) {
+		return !Double.isNaN(s.road()) && s.road() > s.terrain() - 0.25;
+	}
+
+	private static double ground(ShadowColumn.Sample s) {
+		return road(s) ? Math.max(s.terrain(), s.road()) : s.terrain();
+	}
+
+	private static boolean building(ShadowColumn.Sample s) {
+		return !Double.isNaN(s.building()) && s.building() > ground(s);
+	}
+
+	/** True where the player may not dig: under a road (not a bridge) or a building. */
+	public static boolean protects(ShadowColumn.Sample s) {
+		if (Double.isNaN(s.terrain())) {
+			return false;
+		}
+		return road(s) && s.road() - s.terrain() <= EMBANKMENT || building(s);
+	}
+
 	public static void column(long seed, ShadowColumn.Sample s, int x, int z, boolean waterNear, int floorY, CellSink sink) {
 		if (Double.isNaN(s.terrain())) {
 			return;
@@ -27,7 +47,7 @@ public final class ShadowPlanner {
 		int tTop = ShadowColumn.solidTop(s.terrain());
 		ShadowMaterials.Top top = s.terrainNy() < STEEP_NY ? ShadowMaterials.Top.STONE
 			: waterNear ? ShadowMaterials.Top.SAND : ShadowMaterials.Top.GRASS;
-		boolean road = !Double.isNaN(s.road()) && s.road() > s.terrain() - 0.25;
+		boolean road = road(s);
 		boolean bridge = road && s.road() - s.terrain() > EMBANKMENT;
 		int rTop = road ? ShadowColumn.solidTop(s.road()) : Integer.MIN_VALUE;
 		int pavedFrom = !road ? Integer.MAX_VALUE : bridge ? rTop : tTop;
@@ -42,8 +62,8 @@ public final class ShadowPlanner {
 				sink.accept(x, y, z, PAVED);
 			}
 		}
-		double ground = road ? Math.max(s.terrain(), s.road()) : s.terrain();
-		boolean building = !Double.isNaN(s.building()) && s.building() > ground;
+		double ground = ground(s);
+		boolean building = building(s);
 		if (building) {
 			int base = ShadowColumn.solidTop(ground) + 1;
 			int end = Math.min(ShadowColumn.solidTop(s.building()), base + BUILDING_FILL - 1);

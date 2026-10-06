@@ -22,6 +22,8 @@ import net.minecraft.world.level.Level;
 public final class BuriedDrops {
 	private static final double REACH = 8.0;
 	private static final double PROBE_UP = 64.0;
+	/** Set once entities (dropped items) are drawn in CS1; then only drops from under the ground are handed over. */
+	static final boolean ENTITIES_DRAWN_IN_CS1 = false;
 
 	private BuriedDrops() {
 	}
@@ -31,7 +33,9 @@ public final class BuriedDrops {
 		if (!(level instanceof ServerLevel server) || level.dimension() != Level.OVERWORLD || !DevWorld.isOurs(server.getServer())) {
 			return null;
 		}
-		if (!belowHostSurface(pos)) {
+		// Until entities are drawn in CS1 every block drop near the player is handed over (items on the ground would be
+		// invisible), not only drops from under the ground.
+		if (ENTITIES_DRAWN_IN_CS1 && !belowHostSurface(pos)) {
 			return null;
 		}
 		ServerPlayer best = null;

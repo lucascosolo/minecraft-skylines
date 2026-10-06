@@ -9,6 +9,7 @@ using MinecraftSkylines.Mod.Blocks;
 using MinecraftSkylines.Mod.City;
 using MinecraftSkylines.Mod.Diagnostics;
 using MinecraftSkylines.Mod.SelfTest;
+using MinecraftSkylines.Mod.Terrain;
 using MinecraftSkylines.Protocol;
 using Skylines.Bridge;
 using Skylines.Host;
@@ -43,6 +44,7 @@ namespace MinecraftSkylines.Mod
         private static WalkInButton s_walkIn;
         private static BlockRenderer s_blocks;
         private static Entities.EntityLink s_entities;
+        private static DigLink s_dig;
         private static SelectionOutline s_selection;
         private static OverlayLink s_gui;
         private static SelfTestController s_selfTest;
@@ -99,6 +101,8 @@ namespace MinecraftSkylines.Mod
             s_player.EnterGate = (host, connected) => pause.Check() ?? s_city.EnterGate(host, connected);
             s_walkIn = new WalkInButton(s_log, s_player);
             s_pump.Updated += s_walkIn.Update;
+            DigLink.Current = s_dig = new DigLink(s_log);
+            s_city.EditChanged = s_dig.OnEdit;
             s_blocks = new BlockRenderer(s_log, s_launcher.BlockMaterial);
             s_pump.Updated += s_blocks.Update;
             s_entities = new Entities.EntityLink(s_log, s_blocks);
@@ -134,6 +138,7 @@ namespace MinecraftSkylines.Mod
             // guest only resends changed sections) but drawn only while a city is loaded.
             s_pump.LateUpdated += () => s_blocks.LateUpdate(s_cityReady);
             s_pump.LateUpdated += () => s_entities.LateUpdate(s_cityReady);
+            s_pump.LateUpdated += () => s_dig.LateUpdate(s_cityReady);
             s_pump.Gui += s_player.OnGui;
             s_pump.Updated += s_player.Viewer.Update;
             s_pump.Updated += new NetRenderDump(s_log, () => s_player != null && s_player.IsOn).Update;
@@ -180,6 +185,8 @@ namespace MinecraftSkylines.Mod
             s_selection.Dispose();
             s_gui.Dispose();
             s_probe.RestoreAll(why, true);
+            s_dig.Dispose();
+            DigLink.Current = s_dig = null;
             s_host.Shutdown(GoodbyeCodes.ShuttingDown, why);
             s_host = null;
             s_pump.Uninstall();
@@ -208,6 +215,7 @@ namespace MinecraftSkylines.Mod
             // No id is assigned on load: a city is only paired (after a verified backup) when the player enables
             // Minecraft for it (CityLink), so a city merely loaded with the mod enabled is saved exactly as without it.
             if (s_city != null) s_city.OnLevelLoaded(mode);
+            if (s_city != null && s_dig != null) s_dig.Reload(s_city.SortedEdits());
             if (s_walkIn != null) s_walkIn.OnLevelLoaded(mode);
             if (s_fixture != null) s_fixture.OnLevelLoaded();
             if (s_selfTest != null) s_selfTest.OnLevelLoaded();
@@ -233,6 +241,7 @@ namespace MinecraftSkylines.Mod
             if (s_player != null) s_player.Exit("city unloading", s_host, true);
             if (s_sky != null) s_sky.Reset();
             if (s_probe != null) s_probe.RestoreAll("level unloading", false);
+            if (s_dig != null) s_dig.Unload();
             Log("level unloading");
             s_statusDirty = true;
         }
@@ -345,6 +354,7 @@ namespace MinecraftSkylines.Mod
             Guid saveId = s_saveId.Id;
             s_launcher.Prewarm(city.InCity && !city.Loading, s_host.State == BridgeState.Connected);
             s_city.Update(s_host, city.InCity && !city.Loading);
+            s_dig.Update(city.InCity && !city.Loading);
             s_cityClock.Update(s_host, city.InCity && !city.Loading, s_clock.Elapsed.TotalMilliseconds);
             s_player.Update(s_host, city.InCity && !city.Loading);
             s_obstacles.Update(s_host, s_player, s_clock.Elapsed.TotalSeconds);
