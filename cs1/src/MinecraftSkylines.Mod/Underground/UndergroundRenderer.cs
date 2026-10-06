@@ -16,6 +16,11 @@ namespace MinecraftSkylines.Mod.Underground
         private readonly HostLog _log;
         private Camera _camera;
         private int _originalMask;
+        // World-space overlays that belong to the city-builder view, not a first-person view (owner, 2026-10-06:
+        // "the whole screen will just be my first person view of the world with the Minecraft overlay"):
+        // problem icons over buildings, traffic direction arrows, markers. Missing layer names are skipped.
+        private static readonly string[] FirstPersonHiddenLayers = { "Notifications", "DirectionArrows", "Markers", "ScenarioMarkers" };
+        private int _hiddenMask;
         private bool _originalTunnels;
         private int _layer = -1;
         private bool _active;
@@ -48,6 +53,12 @@ namespace MinecraftSkylines.Mod.Underground
             _camera = Camera.main;
             _layer = LayerMask.NameToLayer("MetroTunnels");
             _originalMask = _camera == null ? 0 : _camera.cullingMask;
+            _hiddenMask = 0;
+            foreach (string name in FirstPersonHiddenLayers)
+            {
+                int l = LayerMask.NameToLayer(name);
+                if (l >= 0) _hiddenMask |= 1 << l;
+            }
             _originalTunnels = TransportManager.exists && TransportManager.instance.TunnelsVisible;
             _underground = false;
             _active = true;
@@ -65,7 +76,7 @@ namespace MinecraftSkylines.Mod.Underground
                 _underground = under;
                 Transition(nowMs, eye.y);
             }
-            int mask = _originalMask;
+            int mask = _originalMask & ~_hiddenMask;
             if (_layer >= 0 && UndergroundMode.WantsLayer(Mode, under)) mask |= 1 << _layer;
             _camera.cullingMask = mask;
             if (TransportManager.exists)

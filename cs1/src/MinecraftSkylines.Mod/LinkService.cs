@@ -262,6 +262,27 @@ namespace MinecraftSkylines.Mod
             }
         }
 
+        // In Minecraft mode the screen is the first-person view plus Minecraft's HUD only (owner, 2026-10-06), so the
+        // status box hides on entering and comes back on leaving as it was; F7 still toggles it meanwhile.
+        private static bool s_wasPlayerActive;
+        private static bool s_boxVisibleBeforePlayer;
+
+        private static void HideStatusBoxInMinecraftMode()
+        {
+            bool active = s_player != null && s_player.IsActive;
+            if (active == s_wasPlayerActive) return;
+            s_wasPlayerActive = active;
+            if (active)
+            {
+                s_boxVisibleBeforePlayer = s_overlay.Visible;
+                s_overlay.Visible = false;
+            }
+            else
+            {
+                s_overlay.Visible = s_boxVisibleBeforePlayer;
+            }
+        }
+
         private static void Tick()
         {
             LogFps();
@@ -298,6 +319,7 @@ namespace MinecraftSkylines.Mod
                 SendHostStatus(city, saveId);
             }
             s_overlay.Text = OverlayText(city, saveId);
+            HideStatusBoxInMinecraftMode();
 
             s_tickWatch.Stop();
             double ms = s_tickWatch.Elapsed.TotalMilliseconds;
