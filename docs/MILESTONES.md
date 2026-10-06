@@ -32,6 +32,17 @@ both sides.
 
 Next owner run: `docs/TESTING.md`, "Owner run: self-test for M2 + M3".
 
+## Finding: CS1 has no realistic tunnel interiors (owner's Ctrl+Shift+D dump, 2026-10-06)
+
+`Basic Road Slope` = segment[0] `small-tunnel-segment` on layer 14 MetroTunnels with shader
+`Custom/Net/Metro` (the underground x-ray look) + segment[1] `small-tunnel-slope` on layer 9 Road with
+`Custom/Net/RoadBridge` (the visible ramp and portal, drawn always; the black wall at the tunnel mouth is
+part of it). `Basic Road Tunnel` segments and tunnel nodes use only `Custom/Net/Metro` on layer 14.
+Underground vehicles switch to `m_undergroundMaterial` (same x-ray style). So showing tunnels and traffic
+"for real" in first person means drawing our own tunnel interior (we already have its shape as
+collision), drawing underground vehicles with their surface materials, and masking/replacing the portal
+model. Deferred to M7 unless the owner reprioritises; underground modes 1-3 stay as experiments.
+
 ## Backlog
 
 | # | Milestone | Done when | Highest risk, investigated first |
