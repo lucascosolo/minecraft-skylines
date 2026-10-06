@@ -7,9 +7,12 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import dev.mcskylines.player.DevWorld;
+import dev.mcskylines.world.CityEdits;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -47,9 +50,17 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 				"Minecraft " + version("minecraft") + " (Fabric)", version(MOD_ID))
 			.withPort(port)
 			.withLogger(msg -> LOG.info(PREFIX + "bridge: {}", msg)));
-		LinkController link = new LinkController(guest);
+		CityEdits city = new CityEdits(guest);
+		LinkController link = new LinkController(guest, city);
 		MinecraftSkylinesClient.link = link;
 		ServerLifecycleEvents.SERVER_STARTED.register(DevWorld::configureIfOurs);
+		ServerLifecycleEvents.SERVER_STARTED.register(city::attach);
+		ServerLifecycleEvents.SERVER_STOPPING.register(city::detach);
+		ServerLifecycleEvents.BEFORE_SAVE.register((server, flush, force) -> city.beforeSave(server));
+		ServerLifecycleEvents.AFTER_SAVE.register((server, flush, force) -> city.afterSave(server, flush));
+		ServerChunkEvents.CHUNK_LOAD.register((level, chunk, generated) -> city.chunkLoaded(level, chunk));
+		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> city.chunkUnloading(level));
+		ServerTickEvents.END_SERVER_TICK.register(city::serverTick);
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> DevWorld.creativeIfOurs(handler.player, server));
 
 		ClientLifecycleEvents.CLIENT_STARTED.register(client -> {

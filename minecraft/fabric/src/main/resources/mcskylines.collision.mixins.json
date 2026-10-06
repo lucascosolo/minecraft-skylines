@@ -3,6 +3,7 @@
   "package": "dev.mcskylines.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "LevelChunkMixin",
     "MinecraftServerFlightMixin",
     "PlayerEdgeMixin"
   ],

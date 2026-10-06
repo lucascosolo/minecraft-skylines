@@ -51,4 +51,10 @@ tasks.withType(JavaCompile).configureEach {
 test {
 	useJUnitPlatform()
 	systemProperty 'mcskylines.vectors', rootProject.file('../protocol/vectors').absolutePath
+	// @TempDir lives under build/ (the agent sandbox's /tmp is read-only) and is never deleted (AGENTS.md: no
+	// deleting code, tests included); the owner clears build/tmp/test-tmp by hand.
+	def testTmp = layout.buildDirectory.dir('tmp/test-tmp').get().asFile
+	systemProperty 'java.io.tmpdir', testTmp.absolutePath
+	systemProperty 'junit.jupiter.tempdir.cleanup.mode.default', 'never'
+	doFirst { testTmp.mkdirs() }
 }

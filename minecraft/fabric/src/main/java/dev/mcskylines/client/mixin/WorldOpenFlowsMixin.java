@@ -10,7 +10,7 @@ import net.minecraft.world.level.storage.LevelStorageSource;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
-/** The void world's custom dimension type counts as experimental; skip the backup prompt for "skylines-dev" only. */
+/** The void world's custom dimension type counts as experimental; skip the backup prompt for our "skylines-city" only. */
 @Mixin(WorldOpenFlows.class)
 public abstract class WorldOpenFlowsMixin {
 	@WrapOperation(method = "openWorldCheckWorldStemCompatibility", at = @At(value = "INVOKE",

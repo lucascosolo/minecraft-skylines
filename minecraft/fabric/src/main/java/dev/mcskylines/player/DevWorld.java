@@ -20,9 +20,13 @@ import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Opens (or creates) the dedicated void singleplayer world "skylines-dev". Port of SkyCraft's MirrorWorld. Never opens any other world. */
+/**
+ * Opens (or creates) the dedicated void singleplayer world "skylines-city", a cache of the open city's blocks (the
+ * city save is their authority). Port of SkyCraft's MirrorWorld. Never opens any other world; the milestone 3 world
+ * "skylines-dev" is never opened or modified again.
+ */
 public final class DevWorld {
-	public static final String NAME = "skylines-dev";
+	public static final String NAME = "skylines-city";
 	private static final Logger LOG = LoggerFactory.getLogger("mcskylines");
 	private static final ResourceKey<WorldPreset> PRESET =
 		ResourceKey.create(Registries.WORLD_PRESET, Identifier.fromNamespaceAndPath("mcskylines", "void"));
@@ -77,12 +81,12 @@ public final class DevWorld {
 		LOG.info("[MinecraftSkylines] configured world {}", NAME);
 	}
 
-	/** True if the server runs the dev world (by folder name). */
+	/** True if the server runs the city world (by folder name). */
 	public static boolean isOurs(MinecraftServer server) {
 		return NAME.equals(server.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize().getFileName().toString());
 	}
 
-	/** Temporary dev choice: creative in the dev world so blocks can be placed without an inventory. */
+	/** Temporary dev choice: creative in the city world so blocks can be placed without an inventory. */
 	public static void creativeIfOurs(ServerPlayer player, MinecraftServer server) {
 		if (isOurs(server) && player.setGameMode(GameType.CREATIVE)) {
 			LOG.info("[MinecraftSkylines] {} set to creative in {}", player.getName().getString(), NAME);

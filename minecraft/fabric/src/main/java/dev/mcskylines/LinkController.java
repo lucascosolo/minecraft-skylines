@@ -27,6 +27,7 @@ import dev.mcskylines.protocol.Viewport;
 import dev.mcskylines.render.OverlayExporter;
 import dev.mcskylines.render.SectionExporter;
 import dev.mcskylines.render.SelectionExporter;
+import dev.mcskylines.world.CityEdits;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
@@ -45,6 +46,7 @@ final class LinkController {
 	private final SectionExporter sections;
 	private final OverlayExporter overlay;
 	private final SelectionExporter selection;
+	private final CityEdits city;
 	private int exportErrors;
 	private int overlayErrors;
 	private static final boolean DEBUG_COMMANDS = Boolean.getBoolean("mcskylines.debugCommands");
@@ -63,8 +65,9 @@ final class LinkController {
 	private boolean everConnected;
 	private long linkDownSinceMs = -1;
 
-	LinkController(BridgeGuest guest) {
+	LinkController(BridgeGuest guest, CityEdits city) {
 		this.guest = guest;
+		this.city = city;
 		this.sections = new SectionExporter(guest);
 		this.overlay = new OverlayExporter(guest);
 		this.selection = new SelectionExporter(guest);
@@ -110,6 +113,7 @@ final class LinkController {
 
 	void tick(Minecraft mc) {
 		playerMode.clientTick(mc);
+		city.clientTick();
 		if (QUIT_WITH_HOST && STARTED_HIDDEN && everConnected && state != BridgeState.CONNECTED) {
 			long now = System.currentTimeMillis();
 			if (linkDownSinceMs < 0) {
@@ -156,6 +160,7 @@ final class LinkController {
 				}
 				if (state != BridgeState.CONNECTED) {
 					overlay.linkDown();
+					city.linkDown();
 				}
 				LOG.info(PREFIX + "link state {}{}", s.state().wireName(), s.detail().isEmpty() ? "" : " (" + s.detail() + ")");
 				if (s.state() == BridgeState.CONNECTED) {
@@ -178,6 +183,7 @@ final class LinkController {
 				sentStatus = null;
 				playerMode.onLinkDown(mc);
 				overlay.linkDown();
+				city.linkDown();
 				if (d.cause() == DisconnectCause.PEER_GOODBYE && d.code() == Goodbye.SHUTTING_DOWN) {
 					hostGoneSinceMs = System.currentTimeMillis();
 				}
@@ -215,6 +221,11 @@ final class LinkController {
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed VIEWPORT: {}", e.getMessage());
 					}
+				} else if (m.type() == AppProtocol.CITY_OPEN || m.type() == AppProtocol.BLOCK_EDITS
+						|| m.type() == AppProtocol.CITY_CLOSE || m.type() == AppProtocol.EDIT_SYNC) {
+					if (peer != null && peer.appMinor() >= 5) {
+						city.deliver(m.type(), m.payload());
+					}
 				} else if (m.type() == AppProtocol.DEBUG_COMMAND) {
 					try {
 						runDebugCommand(mc, DebugCommand.decode(m.payload()).command());
@@ -239,7 +250,7 @@ final class LinkController {
 		}
 	}
 
-	/** Only with -Dmcskylines.debugCommands=true and only in the dev world; runs as the server console, result logged. */
+	/** Only with -Dmcskylines.debugCommands=true and only in the city world; runs as the server console, result logged. */
 	private static void runDebugCommand(Minecraft mc, String command) {
 		IntegratedServer server = mc.getSingleplayerServer();
 		if (!DEBUG_COMMANDS || server == null || !DevWorld.isOurs(server)) {
@@ -254,7 +265,7 @@ final class LinkController {
 		});
 	}
 
-	/** A city just became open in CS1 (and the host speaks app minor 1+): open the dev world now so ENTER_PLAYER_MODE only teleports. */
+	/** A city just became open in CS1 (and the host speaks app minor 1+): open the city world now so ENTER_PLAYER_MODE only teleports. */
 	static boolean shouldOpenWorld(HostStatus previous, HostStatus next, int appMinor) {
 		return appMinor >= 1 && next.has(HostStatus.IN_CITY) && (previous == null || !previous.has(HostStatus.IN_CITY));
 	}
@@ -269,10 +280,10 @@ final class LinkController {
 			"Last disconnect: " + lastDisconnect);
 	}
 
-	private static GuestStatus currentStatus(Minecraft mc) {
+	private GuestStatus currentStatus(Minecraft mc) {
 		boolean inWorld = mc.level != null;
 		int flags = (inWorld ? GuestStatus.IN_WORLD : 0) | (mc.gui.screen() != null ? GuestStatus.SCREEN_OPEN : 0);
-		return new GuestStatus(flags, inWorld ? worldName(mc) : "", GuestStatus.NO_SAVE);
+		return new GuestStatus(flags, inWorld ? worldName(mc) : "", city.pairedSaveId());
 	}
 
 	private static String worldName(Minecraft mc) {
