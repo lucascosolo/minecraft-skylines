@@ -330,8 +330,10 @@ namespace Skylines.Host.Rendering
             _starMat = ColoredMaterial(colored, 1001, UnityEngine.Rendering.BlendMode.SrcAlpha, UnityEngine.Rendering.BlendMode.One);
             // CS1's build leaves Unity's particle shaders out (owner's run 2026-10-06: Shader.Find returned null), so fall
             // back to the shader CS1's own UI atlas draws with: textured, alpha-blended, tinted by vertex colour and _Color.
-            _sunMat = ParticleMaterial("Particles/Additive", 1002) ?? UiMaterial(1002);
-            _moonMat = ParticleMaterial("Particles/Additive", 1003) ?? UiMaterial(1003);
+            // Minecraft adds the sun and moon onto the sky; alpha blending looked pale and flat (owner's screenshot,
+            // 2026-10-06), so prefer any additive shader CS1 has loaded (its light and flare effects use some).
+            _sunMat = ParticleMaterial("Particles/Additive", 1002) ?? LoadedAdditiveMaterial(1002) ?? UiMaterial(1002);
+            _moonMat = ParticleMaterial("Particles/Additive", 1003) ?? LoadedAdditiveMaterial(1003) ?? UiMaterial(1003);
             _cloudMat = ParticleMaterial("Particles/Alpha Blended", 1004) ?? UiMaterial(1004);
             BuildDome();
             BuildStars();
@@ -357,6 +359,39 @@ namespace Skylines.Host.Rendering
             m.SetInt("_ZTest", (int)UnityEngine.Rendering.CompareFunction.LessEqual);
             return m;
         }
+
+        // The first loaded shader whose name says additive (Shader.Find only finds shaders included by name in the build),
+        // logged with the other candidates once.
+        private Material LoadedAdditiveMaterial(int queue)
+        {
+            Shader pick = null;
+            try
+            {
+                var names = new System.Text.StringBuilder();
+                foreach (Shader sh in Resources.FindObjectsOfTypeAll<Shader>())
+                {
+                    if (sh == null || sh.name.IndexOf("Additive", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    if (names.Length > 0) names.Append(", ");
+                    names.Append(sh.name);
+                    if (pick == null && sh.isSupported) pick = sh;
+                }
+                if (!_loggedAdditive)
+                {
+                    _loggedAdditive = true;
+                    _log.Info("sky: loaded additive shaders: " + (names.Length > 0 ? names.ToString() : "none") + (pick != null ? "; using '" + pick.name + "'" : ""));
+                }
+            }
+            catch (Exception e)
+            {
+                _log.Warn("sky: shader search failed: " + e.GetType().Name);
+            }
+            if (pick == null) return null;
+            var m = new Material(pick) { hideFlags = HideFlags.HideAndDontSave, renderQueue = queue };
+            m.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+            return m;
+        }
+
+        private bool _loggedAdditive;
 
         private Material UiMaterial(int queue)
         {
