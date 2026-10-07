@@ -6,12 +6,17 @@ import com.mojang.blaze3d.vertex.QuadInstance;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.mcskylines.bridge.BridgeGuest;
 import dev.mcskylines.bridge.FrameCodec;
+import dev.mcskylines.collision.CollisionStore;
+import dev.mcskylines.collision.SkyTri;
 import dev.mcskylines.protocol.AppProtocol;
 import dev.mcskylines.protocol.BlockAtlas;
 import dev.mcskylines.protocol.SectionMesh;
 import dev.mcskylines.protocol.SectionsClear;
+import dev.mcskylines.shadow.ShadowColumn;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -218,6 +223,7 @@ public final class SectionExporter {
 								continue;
 							}
 							mesh.faceMask = faces;
+							mesh.clipAt(origin);
 						}
 						FluidState fluid = state.getFluidState();
 						if (!shadow && !fluid.isEmpty()) {
@@ -228,6 +234,7 @@ public final class SectionExporter {
 							blockRenderer.tesselateBlock(mesh, x, y, z, level, pos.immutable(), state, model, state.getSeed(pos));
 						}
 						mesh.faceMask = -1;
+						mesh.clipAt(null);
 					}
 				}
 			}
@@ -287,12 +294,46 @@ public final class SectionExporter {
 			out.reset();
 			fqCount = 0;
 			faceMask = -1;
+			clipOrigin = null;
+		}
+
+		/** Section origin while a shadow cell's faces are meshed: side faces are clipped at CS1's ground; null otherwise. */
+		private BlockPos clipOrigin;
+		private final float[] cx = new float[4], cy = new float[4], cz = new float[4], cu = new float[4], cv = new float[4], cs = new float[4];
+		private final List<SkyTri> near = new ArrayList<>();
+
+		void clipAt(BlockPos origin) {
+			clipOrigin = origin;
+		}
+
+		/** CS1's terrain surface (the original ground over dug columns too) at a world x, z; NaN where none is streamed. */
+		private float terrainAt(double wx, double wz) {
+			near.clear();
+			CollisionStore.INSTANCE.trianglesNear(wx - 0.01, -1e9, wz - 0.01, wx + 0.01, 1e9, wz + 0.01, near);
+			CollisionStore.INSTANCE.surfaceNear(wx - 0.01, -1e9, wz - 0.01, wx + 0.01, 1e9, wz + 0.01, near);
+			return (float) ShadowColumn.sample(near, wx, wz).terrain();
 		}
 
 		@Override
 		public void put(float x, float y, float z, BakedQuad quad, QuadInstance instance) {
 			if (faceMask != -1 && (faceMask & 1 << quad.direction().ordinal()) == 0) {
 				return;
+			}
+			boolean clip = clipOrigin != null && quad.direction().getAxis() != Direction.Axis.Y;
+			if (clip) {
+				for (int k = 0; k < 4; k++) {
+					var p = quad.position(k);
+					long uv = quad.packedUV(k);
+					cx[k] = p.x() + x;
+					cy[k] = p.y() + y;
+					cz[k] = p.z() + z;
+					cu[k] = UVPair.unpackU(uv);
+					cv[k] = UVPair.unpackV(uv);
+					cs[k] = terrainAt(clipOrigin.getX() + cx[k], clipOrigin.getZ() + cz[k]) - clipOrigin.getY();
+				}
+				if (!FaceClip.clipTop(cx, cy, cz, cu, cv, cs)) {
+					return;
+				}
 			}
 			TextureAtlasSprite sprite = quad.materialInfo().sprite();
 			if (!sprite.atlasLocation().equals(TextureAtlas.LOCATION_BLOCKS)) {
@@ -303,10 +344,14 @@ public final class SectionExporter {
 			float shade = cardinal.byFace(override != null ? override : quad.direction());
 			int flags = flags(quad.materialInfo().layer());
 			for (int k : QUAD) {
+				int color = MeshVertices.unshade(instance.getColor(k), shade), light = instance.getLightCoordsWithEmission(k, emission);
+				if (clip) {
+					out.put(cx[k], cy[k], cz[k], cu[k], cv[k], color, light, flags);
+					continue;
+				}
 				var p = quad.position(k);
 				long uv = quad.packedUV(k);
-				out.put(p.x() + x, p.y() + y, p.z() + z, UVPair.unpackU(uv), UVPair.unpackV(uv),
-					MeshVertices.unshade(instance.getColor(k), shade), instance.getLightCoordsWithEmission(k, emission), flags);
+				out.put(p.x() + x, p.y() + y, p.z() + z, UVPair.unpackU(uv), UVPair.unpackV(uv), color, light, flags);
 			}
 		}
 
