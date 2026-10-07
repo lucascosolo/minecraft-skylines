@@ -17,7 +17,8 @@ namespace MinecraftSkylines.Mod.Terrain
     /// remainder of each clipped cell and the skirts between the terrain surface and the block grid are drawn here; the
     /// cavity's walls, floors and ceilings are the guest's shadow blocks facing dug cells (SECTION_MESH). Collision
     /// regions get the same cut (<see cref="AddCollision"/>). Heights are never changed, so CS1's water never floods a pit.
-    /// Main thread only.
+    /// A column whose shadow grass plant was broken (<see cref="DugGround.IsBare"/>) is clipped the same way and its 1 m
+    /// square drawn with CS1's ruined-ground texture instead of grass; its collision is unchanged. Main thread only.
     /// </summary>
     internal sealed class DigLink : IDisposable
     {
@@ -25,6 +26,7 @@ namespace MinecraftSkylines.Mod.Terrain
         private const float TerrainStep = 2f; // CollisionStreamer's terrain triangulation
         private const int MaxMeshVertices = 60000;
         private const double RebuildIntervalS = 0.25;
+        private const string CaveAir = "minecraft:cave_air";
 
         /// <summary>The instance LinkService created; null while the mod is off.</summary>
         public static DigLink Current;
@@ -37,11 +39,12 @@ namespace MinecraftSkylines.Mod.Terrain
         private readonly ConvexCut _cut = new ConvexCut();
         private readonly TriangleBuffer _tmp = new TriangleBuffer();
         private readonly List<Mesh> _meshes = new List<Mesh>();
-        private Material _material;
+        private readonly List<Mesh> _bareMeshes = new List<Mesh>();
+        private Material _material, _bareMaterial;
         private bool _materialTried;
         private bool _renderDirty;
         private float _lastRebuild = -1000f;
-        private int _clipped;
+        private int _clipped, _bare;
 
         public DigLink(HostLog log)
         {
@@ -54,15 +57,15 @@ namespace MinecraftSkylines.Mod.Terrain
         public void Reload(List<VoxelEdit> edits)
         {
             _ground.Clear();
-            foreach (VoxelEdit e in edits) _ground.Set(e.Pos.X, e.Pos.Y, e.Pos.Z, true);
+            foreach (VoxelEdit e in edits) _ground.Set(e.Pos.X, e.Pos.Y, e.Pos.Z, true, e.State == CaveAir);
             _renderDirty = true;
             _log.Info("dig: " + edits.Count + " edits loaded, " + _ground.DugCount + " dug cells");
         }
 
-        /// <summary>One edit changed (the guest's BLOCK_EDITS).</summary>
-        public void OnEdit(int x, int y, int z, bool edited)
+        /// <summary>One edit changed (the guest's BLOCK_EDITS; <see cref="VoxelEditSet.Air"/> removes it).</summary>
+        public void OnEdit(int x, int y, int z, string state)
         {
-            _ground.Set(x, y, z, edited);
+            _ground.Set(x, y, z, state != VoxelEditSet.Air, state == CaveAir);
             for (int dx = -1; dx <= 1; dx += 2)
                 for (int dz = -1; dz <= 1; dz += 2)
                     _dirtyRegions.Add(Skylines.Core.Streaming.RegionGrid.Key((x + dx) >> 4, (z + dz) >> 4));
@@ -89,9 +92,10 @@ namespace MinecraftSkylines.Mod.Terrain
         /// <summary>Per frame after the camera moved: draws the patches while a city is loaded.</summary>
         public void LateUpdate(bool inCity)
         {
-            if (!inCity || _meshes.Count == 0 || Material == null) return;
+            if (!inCity || _meshes.Count + _bareMeshes.Count == 0 || Material == null) return;
             int layer = LayerMask.NameToLayer("Props");
             foreach (Mesh m in _meshes) Graphics.DrawMesh(m, Matrix4x4.identity, _material, layer >= 0 ? layer : 10);
+            foreach (Mesh m in _bareMeshes) Graphics.DrawMesh(m, Matrix4x4.identity, _bareMaterial, layer >= 0 ? layer : 10);
         }
 
         /// <summary>The city unloads: forget everything; the game rebuilds the surface on the next load (no recompute).</summary>
@@ -106,13 +110,14 @@ namespace MinecraftSkylines.Mod.Terrain
         public void Dispose()
         {
             Restore(true);
+            if (_bareMaterial != null && _bareMaterial != _material) UnityEngine.Object.Destroy(_bareMaterial);
             if (_material != null) UnityEngine.Object.Destroy(_material);
-            _material = null;
+            _material = _bareMaterial = null;
         }
 
         public string OverlayText()
         {
-            return "Dig: " + _ground.DugCount + " dug cells, " + _clipped + " clipped 4 m cells, " + _meshes.Count + " patch meshes";
+            return "Dig: " + _ground.DugCount + " dug cells, " + _bare + " bare squares, " + _clipped + " clipped 4 m cells, " + _meshes.Count + " patch meshes";
         }
 
         private void Restore(bool recompute)
@@ -127,7 +132,9 @@ namespace MinecraftSkylines.Mod.Terrain
         private void DestroyMeshes()
         {
             foreach (Mesh m in _meshes) UnityEngine.Object.Destroy(m);
+            foreach (Mesh m in _bareMeshes) UnityEngine.Object.Destroy(m);
             _meshes.Clear();
+            _bareMeshes.Clear();
         }
 
         private static long CellKey(int i, int j) { return ((long)i << 32) | (uint)j; }
@@ -140,12 +147,18 @@ namespace MinecraftSkylines.Mod.Terrain
         private void Rebuild()
         {
             List<KeyValuePair<int, int>> open = _ground.OpenColumns(int.MinValue, int.MinValue, int.MaxValue, int.MaxValue);
+            List<KeyValuePair<int, int>> bare = _ground.BareColumns(int.MinValue, int.MinValue, int.MaxValue, int.MaxValue);
             var openSet = new HashSet<long>();
+            var bareSet = new HashSet<long>();
             var cells = new HashSet<long>();
             var rects = new List<Rect>();
-            foreach (KeyValuePair<int, int> c in open)
+            foreach (KeyValuePair<int, int> c in open) openSet.Add(CellKey(c.Key, c.Value));
+            foreach (KeyValuePair<int, int> c in bare) bareSet.Add(CellKey(c.Key, c.Value));
+            _bare = bare.Count;
+            var clippedColumns = new List<KeyValuePair<int, int>>(open);
+            clippedColumns.AddRange(bare);
+            foreach (KeyValuePair<int, int> c in clippedColumns)
             {
-                openSet.Add(CellKey(c.Key, c.Value));
                 int i = TerrainClipMask.CellIndex(c.Key + 0.5f), j = TerrainClipMask.CellIndex(-(c.Value + 0.5f));
                 if (cells.Add(CellKey(i, j)))
                     rects.Add(Rect.MinMaxRect(CellMin(i), CellMin(j), CellMin(i) + TerrainClipMask.CellSize, CellMin(j) + TerrainClipMask.CellSize));
@@ -157,7 +170,8 @@ namespace MinecraftSkylines.Mod.Terrain
 
             DestroyMeshes();
             var mb = new MeshParts();
-            float tiling = GrassTiling();
+            var bareMb = new MeshParts();
+            float tiling = GrassTiling(), bareTiling = RuinedTiling();
             foreach (Rect r in rects)
             {
                 for (int a = 0; a < 4; a++)
@@ -166,11 +180,14 @@ namespace MinecraftSkylines.Mod.Terrain
                     {
                         float x0 = r.xMin + a, z0 = r.yMin + b;
                         // CS1 z in [z0, z0 + 1] is Minecraft column z = -z0 - 1.
-                        if (openSet.Contains(CellKey((int)x0, -(int)z0 - 1))) continue;
+                        long column = CellKey((int)x0, -(int)z0 - 1);
+                        if (openSet.Contains(column)) continue;
                         Vector3 p00 = Ground(x0, z0), p01 = Ground(x0, z0 + 1), p11 = Ground(x0 + 1, z0 + 1), p10 = Ground(x0 + 1, z0);
+                        bool isBare = bareSet.Contains(column);
+                        MeshParts into = isBare ? bareMb : mb;
                         // Clockwise seen from above (Unity's front face).
-                        Flush(mb, 4);
-                        mb.Quad(p00, p01, p11, p10, tiling, true);
+                        Flush(into, 4, isBare ? _bareMeshes : _meshes);
+                        into.Quad(p00, p01, p11, p10, isBare ? bareTiling : tiling, true);
                     }
                 }
             }
@@ -178,13 +195,14 @@ namespace MinecraftSkylines.Mod.Terrain
             _ground.Skirts(int.MinValue, int.MinValue, int.MaxValue, int.MaxValue, (x, z) => _terrain.Height(x, -z), _quads);
             foreach (DugQuad q in _quads)
             {
-                Flush(mb, 4);
+                Flush(mb, 4, _meshes);
                 // Minecraft A, B, C, D counter-clockwise from the open side; mirrored z makes it A, D, C, B in Unity.
                 mb.Quad(new Vector3(q.Ax, q.Ay, -q.Az), new Vector3(q.Dx, q.Dy, -q.Dz), new Vector3(q.Cx, q.Cy, -q.Cz),
                     new Vector3(q.Bx, q.By, -q.Bz), tiling, false);
             }
-            Flush(mb, MaxMeshVertices);
-            _log.Info("dig: " + open.Count + " open columns, " + rects.Count + " clipped cells, " + _quads.Count + " skirts, "
+            Flush(mb, MaxMeshVertices, _meshes);
+            Flush(bareMb, MaxMeshVertices, _bareMeshes);
+            _log.Info("dig: " + open.Count + " open columns, " + bare.Count + " bare, " + rects.Count + " clipped cells, " + _quads.Count + " skirts, "
                 + _meshes.Count + " meshes");
         }
 
@@ -194,7 +212,7 @@ namespace MinecraftSkylines.Mod.Terrain
         }
 
         // Starts a new mesh when adding n more vertices would pass the limit (n = the limit flushes what is left).
-        private void Flush(MeshParts mb, int n)
+        private static void Flush(MeshParts mb, int n, List<Mesh> meshes)
         {
             if (mb.Vertices.Count == 0 || mb.Vertices.Count + n <= MaxMeshVertices && n != MaxMeshVertices) return;
             var m = new Mesh { name = "MinecraftSkylines.DigPatches" };
@@ -203,7 +221,7 @@ namespace MinecraftSkylines.Mod.Terrain
             m.triangles = mb.Triangles.ToArray();
             m.RecalculateNormals();
             m.RecalculateBounds();
-            _meshes.Add(m);
+            meshes.Add(m);
             mb.Clear();
         }
 
@@ -211,6 +229,12 @@ namespace MinecraftSkylines.Mod.Terrain
         {
             TerrainProperties p = TerrainManager.exists ? TerrainManager.instance.m_properties : null;
             return p != null ? p.m_grassTiling : 0.029f;
+        }
+
+        private static float RuinedTiling()
+        {
+            TerrainProperties p = TerrainManager.exists ? TerrainManager.instance.m_properties : null;
+            return p != null ? p.m_ruinedTiling : 0.033f;
         }
 
         private Material Material
@@ -231,6 +255,17 @@ namespace MinecraftSkylines.Mod.Terrain
                 _material.SetColor("_Color", Color.white);
                 _material.SetTexture("_XYSMap", Skylines.Host.Rendering.TextureUtil.Solid(new Color32(128, 128, 255, 255), true, "MinecraftSkylines.DigXYS"));
                 _material.SetTexture("_ACIMap", Skylines.Host.Rendering.TextureUtil.Solid(new Color32(0, 0, 0, 255), true, "MinecraftSkylines.DigACI"));
+                // Broken grass: CS1's own ruined-ground texture (the dirt under bulldozed and abandoned lots).
+                _bareMaterial = _material;
+                if (p.m_ruinedDiffuse != null)
+                {
+                    _bareMaterial = new Material(_material) { name = "MinecraftSkylines.BareGround" };
+                    _bareMaterial.SetTexture("_MainTex", p.m_ruinedDiffuse);
+                }
+                else
+                {
+                    _log.Warn("dig: terrain ruined texture unavailable; broken grass keeps the grass look");
+                }
                 return _material;
             }
         }

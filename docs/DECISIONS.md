@@ -236,3 +236,17 @@ spawned by the mod look like vanilla CS1 trees but behave like Minecraft trees".
   oak, cherry → 0 oak; spruce → 1; birch, poplar → 2; jungle, mangrove → 3; acacia → 4; dark oak, pale oak → 5. Room
   sizes (height/radius m): 10/4, 14/3, 12/3, 12/4, 9/5, 10/5. Rejected: hard-coded CS1 prefab names (asset packs and
   DLC vary; the kind rule already classifies whatever is loaded).
+
+## 2026-10-06: broken grass leaves bare ground in CS1
+
+Owner: "I punched at the ground and got some seeds but the CS1 grass didn't physically go away." Every grass-topped
+shadow column carries an invisible plant at solid top + 1; breaking it records `minecraft:cave_air` there. The host's
+`DugGround` now remembers which edits empty their cell, and a column whose plant cell is emptied (and which is not open)
+is **bare**: `DigLink` clips its 4 m surface cell exactly like a dug column and redraws the cell's undug 1 m squares,
+grass for the others and CS1's own `TerrainProperties.m_ruinedDiffuse` (tiling `m_ruinedTiling`) for the bare one, on
+the same prop-shader patch mesh, so the square follows the ground with no z-fighting and no seam beyond the existing
+dig patches. A plant placed back there (bone meal) is an edit with a non-air state and restores the grass look.
+Collision is unchanged. Rejected: a decal or quad lifted above unclipped terrain (z-fights or floats at distance);
+reading the plant rule (`ShadowMaterials.plant`) on the host (it is the guest's world generation; the emptied edit is
+the fact the host already receives). Risk: the host's solid top is computed from its own heightfield in float; where
+CS1's surface sits within float error of a cell's half-height, host and guest can disagree by one cell.
