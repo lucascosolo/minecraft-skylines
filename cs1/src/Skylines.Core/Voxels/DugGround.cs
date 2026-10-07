@@ -32,14 +32,16 @@ namespace Skylines.Core.Voxels
     /// The ground the player dug, in Minecraft coordinates (cell (x, y, z) spans [x, x+1] x [y, y+1] x [z, z+1]).
     /// A column's solid top is the highest cell whose centre lies below the terrain surface at the column centre
     /// (the shadow world's rule). A cell is dug when it has an edit (any state) and lies at or below its column's
-    /// solid top; a column is open when its solid top cell is dug, so the terrain surface over it is removed.
-    /// Not thread-safe.
+    /// solid top; a column is open when its solid top cell is dug, so the terrain surface over it is removed. A column is
+    /// bare when the cell just above its solid top (where the shadow world grows grass) holds an emptying edit and the
+    /// column is not open: its plant was broken, so CS1 shows bare ground there. Not thread-safe.
     /// </summary>
     public sealed class DugGround
     {
         private readonly Func<int, int, float> _surface;
         private readonly Dictionary<long, HashSet<int>> _edits = new Dictionary<long, HashSet<int>>();
         private readonly Dictionary<long, int> _tops = new Dictionary<long, int>();
+        private readonly Dictionary<long, HashSet<int>> _emptied = new Dictionary<long, HashSet<int>>();
 
         /// <summary><paramref name="surfaceAtColumnCentre"/>(x, z): terrain surface height at (x + 0.5, z + 0.5).</summary>
         public DugGround(Func<int, int, float> surfaceAtColumnCentre)
@@ -71,19 +73,31 @@ namespace Skylines.Core.Voxels
             }
         }
 
-        /// <summary>Records whether the position has an edit.</summary>
+        /// <summary>Records whether the position has an edit (one that does not leave the cell empty).</summary>
         public void Set(int x, int y, int z, bool edited)
         {
+            Set(x, y, z, edited, false);
+        }
+
+        /// <summary>Records whether the position has an edit and whether that edit leaves the cell empty.</summary>
+        public void Set(int x, int y, int z, bool edited, bool emptied)
+        {
             long k = Key(x, z);
+            Mark(_edits, k, y, edited);
+            Mark(_emptied, k, y, edited && emptied);
+        }
+
+        private static void Mark(Dictionary<long, HashSet<int>> map, long k, int y, bool on)
+        {
             HashSet<int> ys;
-            if (edited)
+            if (on)
             {
-                if (!_edits.TryGetValue(k, out ys)) _edits[k] = ys = new HashSet<int>();
+                if (!map.TryGetValue(k, out ys)) map[k] = ys = new HashSet<int>();
                 ys.Add(y);
             }
-            else if (_edits.TryGetValue(k, out ys) && ys.Remove(y) && ys.Count == 0)
+            else if (map.TryGetValue(k, out ys) && ys.Remove(y) && ys.Count == 0)
             {
-                _edits.Remove(k);
+                map.Remove(k);
             }
         }
 
@@ -91,6 +105,7 @@ namespace Skylines.Core.Voxels
         public void Clear()
         {
             _edits.Clear();
+            _emptied.Clear();
             _tops.Clear();
         }
 
@@ -126,6 +141,26 @@ namespace Skylines.Core.Voxels
         public bool IsOpen(int x, int z)
         {
             return _edits.ContainsKey(Key(x, z)) && IsDug(x, TopOf(x, z), z);
+        }
+
+        /// <summary>The cell just above the column's solid top was emptied and the column is not open.</summary>
+        public bool IsBare(int x, int z)
+        {
+            HashSet<int> ys;
+            return _emptied.TryGetValue(Key(x, z), out ys) && ys.Contains(TopOf(x, z) + 1) && !IsOpen(x, z);
+        }
+
+        /// <summary>Every bare column with minX &lt;= x &lt; maxX and minZ &lt;= z &lt; maxZ, as (x, z) pairs sorted by x then z.</summary>
+        public List<KeyValuePair<int, int>> BareColumns(int minX, int minZ, int maxX, int maxZ)
+        {
+            var list = new List<KeyValuePair<int, int>>();
+            foreach (long k in _emptied.Keys)
+            {
+                int x = (int)(k >> 32), z = (int)k;
+                if (x >= minX && x < maxX && z >= minZ && z < maxZ && IsBare(x, z)) list.Add(new KeyValuePair<int, int>(x, z));
+            }
+            list.Sort((a, b) => a.Key != b.Key ? a.Key.CompareTo(b.Key) : a.Value.CompareTo(b.Value));
+            return list;
         }
 
         /// <summary>Every open column with minX &lt;= x &lt; maxX and minZ &lt;= z &lt; maxZ, as (x, z) pairs sorted by x then z.</summary>
