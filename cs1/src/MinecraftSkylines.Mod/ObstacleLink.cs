@@ -22,6 +22,7 @@ namespace MinecraftSkylines.Mod
         private readonly HostLog _log;
         private readonly List<MovingObject> _found = new List<MovingObject>();
         private readonly VelocityTracker _velocity = new VelocityTracker();
+        private readonly YawRateTracker _yawRate = new YawRateTracker();
         private double _lastSeconds = double.NegativeInfinity;
         private bool _logged;
         private double _lastCountSeconds = double.NegativeInfinity;
@@ -48,24 +49,31 @@ namespace MinecraftSkylines.Mod
             _found.Clear();
             MovingObjects.Collect(feet, Radius, _found);
             _velocity.Begin(nowSeconds);
+            _yawRate.Begin(nowSeconds);
+            bool shaped = host.NegotiatedAppMinor >= 17;
             var msg = new DynamicObstacles { Obstacles = new MovingObstacle[System.Math.Min(_found.Count, ushort.MaxValue)] };
             for (int i = 0; i < msg.Obstacles.Length; i++)
             {
                 MovingObject o = _found[i];
                 Vec3d mc = MinecraftFrame.CsToMc(new Vec3d { X = o.Center.x, Y = o.Center.y, Z = o.Center.z });
-                CoreVec v = _velocity.Sample(((long)o.Kind << 32) | o.Id, new CoreVec { X = mc.X, Y = mc.Y, Z = mc.Z });
+                long key = ((long)o.Kind << 32) | o.Id;
+                CoreVec v = _velocity.Sample(key, new CoreVec { X = mc.X, Y = mc.Y, Z = mc.Z });
+                double yaw = MinecraftFrame.UnityEulerToMc(0, o.HeadingDeg).Yaw;
                 msg.Obstacles[i] = new MovingObstacle
                 {
                     Kind = o.Kind == MovingObject.Vehicle ? DynamicObstacles.Vehicle
                         : o.Kind == MovingObject.ParkedVehicle ? DynamicObstacles.ParkedVehicle : DynamicObstacles.Citizen,
                     Id = o.Id,
                     X = (float)mc.X, Y = (float)mc.Y, Z = (float)mc.Z,
-                    Yaw = (float)MinecraftFrame.UnityEulerToMc(0, o.HeadingDeg).Yaw,
+                    Yaw = (float)yaw,
                     HalfWidth = o.HalfExtents.x, HalfHeight = o.HalfExtents.y, HalfLength = o.HalfExtents.z,
                     VX = (float)v.X, VY = (float)v.Y, VZ = (float)v.Z,
+                    YawRate = (float)_yawRate.Sample(key, yaw),
+                    Profile = o.Profile,
                 };
             }
             _velocity.End();
+            _yawRate.End();
             LastSent.Clear();
             LastSent.AddRange(_found);
             if (nowSeconds - _lastCountSeconds >= 10)
@@ -81,10 +89,12 @@ namespace MinecraftSkylines.Mod
                 _log.Info("obstacles: within " + Radius + " m of (" + feet.x.ToString("0") + ", " + feet.y.ToString("0") + ", " + feet.z.ToString("0")
                     + "): " + cars + " moving vehicles, " + parked + " parked, " + people + " citizens");
             }
-            if (host.Send(AppProtocol.DynamicObstaclesType, msg.Encode()) && !_logged)
+            bool sent = shaped ? host.Send(AppProtocol.ShapedObstaclesType, msg.EncodeShaped())
+                : host.Send(AppProtocol.DynamicObstaclesType, msg.Encode());
+            if (sent && !_logged)
             {
                 _logged = true;
-                _log.Info("obstacles: first DYNAMIC_OBSTACLES sent, " + msg.Obstacles.Length + " within " + Radius + " m");
+                _log.Info("obstacles: first " + (shaped ? "SHAPED_OBSTACLES" : "DYNAMIC_OBSTACLES") + " sent, " + msg.Obstacles.Length + " within " + Radius + " m");
             }
         }
     }

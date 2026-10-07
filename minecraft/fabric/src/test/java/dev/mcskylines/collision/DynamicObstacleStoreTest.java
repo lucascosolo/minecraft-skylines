@@ -62,6 +62,18 @@ class DynamicObstacleStoreTest {
 	}
 
 	@Test
+	void currentTurnsByYawRateAndKeepsTheProfile() {
+		DynamicObstacleStore s = new DynamicObstacleStore();
+		DynamicObstacles.Obstacle o = new DynamicObstacles.Obstacle(2, 1, 0f, 1f, 0f, 10f, 1f, 1f, 2f, 0f, 0f, 0f, 30f,
+				new byte[] {(byte) 255, 0, (byte) 255});
+		s.accept(msg(o), 1000 * MS);
+		ObstacleBox b = s.current(1100 * MS).get(0);
+		assertEquals(13.0, b.yaw, 1e-6);
+		assertEquals(30.0, b.yawRate, 0.0);
+		assertEquals(3, b.sliceTops().length);
+	}
+
+	@Test
 	void negativeAgeIsTreatedAsZero() {
 		DynamicObstacleStore s = new DynamicObstacleStore();
 		s.accept(msg(ob(1, 3f, 4f, 0f)), 1000 * MS);

@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.16
+# `minecraft-skylines` application protocol, version 1.17
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 16`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 17`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -736,3 +736,25 @@ it, so the guest's shadow world builds the tree. A failure such as the tree limi
 Prefab choice: the candidates are the `TreeInfo`s whose kind (derived as for `TREES`, from name and height) equals
 `kind`, ordered by ordinal comparison of their names (ties by load index). With no candidate and `kind` not 0, the
 candidates are those of kind 0; with none still, nothing is created. Otherwise the pick is `candidates[seed mod count]`.
+
+
+## Minor 17: obstacles with turn rate and height profile
+
+### `0x0171 SHAPED_OBSTACLES` (host → guest)
+
+Replaces `DYNAMIC_OBSTACLES` when the negotiated minor is 17 or more (the host then sends only this one): same rate,
+same complete-set semantics and the same guest handling, plus what a guest needs to let the player walk over and ride
+a vehicle.
+
+| Type | Field | Notes |
+|---|---|---|
+| u16 | `count` | |
+| per obstacle: the 0x0170 fields | `kind` … `vz` | exactly as in `DYNAMIC_OBSTACLES` |
+| f32 | `yawRate` | change of `yaw`, degrees per second, as observed on the host's clock (zero while the city is paused) |
+| u8 | `steps` | number of profile slices; 0 = no profile |
+| u8 × `steps` | `profile` | slice `i` covers the `i`-th of `steps` equal parts of the length axis, counted from the `-halfLength` end; its value `h` puts the top of the solid in that slice `h / 255 × 2·halfHeight` above the box bottom (0 = nothing there) |
+
+The guest extrapolates `yaw` by `yawRate × age` as it does the centre by the velocity. A profile is the model's real
+height along its length (CS1: the highest point of the vehicle mesh in each 0.25 m slice, see `docs/CS1-API-NOTES.md`);
+a single slice of 255 is a plain box (CS1: a tractor or trailer whose mesh geometry is unavailable). Without a profile
+the guest may shape a car-sized vehicle by its own rule. Every byte value is valid.

@@ -174,14 +174,16 @@ class ObstacleBoxTest {
 		ObstacleBox car = new ObstacleBox(1, 3, 0, 0.75, 0, 0, 0.9, 0.75, 2.25, 0, 0, 0);
 		List<SkyTri> tris = new ArrayList<>();
 		car.triangles(tris);
-		assertEquals(36, tris.size());
-		double hood = ObstacleBox.CAR_END_HEIGHT * 1.5; // top of hood and boot above the ground
-		double cabinStart = 2.25 - 2 * ObstacleBox.CAR_END_SHARE * 2.25;
+		assertTrue(tris.size() > 12, "a car is more than one box");
 		for (SkyTri t : tris) {
 			double[][] vs = {{t.ax, t.ay, t.az}, {t.bx, t.by, t.bz}, {t.cx, t.cy, t.cz}};
 			for (double[] v : vs) {
-				if (Math.abs(v[2]) > cabinStart + 1e-4) {
-					assertTrue(v[1] <= hood + 1e-4, "hood and boot stay low: y " + v[1] + " at z " + v[2]);
+				// Stair slices: outer three (0.5, 0.825, 0.825) then 1.325 and the full cabin.
+				if (Math.abs(v[2]) > 1.5 + 1e-4) {
+					assertTrue(v[1] <= 0.825 + 1e-4, "outer three slices stay low: y " + v[1] + " at z " + v[2]);
+				}
+				if (Math.abs(v[2]) > 2.0 + 1e-4) {
+					assertTrue(v[1] <= 0.5 + 1e-4, "outermost slice is the first stair: y " + v[1] + " at z " + v[2]);
 				}
 				assertTrue(v[1] >= -1e-4 && v[1] <= 1.5 + 1e-4, "within the car's height");
 				assertTrue(Math.abs(v[2]) <= 2.25 + 1e-4, "within the car's length");
@@ -192,6 +194,37 @@ class ObstacleBoxTest {
 		assertEquals(12, bus.size(), "a bus (3.2 m tall) stays one box");
 		List<SkyTri> parked = new ArrayList<>();
 		new ObstacleBox(3, 5, 0, 0.75, 0, 0, 0.9, 0.75, 2.25, 0, 0, 0).triangles(parked);
-		assertEquals(36, parked.size(), "parked cars get the profile too");
+		assertTrue(parked.size() > 12, "parked cars get the profile too");
+	}
+
+	@Test
+	void fourteenArgumentConstructorAndTwelveArgumentDefaults() {
+		byte[] prof = {(byte) 255, 10};
+		ObstacleBox b = new ObstacleBox(1, 2, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 12.5, prof);
+		assertEquals(12.5, b.yawRate, 0.0);
+		assertEquals(0.0, car(0).yawRate, 0.0);
+	}
+
+	@Test
+	void ofCarriesYawRateAndProfile() {
+		byte[] prof = {1, 2, 3};
+		DynamicObstacles.Obstacle o = new DynamicObstacles.Obstacle(1, 5, 0f, 0f, 0f, 10f, 1f, 1f, 2f, 0f, 0f, 0f, 30f, prof);
+		ObstacleBox b = ObstacleBox.of(o);
+		assertEquals(30.0, b.yawRate, 0.0);
+		assertEquals(3, b.advanced(0).sliceTops().length); // raw profile slices (kind 1 tall box: stair rule keeps count)
+	}
+
+	@Test
+	void advancedAlsoTurnsByYawRateAndKeepsIt() {
+		ObstacleBox b = new ObstacleBox(2, 9, 1, 2, 3, 30, 1, 0.5, 2, 4, 1, -2, 20, new byte[] {(byte) 255, 0}).advanced(0.5);
+		assertEquals(40.0, b.yaw, EPS);
+		assertEquals(20.0, b.yawRate, 0.0);
+		assertEquals(3.0, b.x, EPS);
+		assertEquals(2, b.sliceTops().length);
+	}
+
+	@Test
+	void stepConstant() {
+		assertEquals(0.5, ObstacleBox.STEP, 0.0);
 	}
 }

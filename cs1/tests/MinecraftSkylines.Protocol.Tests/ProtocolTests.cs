@@ -297,6 +297,8 @@ namespace MinecraftSkylines.Protocol.Tests
                         }
                         return m.Encode();
                     }
+                case AppProtocol.ShapedObstaclesType: // fields checked in ShapedObstaclesTests
+                    return DynamicObstacles.DecodeShaped(frame.Payload).EncodeShaped();
                 case AppProtocol.LightSourcesType:
                     {
                         LightSources m = LightSources.Decode(frame.Payload);
@@ -829,7 +831,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(16, AppProtocol.Minor);
+            Assert.Equal(17, AppProtocol.Minor);
             Assert.Equal(0x01E0, AppProtocol.EntityModelType);
             Assert.Equal(0x01E1, AppProtocol.EntityTextureType);
             Assert.Equal(0x01E2, AppProtocol.EntityStatesType);

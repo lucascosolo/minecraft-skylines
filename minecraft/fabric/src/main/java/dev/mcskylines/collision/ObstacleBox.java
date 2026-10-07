@@ -15,10 +15,22 @@ public final class ObstacleBox {
 
 	public final int kind, id;
 	public final double x, y, z, yaw, halfWidth, halfHeight, halfLength, vx, vy, vz;
+	/** Turn rate, yaw degrees per second. */
+	public final double yawRate;
+	private final byte[] profile;
 	private final double wx, wz, lx, lz;
+	private double[] tops;
 
 	public ObstacleBox(int kind, int id, double x, double y, double z, double yaw, double halfWidth, double halfHeight,
 			double halfLength, double vx, double vy, double vz) {
+		this(kind, id, x, y, z, yaw, halfWidth, halfHeight, halfLength, vx, vy, vz, 0, new byte[0]);
+	}
+
+	/** {@code profile}: SHAPED_OBSTACLES slice tops in 1/255 of the height from the -length end; empty for none. */
+	public ObstacleBox(int kind, int id, double x, double y, double z, double yaw, double halfWidth, double halfHeight,
+			double halfLength, double vx, double vy, double vz, double yawRate, byte[] profile) {
+		this.yawRate = yawRate;
+		this.profile = profile == null ? new byte[0] : profile;
 		this.kind = kind;
 		this.id = id;
 		this.x = x;
@@ -40,13 +52,118 @@ public final class ObstacleBox {
 
 	public static ObstacleBox of(DynamicObstacles.Obstacle o) {
 		return new ObstacleBox(o.kind(), o.id(), o.x(), o.y(), o.z(), o.yaw(), o.halfWidth(), o.halfHeight(), o.halfLength(),
-				o.vx(), o.vy(), o.vz());
+				o.vx(), o.vy(), o.vz(), o.yawRate(), o.profile());
 	}
 
-	/** This box moved by its velocity for {@code seconds}. */
+	/** This box moved by its velocity and turned by its yaw rate for {@code seconds}. */
 	public ObstacleBox advanced(double seconds) {
-		return new ObstacleBox(kind, id, x + vx * seconds, y + vy * seconds, z + vz * seconds, yaw, halfWidth, halfHeight,
-				halfLength, vx, vy, vz);
+		return new ObstacleBox(kind, id, x + vx * seconds, y + vy * seconds, z + vz * seconds, yaw + yawRate * seconds,
+				halfWidth, halfHeight, halfLength, vx, vy, vz, yawRate, profile);
+	}
+
+	/** Largest rise (m) between neighbouring slices of a car, below Minecraft's 0.6 step height, so it can be walked over. */
+	public static final double STEP = 0.5;
+	private static final double SLICE = 0.25;
+
+	private boolean carSized() {
+		return (kind == 1 || kind == 3) && 2 * halfHeight <= CAR_MAX_HEIGHT;
+	}
+
+	/**
+	 * World-y top of each equal slice along the length axis, from the -halfLength end: the host's profile, else for a car
+	 * a low hood and boot either side of a full-height cabin (owner, 2026-10-06: "cars with low hoods that look like I ought
+	 * to be able to jump on them"), else one full slice. A car's tops are then lowered to stairs no higher than
+	 * {@link #STEP} from the ground and from each other (owner, same day: "make the cars have stairs where the windshield
+	 * and back windows would be ... so I can walk seamlessly up and over the tops").
+	 */
+	public double[] sliceTops() {
+		if (tops != null) {
+			return tops;
+		}
+		double full = 2 * halfHeight, bottom = y - halfHeight;
+		double[] h;
+		if (profile.length > 0) {
+			h = new double[profile.length];
+			for (int i = 0; i < h.length; i++) {
+				h[i] = (profile[i] & 0xFF) * full / 255.0;
+			}
+		} else if (carSized() && 2 * halfLength >= CAR_MIN_LENGTH) {
+			h = new double[Math.max(1, (int) Math.ceil(2 * halfLength / SLICE - 1e-4))];
+			double slice = 2 * halfLength / h.length, end = CAR_END_SHARE * halfLength;
+			for (int i = 0; i < h.length; i++) {
+				double c = (i + 0.5) * slice;
+				h[i] = c <= end || 2 * halfLength - c <= end ? CAR_END_HEIGHT * full : full;
+			}
+		} else {
+			h = new double[] {full};
+		}
+		if (carSized() && (profile.length > 0 || h.length > 1)) {
+			h = stairs(h);
+		}
+		for (int i = 0; i < h.length; i++) {
+			h[i] += bottom;
+		}
+		tops = h;
+		return h;
+	}
+
+	// The highest profile at or below h whose neighbours (and the ground beyond both ends) differ by at most STEP.
+	private static double[] stairs(double[] h) {
+		int n = h.length;
+		double[] s = new double[n];
+		for (int i = 0; i < n; i++) {
+			double v = Math.min(h[i], STEP * Math.min(i + 1, n - i));
+			for (int j = 0; j < n; j++) {
+				v = Math.min(v, h[j] + STEP * Math.abs(i - j));
+			}
+			s[i] = v;
+		}
+		return s;
+	}
+
+	/** Highest slice top under a body of horizontal half-size {@code radius} at feet (fx, fz); NaN when there is none. */
+	public double supportTop(double fx, double fz, double radius) {
+		double dx = fx - x, dz = fz - z, w = dx * wx + dz * wz, l = dx * lx + dz * lz;
+		if (Math.abs(w) >= halfWidth + radius) {
+			return Double.NaN;
+		}
+		double[] t = sliceTops();
+		double slice = 2 * halfLength / t.length, bottom = y - halfHeight, best = Double.NaN;
+		for (int i = 0; i < t.length; i++) {
+			double lo = -halfLength + i * slice;
+			if (l + radius > lo && l - radius < lo + slice && t[i] > bottom + 1e-6 && !(t[i] <= best)) {
+				best = t[i];
+			}
+		}
+		return best;
+	}
+
+	/** True when the body overlaps a slice whose top is more than {@code step} above its feet: a wall, not a stair. */
+	public boolean blocks(double fx, double fy, double fz, double radius, double height, double step) {
+		double dx = fx - x, dz = fz - z, w = dx * wx + dz * wz, l = dx * lx + dz * lz, bottom = y - halfHeight;
+		if (Math.abs(w) >= halfWidth + radius || fy + height <= bottom) {
+			return false;
+		}
+		double[] t = sliceTops();
+		double slice = 2 * halfLength / t.length;
+		for (int i = 0; i < t.length; i++) {
+			double lo = -halfLength + i * slice;
+			if (l + radius > lo && l - radius < lo + slice && fy < t[i] && t[i] > fy + step) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * How a body standing at feet (fx, fy, fz) on this obstacle moves with it in {@code seconds}: {dx, dy, dz, dyaw}. The
+	 * feet keep their place in the box's frame while the box moves by its velocity and turns about its centre.
+	 */
+	public double[] carry(double fx, double fy, double fz, double seconds) {
+		double dyaw = yawRate * seconds;
+		double dx = fx - x, dz = fz - z, a = dx * lx + dz * lz, b = dx * wx + dz * wz;
+		double r = Math.toRadians(yaw + dyaw), nwx = Math.cos(r), nwz = Math.sin(r), nlx = -Math.sin(r), nlz = Math.cos(r);
+		return new double[] {a * nlx + b * nwx - dx + vx * seconds, vy * seconds, a * nlz + b * nwz - dz + vz * seconds, dyaw};
 	}
 
 	/** Cars at most this tall (m) and at least this long get a car profile instead of one box. */
@@ -55,23 +172,23 @@ public final class ObstacleBox {
 	static final double CAR_END_SHARE = 0.3, CAR_END_HEIGHT = 0.55;
 
 	/**
-	 * Appends the obstacle's triangles, each wound so {@code (b-a)x(c-a)} points out of it: one box, or for a car (a
-	 * vehicle up to {@link #CAR_MAX_HEIGHT} tall and {@link #CAR_MIN_LENGTH} long) a low hood and boot either side of a
-	 * full-height cabin, so the hood can be jumped onto (owner, 2026-10-06: "cars with low hoods that look like I ought to
-	 * be able to jump on them just have a rectangular collision box"). The profile is symmetric, so it does not depend on
-	 * which end is the front.
+	 * Appends the obstacle's triangles, each wound so {@code (b-a)x(c-a)} points out of it: a full-width box from the
+	 * bottom to each run of equal {@link #sliceTops()}, nothing where a slice is empty.
 	 */
 	public void triangles(List<SkyTri> out) {
-		boolean car = (kind == 1 || kind == 3) && 2 * halfHeight <= CAR_MAX_HEIGHT && 2 * halfLength >= CAR_MIN_LENGTH;
-		if (!car) {
-			box(x, y, z, halfWidth, halfHeight, halfLength, out);
-			return;
+		double[] t = sliceTops();
+		double slice = 2 * halfLength / t.length, bottom = y - halfHeight;
+		for (int i = 0; i < t.length;) {
+			int j = i + 1;
+			while (j < t.length && Math.abs(t[j] - t[i]) < 1e-9) {
+				j++;
+			}
+			if (t[i] > bottom + 1e-6) {
+				double hh = (t[i] - bottom) * 0.5, mid = -halfLength + (i + j) * 0.5 * slice;
+				box(x + lx * mid, bottom + hh, z + lz * mid, halfWidth, hh, (j - i) * 0.5 * slice, out);
+			}
+			i = j;
 		}
-		double endHalf = CAR_END_SHARE * halfLength, endHeightHalf = CAR_END_HEIGHT * halfHeight;
-		double bottom = y - halfHeight, endY = bottom + endHeightHalf, offset = halfLength - endHalf;
-		box(x + lx * offset, endY, z + lz * offset, halfWidth, endHeightHalf, endHalf, out);
-		box(x - lx * offset, endY, z - lz * offset, halfWidth, endHeightHalf, endHalf, out);
-		box(x, y, z, halfWidth, halfHeight, halfLength - 2 * endHalf, out);
 	}
 
 	private void box(double cx, double cy, double cz, double hw, double hh, double hl, List<SkyTri> out) {

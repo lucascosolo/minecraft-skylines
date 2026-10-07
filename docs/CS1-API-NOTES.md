@@ -194,6 +194,19 @@ Assemblies: Cities: Skylines Steam build 22724702, native Linux, Unity 5.6.7f1
 - Position: effect at `Matrix4x4.SetTRS(position, Quaternion.AngleAxis(angle * 57.29578, Vector3.down), scale) * effect.m_position` (PropInstance.cs:1110-1118 batched, :325-329 direct); the LightEffect's own `m_position` and `m_alignment` are not applied for props (their `SpawnArea` has no mesh data; normally zero).
 - Building props render effects only when the building is active or the prop is `m_alwaysActive` (PropInstance.cs:321, PropInfo.cs:102; `BuildingAI.RenderProps` passes `Building.Flags.Active`, BuildingAI.cs:463-466); standalone props pass `active: true` (PropInstance.cs:241-247).
 - `MultiEffect` sub-effects (MultiEffect.cs:6) are not searched; only direct `LightEffect`s of `PropInfo.m_effects`.
+- Trailers and articulated vehicles (2026-10-06, decompile of Assembly-CSharp; compiles against the real assemblies; not
+  seen in game): `Vehicle.m_leadingVehicle` / `m_trailingVehicle` (`ushort`, Vehicle.cs:169-171) chain a tractor, bus,
+  tram or train to its trailers; each trailer is its own spawned `Vehicle` with its own `VehicleInfo` (from
+  `VehicleInfo.m_trailers`, `VehicleTrailer[]` VehicleInfo.cs:301, spawned in `Vehicle.Spawn` :1182-1240 with
+  `m_attachOffsetFront/Back` :287-289) and its own frames, and sits in `m_vehicleGrid` by its own last-frame position
+  (`VehicleManager.AddToGrid(ushort, ref Vehicle, bool large)` :1755; `m_isLargeVehicle` only for ships, planes,
+  helicopters, ferries, blimps, balloons, rockets, VehicleInfo.cs:425). The whole chain shares the first vehicle's
+  timing: `GetTargetFrame` uses `GetFirstVehicle(vehicleID)` (Vehicle.cs:1060-1062), so the same frame pair, Bezier and
+  `Quaternion.Lerp` place each car. `Vehicle.Flags.Inverted` (8) on a trailer draws it with scale (-1, 1, -1)
+  (static `Vehicle.RenderInstance`, Vehicle.cs:370) and `GetSmoothPosition` turns the rotation by 180° about up
+  (:890): `MovingObjects` turns an inverted trailer's box rotation half round, so a mesh whose bounds centre is off its
+  pivot lands on the drawn side. `MovingObjects` sends the mesh's height profile (`VehicleProfile`, 0.25 m slices of
+  `Mesh.bounds` z, readable mesh or `BuiltInMeshes` cache) per `VehicleInfo`, logged once as "vehicle shape: ...".
 - Vehicle boxes: `VehicleInfoGen` has only `m_size` (no centre); `Mesh.bounds` of `VehicleInfo.m_mesh` is available even for
   GPU-only meshes and gives the model's real centre and extents in vehicle space, so `MovingObjects` places boxes from it.
 

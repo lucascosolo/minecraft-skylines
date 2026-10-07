@@ -287,13 +287,15 @@ final class LinkController {
 					if (peer != null && peer.appMinor() >= needs) {
 						city.deliver(m.type(), m.payload());
 					}
-				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES) {
+				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES || m.type() == AppProtocol.SHAPED_OBSTACLES) {
+					boolean shaped = m.type() == AppProtocol.SHAPED_OBSTACLES;
 					try {
-						if (peer != null && peer.appMinor() >= 7) {
-							DynamicObstacleStore.INSTANCE.accept(DynamicObstacles.decode(m.payload()), System.nanoTime());
+						if (peer != null && peer.appMinor() >= (shaped ? 17 : 7)) {
+							DynamicObstacleStore.INSTANCE.accept(shaped ? DynamicObstacles.decodeShaped(m.payload())
+									: DynamicObstacles.decode(m.payload()), System.nanoTime());
 						}
 					} catch (ProtocolException e) {
-						LOG.warn(PREFIX + "ignoring malformed DYNAMIC_OBSTACLES: {}", e.getMessage());
+						LOG.warn(PREFIX + "ignoring malformed {}: {}", shaped ? "SHAPED_OBSTACLES" : "DYNAMIC_OBSTACLES", e.getMessage());
 					}
 				} else if (m.type() == AppProtocol.WATER_SURFACE) {
 					try {

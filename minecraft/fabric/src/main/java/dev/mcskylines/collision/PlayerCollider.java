@@ -12,6 +12,11 @@ import net.minecraft.world.phys.Vec3;
 
 /** Feeds an entity's movement (the local player on the client; mobs and items on the server) through {@link TriCollider} against the nearby streamed triangles and moving obstacles. */
 public final class PlayerCollider {
+	/** One Minecraft tick: an entity moves once per tick. */
+	static final double TICK_SECONDS = 0.05;
+	/** Feet this close (m) to a vehicle's top ride on it. */
+	static final double RIDE_TOLERANCE = 0.2;
+
 	private PlayerCollider() {
 	}
 
@@ -28,18 +33,33 @@ public final class PlayerCollider {
 		List<SkyTri> tris = new ArrayList<>();
 		CollisionStore.INSTANCE.trianglesNear(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, tris);
 		// A vehicle or citizen that moved into the player pushes it out; the rest are solid like the city.
-		double pushX = 0, pushZ = 0;
+		double pushX = 0, pushZ = 0, rideTop = Double.NEGATIVE_INFINITY;
+		double[] ride = null;
 		for (ObstacleBox o : DynamicObstacleStore.INSTANCE.current(System.nanoTime())) {
-			// Pushed out only when the feet are in the lower half of the box (really beside it). Landing on a roof or
-			// hood dips the feet a little into the box, which used to shove the player off sideways (owner, 2026-10-06:
-			// "When I jump onto the car, I slide off like it's a sheer edge").
-			if (o.overlaps(fx, fy, fz, radius, height) && fy < o.y) {
+			// Standing on a vehicle (owner, 2026-10-06: "I would like to be able to jump onto a car and ride it"): the feet
+			// keep their place on it for this tick's 1/20 s as it moves and turns.
+			double top = o.supportTop(fx, fz, radius);
+			if (!Double.isNaN(top) && Math.abs(fy - top) <= RIDE_TOLERANCE && top > rideTop) {
+				rideTop = top;
+				ride = o.carry(fx, fy, fz, TICK_SECONDS);
+			}
+			// Pushed out only by a wall that moved into the body: the feet in the lower half of the box and a part of it
+			// higher than a step. Landing on a roof or hood dips the feet a little into the box, which used to shove the
+			// player off sideways (owner, 2026-10-06: "When I jump onto the car, I slide off like it's a sheer edge").
+			if (o.overlaps(fx, fy, fz, radius, height) && fy < o.y && o.blocks(fx, fy, fz, radius, height, player.maxUpStep())) {
 				double[] p = o.pushOut(fx, fy, fz, radius, height);
 				pushX += p[0];
 				pushZ += p[1];
 			} else if (Math.abs(o.x - fx) < box.getXsize() * 0.5 + o.halfWidth + o.halfLength
 					&& Math.abs(o.z - fz) < box.getZsize() * 0.5 + o.halfWidth + o.halfLength) {
 				o.triangles(tris);
+			}
+		}
+		if (ride != null) {
+			pushX += ride[0];
+			pushZ += ride[2];
+			if (ride[1] > 0) {
+				move = new Vec3(move.x, move.y + ride[1], move.z);
 			}
 		}
 		Vec3 wanted = new Vec3(move.x + pushX, move.y, move.z + pushZ);
