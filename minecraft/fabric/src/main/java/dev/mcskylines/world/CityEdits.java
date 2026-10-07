@@ -591,6 +591,11 @@ public final class CityEdits {
 		return shadow.treeOfLog(BlockKey.pack(pos.getX(), pos.getY(), pos.getZ()));
 	}
 
+	/** TreeFeller (server thread): generated tree {@code id}, or null. */
+	public synchronized dev.mcskylines.protocol.Trees.Tree tree(int id) {
+		return shadow.tree(id);
+	}
+
 	/** TreeFeller (server thread): the cells of tree {@code id} still standing as shadow blocks. */
 	public synchronized long[] treeCells(int id) {
 		return id < 0 ? new long[0] : shadow.treeCells(id).toLongArray();
@@ -607,7 +612,7 @@ public final class CityEdits {
 			refuse = r.shadow.refusesBreak(BlockKey.pack(pos.getX(), pos.getY(), pos.getZ()));
 		}
 		if (refuse) {
-			LOG.debug(PREFIX + "break refused at {}", pos);
+			LOG.info(PREFIX + "break refused at {} (road or building above)", pos);
 		}
 		return refuse;
 	}
@@ -627,8 +632,11 @@ public final class CityEdits {
 		long key = BlockKey.pack(pos.getX(), pos.getY(), pos.getZ());
 		touched.add(key);
 		// A shadow cell the player emptied stays empty: plain air means "no edit" to the host, so it is saved as cave air.
+		// A city tree's log is the exception: the felled tree leaves the city's tree list (TREE_FELLED), so its cells
+		// carry no edit (a cave-air edit at the trunk's base would read as dug ground to the host).
 		boolean filled = shadow.wouldFill(key);
-		recorder.record(key, filled && state.isAir() ? Blocks.CAVE_AIR.defaultBlockState() : state);
+		boolean treeLog = filled && shadow.treeOfLog(key) >= 0;
+		recorder.record(key, filled && state.isAir() && !treeLog ? Blocks.CAVE_AIR.defaultBlockState() : state);
 		int felled = filled ? shadow.playerChanged(key, state.isAir()) : -1;
 		if (felled != -1 && appMinor >= 12 && open != null && open.ready) {
 			LOG.info(PREFIX + "tree {} felled", Integer.toUnsignedString(felled));

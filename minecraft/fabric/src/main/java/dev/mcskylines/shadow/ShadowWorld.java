@@ -147,7 +147,19 @@ public final class ShadowWorld {
 		return c == null ? -1 : c.logs.getOrDefault(key, -1);
 	}
 
-	/** Every cell of generated tree {@code treeId} (logs and leaves) that is still a shadow block. Server thread. */
+	/** Generated tree {@code treeId}, or null. */
+	public Trees.Tree tree(int treeId) {
+		for (List<Trees.Tree> list : TREES.values()) {
+			for (Trees.Tree t : list) {
+				if (t.id() == treeId) {
+					return t;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** Every log of generated tree {@code treeId} that is still a shadow block. Server thread. */
 	public it.unimi.dsi.fastutil.longs.LongArrayList treeCells(int treeId) {
 		it.unimi.dsi.fastutil.longs.LongArrayList out = new it.unimi.dsi.fastutil.longs.LongArrayList();
 		for (List<Trees.Tree> list : TREES.values()) {

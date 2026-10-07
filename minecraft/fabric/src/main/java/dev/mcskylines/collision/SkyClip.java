@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import dev.mcskylines.shadow.ShadowCells;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -52,6 +54,12 @@ public final class SkyClip {
 		Vec3 dir = to.subtract(from).normalize();
 		BlockPos behind = BlockPos.containing(hit.x() + dir.x * 0.05, hit.y() + dir.y * 0.05, hit.z() + dir.z * 0.05);
 		Vec3 at = new Vec3(loc[0], loc[1], loc[2]);
+		// A CS1 tree's trunk (a 0.6 m post centred on the tree) can straddle a cell edge, so the cell behind its surface
+		// may not hold the trunk's log: target the nearest city log beside it, so punching the trunk always fells it.
+		BlockPos log = trunkLog(level, behind, hit.x(), hit.z());
+		if (log != null) {
+			return new BlockHitResult(at, face, log, false);
+		}
 		if (targetable(level, above)) {
 			return new BlockHitResult(at, face, above, false);
 		}
@@ -64,6 +72,25 @@ public final class SkyClip {
 		}
 		return new HostHitResult(new Vec3(loc[0], loc[1], loc[2]), face, new BlockPos(place[0], place[1], place[2]),
 			new BlockPos(place[0], place[1], place[2]));
+	}
+
+	private static BlockPos trunkLog(BlockGetter level, BlockPos behind, double hx, double hz) {
+		BlockPos best = null;
+		double bestD = 1.5;
+		for (int dx = -1; dx <= 1; dx++) {
+			for (int dz = -1; dz <= 1; dz++) {
+				BlockPos p = behind.offset(dx, 0, dz);
+				if (!level.getBlockState(p).is(BlockTags.LOGS) || !ShadowCells.INSTANCE.contains(p.getX(), p.getY(), p.getZ())) {
+					continue;
+				}
+				double cx = p.getX() + 0.5 - hx, cz = p.getZ() + 0.5 - hz, d = cx * cx + cz * cz;
+				if (d < bestD) {
+					best = p;
+					bestD = d;
+				}
+			}
+		}
+		return best;
 	}
 
 	private static boolean targetable(BlockGetter level, BlockPos pos) {
