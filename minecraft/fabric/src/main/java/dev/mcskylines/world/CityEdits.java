@@ -622,6 +622,17 @@ public final class CityEdits {
 		return refuse;
 	}
 
+	/** Debug dump: the shadow world's view of a cell (server thread), or "no city". */
+	public static String describeCell(Level l, long key) {
+		CityEdits r = recording;
+		if (r == null || l != r.level) {
+			return "no city";
+		}
+		synchronized (r) {
+			return r.shadow.describe(key) + " owned=" + r.shadowHost.playerOwns(key) + " refuses=" + r.shadow.refusesBreak(key);
+		}
+	}
+
 	/** LevelChunkMixin: a block state in a loaded chunk changed (any level, any side). */
 	public static void blockChanged(Level l, BlockPos pos, BlockState old, BlockState state) {
 		CityEdits r = recording;

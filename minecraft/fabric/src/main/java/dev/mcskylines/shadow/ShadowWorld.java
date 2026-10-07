@@ -137,6 +137,17 @@ public final class ShadowWorld {
 		return c != null && c.planned.contains(key) && c.protectedCols[(BlockKey.x(key) & 15) | (BlockKey.z(key) & 15) << 4];
 	}
 
+	/** Debug dump: this world's bookkeeping for the cell, as one line. */
+	public String describe(long key) {
+		Chunk c = chunks.get(BlockKey.chunkKey(key));
+		if (c == null) {
+			return "no chunk";
+		}
+		int i = (BlockKey.x(key) & 15) | (BlockKey.z(key) & 15) << 4;
+		return "planned=" + c.planned.contains(key) + " placed=" + c.cells.contains(key) + " floor=" + c.floor[i]
+			+ " protected=" + c.protectedCols[i] + " log=" + (c.logs.containsKey(key) ? c.logs.get(key) : -1);
+	}
+
 	/**
 	 * The player changed a cell (recorded as an edit). Returns the CS1 tree id whose last generated log this was, or -1.
 	 * Digging at the bottom of the filled crust deepens the surrounding columns.

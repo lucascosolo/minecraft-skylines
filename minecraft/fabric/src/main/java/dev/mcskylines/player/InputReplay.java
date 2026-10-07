@@ -76,6 +76,13 @@ public final class InputReplay {
 		KEYS[scancode] = down;
 		updateModifiers();
 		int action = down ? (wasDown ? -1 : 1) : 0; // -1 = repeat
+		if (action == 1 && scancode == 7 && (modifiers & 0x00C0) != 0 && (modifiers & 0x0003) != 0) {
+			try {
+				dev.mcskylines.debug.ShadowDump.run(mc);
+			} catch (RuntimeException ex) {
+				org.slf4j.LoggerFactory.getLogger("mcskylines").warn("[MinecraftSkylines] shadow dump failed", ex);
+			}
+		}
 		int keycode = SDLKeyboard.SDL_GetKeyFromScancode(scancode, (short) modifiers, true);
 		mc.keyboardHandler.keyPress(handle, action, new KeyEvent(scancode, keycode, modifiers));
 	}
