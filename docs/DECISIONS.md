@@ -250,3 +250,16 @@ Collision is unchanged. Rejected: a decal or quad lifted above unclipped terrain
 reading the plant rule (`ShadowMaterials.plant`) on the host (it is the guest's world generation; the emptied edit is
 the fact the host already receives). Risk: the host's solid top is computed from its own heightfield in float; where
 CS1's surface sits within float error of a cell's half-height, host and guest can disagree by one cell.
+
+## 2026-10-06: Minecraft's /time moves the city's clock (protocol 1.16 TIME_SET)
+
+Owner: "minecraft /time command should control the CS1 time and sync it to whatever that time would be in
+Minecraft." The city stays the clock's only authority: every change of the city world's overworld clock that does not
+come from WORLD_TIME runs through `ServerClockManager.modifyClock` (26.3: `/time set`, `/time add`, time markers such as
+`/time set noon`, sleeping), where a mixin lets vanilla compute the new value, puts the clock back before it is
+broadcast and sends the difference as TIME_SET (hour, whole days). The host moves the sun forward only and re-sends
+WORLD_TIME on the next frame. Rejected: letting the command apply locally and also telling the host (the guest would
+briefly show a time the city never had and a stale WORLD_TIME in flight could flick it back), and absolute TIME_SET
+(a Minecraft absolute tick count has no meaning against the city's 738000-day epoch and could move the day count
+backwards). `/time set <ticks>` counts from the start of the shown Minecraft day, so `/time set 30000` is tomorrow's
+noon. Sleeping skips the night in the city world although ADVANCE_TIME is false there. The calendar date does not move.

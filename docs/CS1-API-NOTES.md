@@ -316,3 +316,17 @@ Assembly-CSharp:
 - `TerrainModify.UpdateArea(float, float, float, float, bool, bool, bool)` (TerrainModify.cs:87) and
   `TerrainModify.ApplyQuad(Vector3 x4, Edges, Heights, Surface)` (:639), as for Spike T1; heights are never modified.
 - `TerrainManager.SampleDetailHeightSmooth(Vector3)` (TerrainManager.cs:1449) for the patch and skirt heights.
+
+## Minecraft time commands move the sun (TIME_SET, minor 16; verified against the decompile 2026-10-06, compiles against the real assemblies; not seen in game)
+
+- `SimulationManager.m_dayTimeOffsetFrames` (public `uint`, SimulationManager.cs:352). The sun's frame is
+  `m_referenceFrameIndex + m_dayTimeOffsetFrames`, masked to `DAYTIME_FRAMES - 1` (65536) only when read:
+  `m_currentDayTimeHour` and `DayNightProperties.m_TimeOfDay` are derived from it every main-thread `Update`
+  (:668-675), `m_dayTimeFrame` and `m_isNightTime` every simulation frame on the simulation thread (:928-931).
+- The game's own setters (`InfoPanel.Update` :293 in editors, ICities `ThreadingWrapper.simulationDayTimeHour` :70-76)
+  assign `(target - m_currentFrameIndex) & 65535`, which would move the WORLD_TIME day count backwards. `ClockLink`
+  instead adds `TimeSet.OffsetFrames(...)` (forward only, unmasked) on the main thread, like `SimRate.Tick`, which
+  adds to the same field there; the simulation thread only reads it while `m_enableDayNight` is true (it rewrites it
+  each frame when false, :924-927, so the host ignores TIME_SET then). A single `uint` write is atomic.
+- The calendar (`m_timeOffsetTicks`) is not moved. `m_isNightTime` is left to the simulation thread's next frame
+  (its night-count achievement dispatch then runs as it would for natural time).
