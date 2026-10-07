@@ -251,8 +251,14 @@ public final class SectionExporter {
 
 	/** Bit per Direction ordinal for each neighbour that is cave air. */
 	private static int caveFaces(ClientLevel level, BlockPos pos) {
+		// Grass blocks only top an undug column: cave air above one is a broken grass plant, not a pit, and CS1 already
+		// draws that ground (bare-ground patch), so its top is never drawn from here.
+		boolean surface = level.getBlockState(pos).is(Blocks.GRASS_BLOCK);
 		int mask = 0;
 		for (Direction d : Direction.values()) {
+			if (surface && d == Direction.UP) {
+				continue;
+			}
 			if (level.getBlockState(pos.relative(d)).is(Blocks.CAVE_AIR)) {
 				mask |= 1 << d.ordinal();
 			}
