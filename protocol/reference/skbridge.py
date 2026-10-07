@@ -691,25 +691,54 @@ class Obstacle:
     vx: float
     vy: float
     vz: float
+    yaw_rate: float = 0.0  # SHAPED_OBSTACLES (1.17): Minecraft yaw degrees per second
+    profile: bytes = b""   # SHAPED_OBSTACLES (1.17): slice tops in 1/255 of the height, from the -length end
+
+
+# ---- minecraft-skylines app protocol 1.17: obstacles with turn rate and height profile ----------
+SHAPED_OBSTACLES = 0x0171
 
 
 @dataclass
 class DynamicObstacles:
     obstacles: list
 
-    def encode(self) -> bytes:
+    def _write(self, shaped: bool) -> bytes:
         w = Writer().u16(len(self.obstacles))
         for o in self.obstacles:
             w.u8(o.kind).u32(o.id)
             for v in (o.x, o.y, o.z, o.yaw, o.half_width, o.half_height, o.half_length, o.vx, o.vy, o.vz):
                 w.f32(v)
+            if shaped:
+                if len(o.profile) > 255:
+                    raise ProtocolError("profile longer than 255 slices")
+                w.f32(o.yaw_rate).u8(len(o.profile))
+                for b in o.profile:
+                    w.u8(b)
         return w.bytes()
+
+    def encode(self) -> bytes:
+        return self._write(False)
+
+    def encode_shaped(self) -> bytes:
+        return self._write(True)
 
     @staticmethod
     def decode(p: bytes) -> "DynamicObstacles":
         r = Reader(p)
         n = r.u16()
         return DynamicObstacles([Obstacle(r.u8(), r.u32(), *[r.f32() for _ in range(10)]) for _ in range(n)])
+
+    @staticmethod
+    def decode_shaped(p: bytes) -> "DynamicObstacles":
+        r = Reader(p)
+        out = []
+        for _ in range(r.u16()):
+            o = Obstacle(r.u8(), r.u32(), *[r.f32() for _ in range(10)])
+            o.yaw_rate = r.f32()
+            o.profile = bytes(r.u8() for _ in range(r.u8()))
+            out.append(o)
+        return DynamicObstacles(out)
 
 
 # ---- minecraft-skylines app protocol 1.8: lamp light ------------------------------------------

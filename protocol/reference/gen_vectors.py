@@ -184,6 +184,19 @@ def frames() -> list[dict]:
         sb.DynamicObstacles(obs).encode())
     add("dynamic_obstacles_empty", sb.DYNAMIC_OBSTACLES, {"obstacles": []}, sb.DynamicObstacles([]).encode())
 
+    # ---- 1.17 (obstacles with turn rate and height profile)
+    shaped = [sb.Obstacle(sb.OBSTACLE_VEHICLE, 16383, 120.5, 64.75, -2048.25, -90.0, 0.875, 0.75, 2.25, 8.5, 0.0, -0.25,
+                          12.5, bytes([90, 102, 180, 255, 255, 230, 140, 0, 95])),
+              sb.Obstacle(3, 7, 10.0, 64.0, 20.0, 45.0, 1.0, 0.875, 6.0, 0.0, 0.0, 0.0, 0.0, bytes([255])),
+              sb.Obstacle(sb.OBSTACLE_CITIZEN, 65535, -3.5, 40.875, 12.0, 179.5, 0.3125, 0.9375, 0.3125, -1.25, 0.0, 0.5,
+                          -30.0, b"")]
+    add("shaped_obstacles", sb.SHAPED_OBSTACLES, {"obstacles": [
+        {"kind": o.kind, "id": o.id, "x": o.x, "y": o.y, "z": o.z, "yaw": o.yaw, "halfWidth": o.half_width,
+         "halfHeight": o.half_height, "halfLength": o.half_length, "vx": o.vx, "vy": o.vy, "vz": o.vz,
+         "yawRate": o.yaw_rate, "profile": list(o.profile)} for o in shaped]},
+        sb.DynamicObstacles(shaped).encode_shaped())
+    add("shaped_obstacles_empty", sb.SHAPED_OBSTACLES, {"obstacles": []}, sb.DynamicObstacles([]).encode_shaped())
+
     # ---- 1.8 (lamp light)
     lights = [sb.LightSource(120, 72, -2049, 15), sb.LightSource(-4, 8, 12, 1), sb.LightSource(8639, 1100, -8640, 9)]
     add("light_sources", sb.LIGHT_SOURCES, {"lights": [
@@ -296,6 +309,10 @@ def invalid_frames() -> list[dict]:
         # ---- 1.16 (time commands)
         bad("time_set_truncated", sb.frame(sb.TIME_SET, sb.Writer().f32(12.0).u8(1).bytes()), "payload ends inside days"),
         bad("time_set_hour_24", sb.frame(sb.TIME_SET, sb.TimeSet(24.0, 0).encode()), "hour at or above 24"),
+        # ---- 1.17 (shaped obstacles)
+        bad("shaped_obstacles_truncated", sb.frame(sb.SHAPED_OBSTACLES, sb.DynamicObstacles([sb.Obstacle(
+            1, 1, 0.0, 0.0, 0.0, 0.0, 1.0, 0.75, 2.0, 0.0, 0.0, 0.0, 0.0, bytes([100, 200, 100]))]).encode_shaped()[:-1]),
+            "payload ends inside the profile"),
         # ---- 1.14 (entities)
         bad("entity_model_too_many_parts", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(sb.ENTITY_MODEL_MAX_PARTS + 1).bytes()), "part count > 1024 (checked before the parts)"),
         bad("entity_model_parent_not_before", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(0).u16(0).bytes()), "parent index at or above the part's own"),

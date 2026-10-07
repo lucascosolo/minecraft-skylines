@@ -263,3 +263,16 @@ briefly show a time the city never had and a stale WORLD_TIME in flight could fl
 (a Minecraft absolute tick count has no meaning against the city's 738000-day epoch and could move the day count
 backwards). `/time set <ticks>` counts from the start of the shown Minecraft day, so `/time set 30000` is tomorrow's
 noon. Sleeping skips the night in the city world although ADVANCE_TIME is false there. The calendar date does not move.
+
+## 2026-10-06: vehicles shaped by their mesh, walkable, and rideable (protocol 1.17)
+
+Owner: a tractor pulling a long trailer had "very odd" collision; "jump onto a car and ride it"; "stairs where the
+windshield and back windows would be". The guest used to guess a hood/cabin/boot shape for every low vehicle at least
+3.4 m long, so a flat trailer bed and a tractor got a car's cabin; an inverted trailer's box was also placed from the
+unflipped mesh bounds. Now the host sends each vehicle's real height profile (0.25 m slices of its mesh, a plain box
+for a chained vehicle without mesh data) and its turn rate in `SHAPED_OBSTACLES` 0x0171; the guest lowers car-sized
+profiles to 0.5 m stairs so the player walks up and over, and carries an entity whose feet are on a vehicle's top by
+the vehicle's motion and turn for each tick. Rejected: guest-derived turn rates from successive sets by id (one more
+store keyed by id, wrong for the first 50 ms and across id reuse, while the host already tracks per-id velocity on its
+real clock); a wire field per slice as f32 (4x larger for no visible gain); rotating the player's view with the vehicle
+(the host owns the camera yaw in player mode; the feet still turn round the vehicle's centre).

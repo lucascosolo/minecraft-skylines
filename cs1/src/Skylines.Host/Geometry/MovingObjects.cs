@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ColossalFramework;
 using ColossalFramework.Math;
+using Skylines.Core.Geometry;
 using UnityEngine;
 
 namespace Skylines.Host.Geometry
@@ -25,6 +26,11 @@ namespace Skylines.Host.Geometry
         public float HeadingDeg;
         /// <summary>Half extents: x across, y vertical, z along the length.</summary>
         public Vector3 HalfExtents;
+        /// <summary>
+        /// Vehicles: the model's height along its length, <see cref="VehicleProfile"/> slices from the back end, each in
+        /// 1/255 of the box height; null when the mesh geometry is unavailable. Citizens: null.
+        /// </summary>
+        public byte[] Profile;
     }
 
     /// <summary>
@@ -76,7 +82,13 @@ namespace Skylines.Host.Geometry
                             {
                                 float t = ((target & 15) + timer) * 0.0625f;
                                 Vector3 pos = Smooth(a.m_position, a.m_velocity, b.m_position, b.m_velocity, t);
-                                AddVehicle(into, MovingObject.Vehicle, id, info, pos, Quaternion.Lerp(a.m_rotation, b.m_rotation, t), center, radius);
+                                Quaternion rot = Quaternion.Lerp(a.m_rotation, b.m_rotation, t);
+                                // An inverted trailer is drawn with scale (-1, 1, -1) (Vehicle.RenderInstance, Vehicle.cs:370):
+                                // its model turned half round about its pivot.
+                                bool inverted = (v.m_flags & Vehicle.Flags.Inverted) != 0;
+                                if (inverted) rot = rot * Quaternion.AngleAxis(180f, Vector3.up);
+                                bool chained = v.m_leadingVehicle != 0 || v.m_trailingVehicle != 0;
+                                AddVehicle(into, MovingObject.Vehicle, id, info, pos, rot, center, radius, chained, inverted);
                             }
                         }
                         id = v.m_nextGridVehicle;
@@ -104,7 +116,7 @@ namespace Skylines.Host.Geometry
                         if ((v.m_flags & (ushort)VehicleParked.Flags.Created) != 0 && (v.m_flags & (ushort)VehicleParked.Flags.Deleted) == 0
                             && info != null && info.m_generatedInfo != null)
                         {
-                            AddVehicle(into, MovingObject.ParkedVehicle, id, info, v.m_position, v.m_rotation, center, radius);
+                            AddVehicle(into, MovingObject.ParkedVehicle, id, info, v.m_position, v.m_rotation, center, radius, false, false);
                         }
                         id = v.m_nextGridParked;
                     }
@@ -146,16 +158,76 @@ namespace Skylines.Host.Geometry
         // The box the model actually occupies: Mesh.bounds (available even when the mesh is GPU-only) placed by the
         // vehicle's pose, since a model's pivot need not be its centre (owner, 2026-10-06: a parked car with "especially
         // odd, mismatched collision"). Falls back to m_generatedInfo.m_size with the pivot at the bottom centre.
-        private static void AddVehicle(List<MovingObject> into, byte kind, ushort id, VehicleInfo info, Vector3 pivot, Quaternion rot, Vector3 center, float radius)
+        private static void AddVehicle(List<MovingObject> into, byte kind, ushort id, VehicleInfo info, Vector3 pivot, Quaternion rot,
+            Vector3 center, float radius, bool chained, bool inverted)
         {
             Bounds b = info.m_mesh != null ? info.m_mesh.bounds : new Bounds();
-            if (!(b.size.x > 0.1f && b.size.y > 0.1f && b.size.z > 0.1f))
+            int before = into.Count;
+            bool hasBounds = b.size.x > 0.1f && b.size.y > 0.1f && b.size.z > 0.1f;
+            if (!hasBounds)
             {
                 Add(into, kind, id, pivot, rot, info.m_generatedInfo.m_size * 0.5f, center, radius);
-                return;
             }
-            Vector3 mid = pivot + rot * b.center;
-            Add(into, kind, id, new Vector3(mid.x, mid.y - b.extents.y, mid.z), rot, b.extents, center, radius);
+            else
+            {
+                Vector3 mid = pivot + rot * b.center;
+                Add(into, kind, id, new Vector3(mid.x, mid.y - b.extents.y, mid.z), rot, b.extents, center, radius);
+            }
+            if (into.Count == before) return;
+            // A tractor or trailer without mesh geometry is one plain box (one full slice), never the guest's car guess.
+            byte[] profile = hasBounds ? ProfileFor(info, b, chained, inverted) : null;
+            MovingObject o = into[before];
+            o.Profile = profile ?? (chained ? new byte[] { 255 } : null);
+            into[before] = o;
+        }
+
+        private static readonly Dictionary<VehicleInfo, byte[]> s_profiles = new Dictionary<VehicleInfo, byte[]>();
+
+        // The mesh's height along its length, once per vehicle type: the readable mesh, else the extracted mesh cache.
+        private static byte[] ProfileFor(VehicleInfo info, Bounds b, bool chained, bool inverted)
+        {
+            byte[] p;
+            if (s_profiles.TryGetValue(info, out p)) return p;
+            Mesh mesh = info.m_mesh;
+            Vector3[] verts = null;
+            int[] tris = null;
+            string source = "none";
+            if (mesh.isReadable)
+            {
+                verts = mesh.vertices;
+                tris = mesh.triangles;
+                source = "mesh";
+            }
+            else if (BuiltInMeshes.TryGet(mesh, out verts, out tris))
+            {
+                source = "cache";
+            }
+            if (verts != null && tris != null && tris.Length >= 3)
+            {
+                var xyz = new float[verts.Length * 3];
+                for (int i = 0; i < verts.Length; i++)
+                {
+                    xyz[3 * i] = verts[i].x;
+                    xyz[3 * i + 1] = verts[i].y;
+                    xyz[3 * i + 2] = verts[i].z;
+                }
+                float[] h = VehicleProfile.Heights(xyz, tris, b.min.z, b.max.z, b.min.y, VehicleProfile.SliceCount(b.size.z));
+                p = VehicleProfile.Quantize(h, b.size.y);
+            }
+            s_profiles[info] = p;
+            var log = new System.Text.StringBuilder("[MinecraftSkylines] vehicle shape: '").Append(info.name).Append("' ")
+                .Append(info.m_vehicleType).Append(", mesh bounds centre ").Append(b.center.ToString("F2")).Append(" size ")
+                .Append(b.size.ToString("F2")).Append(", profile from ").Append(source);
+            if (chained) log.Append(", in a leading/trailing chain");
+            if (inverted) log.Append(", inverted");
+            if (info.m_trailers != null && info.m_trailers.Length > 0) log.Append(", ").Append(info.m_trailers.Length).Append(" trailer types");
+            if (p != null)
+            {
+                log.Append(", ").Append(p.Length).Append(" slices back to front:");
+                foreach (byte x in p) log.Append(' ').Append(x);
+            }
+            Debug.Log(log.ToString());
+            return p;
         }
 
         // The pivot is at the bottom of the box (Vehicle.RenderOverlay spans pivot.y to pivot.y + m_size.y).

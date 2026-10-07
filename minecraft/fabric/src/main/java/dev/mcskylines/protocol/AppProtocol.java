@@ -4,7 +4,7 @@ package dev.mcskylines.protocol;
 public final class AppProtocol {
 	public static final String NAME = "minecraft-skylines";
 	public static final int MAJOR = 1;
-	public static final int MINOR = 16;
+	public static final int MINOR = 17;
 	public static final int HOST_STATUS = 0x0100;
 	public static final int GUEST_STATUS = 0x0101;
 	public static final int ENTER_PLAYER_MODE = 0x0110;
@@ -30,6 +30,8 @@ public final class AppProtocol {
 	public static final int WORLD_TIME = 0x0160;
 	public static final int TIME_SET = 0x0161; // minor 16: a time command moves the city's clock (guest to host)
 	public static final int DYNAMIC_OBSTACLES = 0x0170;
+	/** Host to guest (minor 17): obstacles with turn rate and height profile. */
+	public static final int SHAPED_OBSTACLES = 0x0171;
 	public static final int LIGHT_SOURCES = 0x0180;
 	public static final int SKY_STATE = 0x0190;
 	public static final int SKY_TEXTURES = 0x0191;
