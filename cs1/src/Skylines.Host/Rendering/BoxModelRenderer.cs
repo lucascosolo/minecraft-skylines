@@ -55,6 +55,7 @@ namespace Skylines.Host.Rendering
         private readonly Func<Texture2D, Material> _materialFor;
         private readonly Dictionary<uint, Model> _models = new Dictionary<uint, Model>();
         private readonly Dictionary<uint, Material> _materials = new Dictionary<uint, Material>();
+        private readonly Dictionary<uint, Texture2D> _cutouts = new Dictionary<uint, Texture2D>();
         private readonly Dictionary<uint, Texture2D> _textures = new Dictionary<uint, Texture2D>();
         private Dictionary<uint, Track> _tracks = new Dictionary<uint, Track>();
         private readonly MaterialPropertyBlock _block = new MaterialPropertyBlock();
@@ -98,7 +99,19 @@ namespace Skylines.Host.Rendering
             Texture2D oldTex;
             if (_textures.TryGetValue(id, out oldTex) && oldTex != null) UnityEngine.Object.Destroy(oldTex);
             _textures[id] = t;
-            _materials[id] = _materialFor(t);
+            Material material = _materialFor(t);
+            _materials[id] = material;
+            // CS1's prop and building shaders cut out pixels by the ACI map's red channel (1 - alpha, as the game's
+            // asset importer builds it from an alpha map); a neutral ACI drew transparent pixels as black squares.
+            Texture2D oldCutout;
+            if (_cutouts.TryGetValue(id, out oldCutout) && oldCutout != null) UnityEngine.Object.Destroy(oldCutout);
+            _cutouts.Remove(id);
+            if (material != null && material.HasProperty("_ACIMap"))
+            {
+                Texture2D cutout = TextureUtil.CutoutAci(t, "MinecraftSkylines.BoxCutout." + id);
+                material.SetTexture("_ACIMap", cutout);
+                _cutouts[id] = cutout;
+            }
             return true;
         }
 
@@ -230,6 +243,9 @@ namespace Skylines.Host.Rendering
             foreach (Texture2D t in _textures.Values)
                 if (t != null) UnityEngine.Object.Destroy(t);
             _textures.Clear();
+            foreach (Texture2D t in _cutouts.Values)
+                if (t != null) UnityEngine.Object.Destroy(t);
+            _cutouts.Clear();
         }
 
         /// <summary>Same as Clear.</summary>

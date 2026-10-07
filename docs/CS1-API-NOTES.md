@@ -304,6 +304,15 @@ Assembly-CSharp:
 - `SimulationManagerBase<TerrainManager, TerrainProperties>.m_properties` (public field, SimulationManagerBase.cs:15);
   `TerrainProperties.m_grassDiffuse` (`Texture2D`, TerrainProperties.cs:32) and `m_grassTiling` (float, 0.029 by
   default, :80): the texture and world tiling of the drawn surface patches.
+- Bare ground (2026-10-06): `TerrainProperties.m_ruinedDiffuse` (`Texture2D`, TerrainProperties.cs:34) and
+  `m_ruinedTiling` (float, 0.033 by default, :74) draw a broken-grass square; verified (decompile), in game: unverified.
+- Entity cutout (2026-10-06): no Unity cutout shader is relied on (CS1's build lacks Unity's Particles shaders, so
+  `Transparent/Cutout/*` may be missing too). Entities keep the prop shader `Custom/Props/Prop/Default` with an ACI map
+  built from the texture's alpha: `AssetImporterTextureLoader` builds ACI with `CombineChannels(..., ralpha: true,
+  rinvert: true, ...)` (AssetImporterTextureLoader.cs:436-453), R = 1 - alpha from an asset's alpha map, which is how
+  custom props get see-through pixels. Importer convention verified (decompile); that the shader discards on ACI red is
+  the asset convention (shader binary not decompilable); in game: unverified. The `Diffuse` block-material variant (3)
+  has no `_ACIMap` and stays opaque.
 - `TerrainModify.UpdateArea(float, float, float, float, bool, bool, bool)` (TerrainModify.cs:87) and
   `TerrainModify.ApplyQuad(Vector3 x4, Edges, Heights, Surface)` (:639), as for Spike T1; heights are never modified.
 - `TerrainManager.SampleDetailHeightSmooth(Vector3)` (TerrainManager.cs:1449) for the patch and skirt heights.
