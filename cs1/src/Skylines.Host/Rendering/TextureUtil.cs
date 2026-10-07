@@ -40,6 +40,24 @@ namespace Skylines.Host.Rendering
             return t;
         }
 
+        /// <summary>
+        /// The ACI map (linear) that makes CS1's prop/building shaders cut out <paramref name="source"/>'s transparent
+        /// pixels: R = 1 - alpha, G (1 - colour mask) = 0, B (illumination) = 0, as AssetImporterTextureLoader builds ACI
+        /// from an alpha map. Same size and point filtering as the source, which must be readable.
+        /// </summary>
+        public static Texture2D CutoutAci(Texture2D source, string name)
+        {
+            Color32[] px = source.GetPixels32();
+            for (int i = 0; i < px.Length; i++) px[i] = new Color32((byte)(255 - px[i].a), 0, 0, 255);
+            var t = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, true);
+            t.SetPixels32(px);
+            t.Apply(false, true);
+            t.name = name;
+            t.filterMode = FilterMode.Point;
+            t.wrapMode = TextureWrapMode.Clamp;
+            return t;
+        }
+
         /// <summary>Stores <paramref name="value"/> in <paramref name="slot"/>, destroying the object it replaces.</summary>
         public static void Replace<T>(ref T slot, T value) where T : Object
         {

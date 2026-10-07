@@ -75,7 +75,7 @@ namespace MinecraftSkylines.Mod.City
         public int EditCount { get { lock (_sync) return _edits.Count; } }
 
         /// <summary>Main thread: one edit position changed (true = it has an edit now), after the guest's BLOCK_EDITS.</summary>
-        public Action<int, int, int, bool> EditChanged;
+        public Action<int, int, int, string> EditChanged;
 
         /// <summary>Every edit, sorted.</summary>
         public List<VoxelEdit> SortedEdits()
@@ -263,9 +263,9 @@ namespace MinecraftSkylines.Mod.City
                     }
                     foreach (BlockEdit e in m.Edits) _edits.Set(e.X, e.Y, e.Z, m.Palette[e.State]);
                 }
-                Action<int, int, int, bool> changed = EditChanged;
+                Action<int, int, int, string> changed = EditChanged;
                 if (changed != null)
-                    foreach (BlockEdit e in m.Edits) changed(e.X, e.Y, e.Z, m.Palette[e.State] != VoxelEditSet.Air);
+                    foreach (BlockEdit e in m.Edits) changed(e.X, e.Y, e.Z, m.Palette[e.State]);
                 return true;
             }
             if (type == AppProtocol.PlayerDataType)
