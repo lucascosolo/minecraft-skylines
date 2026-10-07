@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.15
+# `minecraft-skylines` application protocol, version 1.16
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 15`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 16`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -388,6 +388,32 @@ Sent while a city is loaded: right after the handshake (or the level load) and t
 while the value changes. The guest stops its own clock and shows exactly this time, so the sky, light
 levels (and therefore everything Minecraft lights, the player's hand included) follow the city.
 Minecraft's day starts at 06:00: ticks into the day = ((hour − 6) mod 24) × 1000.
+
+### `0x0161 TIME_SET` (guest → host, minor 16)
+
+| Type | Field | Notes |
+|---|---|---|
+| f32 | `hour` | the time of day to move to, 0 ≤ hour < 24; anything else (NaN included) is a protocol error |
+| u16 | `days` | whole days to move on beyond the next `hour` |
+
+The payload is exactly 6 bytes. The guest sends it, only when the negotiated minor is at least 16 and the city drives
+its clock (a `WORLD_TIME` has been shown), whenever something other than `WORLD_TIME` changes the city world's clock:
+`/time set`, `/time add`, players sleeping through the night. It puts its clock back to the time it showed, so it
+keeps showing `WORLD_TIME` only, and converts the change from Minecraft's clock `before` to `after` (total ticks):
+
+    hour = (((after mod 24000) / 1000) + 6) mod 24
+    days = after > before ? min(65535, floor((after − before) / 24000)) : 0
+
+`/time set <ticks>` counts from the start of the Minecraft day the guest shows: `after = floor(before / 24000) × 24000
++ ticks`, so `/time set 30000` is tomorrow's noon and `/time set 1000` is the next 07:00.
+
+The host moves the city's clock forward, never back: to the next time of day `hour` (no move when it is the current
+one), then `days` whole days further. In CS1 it adds `((floor(hour × 65536 / 24) − F) mod 65536) + days × 65536`
+frames (the first term capped at 65535 before the subtraction) to `SimulationManager.m_dayTimeOffsetFrames`, where `F`
+is `m_referenceFrameIndex + m_dayTimeOffsetFrames` (the frame the `WORLD_TIME` day count comes from), and then sends
+`WORLD_TIME` without waiting for its once-a-second limit. The calendar date does not move. A host acts only while a
+city is loaded and has a day/night cycle; otherwise it ignores the message, and the next `WORLD_TIME` puts the guest
+back.
 
 
 ## Minor 7: moving obstacles

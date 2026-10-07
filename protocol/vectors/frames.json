@@ -564,6 +564,32 @@
       "hex": "0900000060010000000050400000000000"
     },
     {
+      "name": "time_set_noon_today",
+      "type": 353,
+      "fields": {
+        "hour": 12.0,
+        "days": 0,
+        "beforeTicks": 17712002000,
+        "afterTicks": 17712006000,
+        "dayTimeFrame": 337680,
+        "offsetFrames": 22768
+      },
+      "hex": "0600000061010000000040410000"
+    },
+    {
+      "name": "time_set_add_days",
+      "type": 353,
+      "fields": {
+        "hour": 7.5,
+        "days": 3,
+        "beforeTicks": 17712021000,
+        "afterTicks": 17712097500,
+        "dayTimeFrame": 337680,
+        "offsetFrames": 207088
+      },
+      "hex": "06000000610100000000f0400300"
+    },
+    {
       "name": "dynamic_obstacles",
       "type": 368,
       "fields": {
@@ -1235,6 +1261,16 @@
       "name": "tree_grown_bad_kind",
       "hex": "15000000c2010000040000000000c94200008042008048c30701000000",
       "why": "kind above 6"
+    },
+    {
+      "name": "time_set_truncated",
+      "hex": "05000000610100000000404101",
+      "why": "payload ends inside days"
+    },
+    {
+      "name": "time_set_hour_24",
+      "hex": "06000000610100000000c0410000",
+      "why": "hour at or above 24"
     },
     {
       "name": "entity_model_too_many_parts",

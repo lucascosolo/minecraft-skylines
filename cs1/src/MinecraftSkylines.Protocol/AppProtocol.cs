@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 15;
+        public const ushort Minor = 16;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -58,6 +58,8 @@ namespace MinecraftSkylines.Protocol
 
         /// <summary>Message type of <see cref="WorldTime"/> WORLD_TIME (host to guest, minor 6).</summary>
         public const ushort WorldTimeType = 0x0160;
+        /// <summary>Message type of <see cref="TimeSet"/> TIME_SET (guest to host, minor 16).</summary>
+        public const ushort TimeSetType = 0x0161;
 
         /// <summary>Message type of <see cref="DynamicObstacles"/> DYNAMIC_OBSTACLES (host to guest, minor 7).</summary>
         public const ushort DynamicObstaclesType = 0x0170;

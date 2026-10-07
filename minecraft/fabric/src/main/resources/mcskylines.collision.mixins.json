@@ -17,7 +17,11 @@
     "GrowthSkyMixin",
     "GrowthTickMixin",
     "GroundToolMixin",
-    "SaplingTreeMixin"
+    "SaplingTreeMixin",
+    "ClockInstanceAccess",
+    "CityClockMixin",
+    "TimeCommandMixin",
+    "CitySleepMixin"
   ],
   "client": [
     "EntityCollideMixin",

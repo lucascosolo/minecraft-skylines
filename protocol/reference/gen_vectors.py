@@ -167,6 +167,13 @@ def frames() -> list[dict]:
         sb.WorldTime(18.5, 738000, sb.TIME_DAY_NIGHT).encode())
     add("world_time_no_cycle", sb.WORLD_TIME, {"hour": 3.25, "day": 0, "flags": 0, "minecraftDayTicks": 21250},
         sb.WorldTime(3.25, 0, 0).encode())
+    # ---- 1.16 (time commands set the city's clock)
+    for name, before, after in (("time_set_noon_today", 738000 * 24000 + 2000, 738000 * 24000 + 6000),
+                                ("time_set_add_days", 738000 * 24000 + 21000, 738000 * 24000 + 21000 + 3 * 24000 + 4500)):
+        t = sb.time_set_from_ticks(before, after)
+        dtf = 5 * 65536 + 10000
+        add(name, sb.TIME_SET, {"hour": t.hour, "days": t.days, "beforeTicks": before, "afterTicks": after,
+            "dayTimeFrame": dtf, "offsetFrames": sb.time_set_offset_frames(dtf, t.hour, t.days)}, t.encode())
 
     # ---- 1.7 (moving obstacles)
     obs = [sb.Obstacle(sb.OBSTACLE_VEHICLE, 16383, 120.5, 64.75, -2048.25, -90.0, 0.875, 0.75, 2.25, 8.5, 0.0, -0.25),
@@ -286,6 +293,9 @@ def invalid_frames() -> list[dict]:
         bad("tree_felled_truncated", sb.frame(sb.TREE_FELLED, sb.Writer().u32(1).bytes()), "payload ends before treeId"),
         bad("tree_grown_truncated", sb.frame(sb.TREE_GROWN, sb.Writer().u32(4).f32(100.5).f32(64.0).f32(-200.5).u8(2).bytes()), "payload ends before seed"),
         bad("tree_grown_bad_kind", sb.frame(sb.TREE_GROWN, sb.TreeGrown(4, 100.5, 64.0, -200.5, 7, 1).encode()), "kind above 6"),
+        # ---- 1.16 (time commands)
+        bad("time_set_truncated", sb.frame(sb.TIME_SET, sb.Writer().f32(12.0).u8(1).bytes()), "payload ends inside days"),
+        bad("time_set_hour_24", sb.frame(sb.TIME_SET, sb.TimeSet(24.0, 0).encode()), "hour at or above 24"),
         # ---- 1.14 (entities)
         bad("entity_model_too_many_parts", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(sb.ENTITY_MODEL_MAX_PARTS + 1).bytes()), "part count > 1024 (checked before the parts)"),
         bad("entity_model_parent_not_before", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(0).u16(0).bytes()), "parent index at or above the part's own"),

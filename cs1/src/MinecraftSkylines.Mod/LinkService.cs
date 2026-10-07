@@ -495,6 +495,17 @@ namespace MinecraftSkylines.Mod
                             s_log.Warn("bad BLOCK_SELECTION ignored: " + ex.Message);
                         }
                     }
+                    else if (e.MessageType == AppProtocol.TimeSetType && s_host.NegotiatedAppMinor >= 16)
+                    {
+                        try
+                        {
+                            s_cityClock.Set(TimeSet.Decode(e.Payload));
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            s_log.Warn("bad TIME_SET ignored: " + ex.Message);
+                        }
+                    }
                     else if ((e.MessageType >= AppProtocol.BlockEditsType && e.MessageType <= AppProtocol.CityStateType)
                         || ((e.MessageType == AppProtocol.PlayerDataType || e.MessageType == AppProtocol.RespawnRequestType) && s_host.NegotiatedAppMinor >= 11)
                         || (e.MessageType == AppProtocol.TreeFelledType && s_host.NegotiatedAppMinor >= 12)

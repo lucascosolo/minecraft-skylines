@@ -630,6 +630,41 @@ class WorldTime:
         return WorldTime(r.f32(), r.u32(), r.u8())
 
 
+TIME_SET = 0x0161
+TIME_SET_MAX_DAYS = 65535
+
+
+@dataclass
+class TimeSet:
+    """Minor 16: the guest's time command; the host moves its clock forward to the next hour, then days further."""
+    hour: float
+    days: int
+
+    def encode(self) -> bytes:
+        return Writer().f32(self.hour).u16(self.days).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "TimeSet":
+        r = Reader(p)
+        m = TimeSet(r.f32(), r.u16())
+        if not (0.0 <= m.hour < 24.0):
+            raise ProtocolError(f"hour {m.hour} outside [0, 24)")
+        return m
+
+
+def time_set_from_ticks(before: int, after: int) -> TimeSet:
+    """The TIME_SET for a change of Minecraft's clock from before to after (total ticks)."""
+    hour = ((after % 24000) / 1000.0 + 6.0) % 24.0
+    days = min(TIME_SET_MAX_DAYS, (after - before) // 24000) if after > before else 0
+    return TimeSet(hour, days)
+
+
+def time_set_offset_frames(day_time_frame: int, hour: float, days: int) -> int:
+    """Frames the host adds to m_dayTimeOffsetFrames; day_time_frame = m_referenceFrameIndex + m_dayTimeOffsetFrames."""
+    target = min(65535, int(hour * 65536.0 / 24.0))
+    return ((target - day_time_frame) % 65536) + days * 65536
+
+
 def minecraft_day_ticks(hour: float) -> int:
     """Ticks into Minecraft's day (0 = 06:00) for a city hour."""
     return int(((hour - 6.0) % 24.0) * 1000.0) % 24000

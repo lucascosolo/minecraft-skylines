@@ -61,7 +61,7 @@ final class LinkController {
 	private int entityErrors;
 	private int skyErrors;
 	private final CityEdits city;
-	private final CityClock clock = new CityClock();
+	private final CityClock clock;
 	private int exportErrors;
 	private int overlayErrors;
 	private static final boolean DEBUG_COMMANDS = Boolean.getBoolean("mcskylines.debugCommands");
@@ -88,6 +88,7 @@ final class LinkController {
 		this.selection = new SelectionExporter(guest);
 		this.sky = new SkyExporter(guest);
 		this.entities = new EntityExporter(guest);
+		this.clock = new CityClock(guest);
 	}
 
 	/** Start of every frame: input and look arrive at host frame rate, not tick rate. */
@@ -206,6 +207,7 @@ final class LinkController {
 					peer = guest.peer();
 					sentStatus = null;
 					city.linkUp(peer == null ? 0 : peer.appMinor());
+					clock.linkUp(peer == null ? 0 : peer.appMinor());
 					playerMode.onLinkUp(mc);
 					sections.linkUp();
 					selection.linkUp();

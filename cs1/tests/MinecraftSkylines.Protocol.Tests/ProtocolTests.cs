@@ -504,6 +504,15 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("seed").GetUInt32(), m.Seed);
                         return m.Encode();
                     }
+                case AppProtocol.TimeSetType:
+                    {
+                        TimeSet m = TimeSet.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("hour").GetSingle(), m.Hour);
+                        Assert.Equal(f.GetProperty("days").GetUInt16(), m.Days);
+                        Assert.Equal(f.GetProperty("offsetFrames").GetUInt32(),
+                            TimeSet.OffsetFrames(f.GetProperty("dayTimeFrame").GetUInt32(), m.Hour, m.Days));
+                        return m.Encode();
+                    }
                 default:
                     {
                         Assert.Equal(AppProtocol.PlayerStateType, frame.Type);
@@ -694,6 +703,15 @@ namespace MinecraftSkylines.Protocol.Tests
             return FrameCodec.Decode(Hex(hex)).Payload;
         }
 
+        [Theory]
+        [InlineData("time_set_truncated")]
+        [InlineData("time_set_hour_24")]
+        public void InvalidTimeSetVectorRaisesProtocolException(string name)
+        {
+            byte[] p = InvalidVectorPayload(name);
+            Assert.Throws<ProtocolException>(() => TimeSet.Decode(p));
+        }
+
         [Fact]
         public void InvalidSkyStateVectorRaisesProtocolException()
         {
@@ -811,7 +829,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(15, AppProtocol.Minor);
+            Assert.Equal(16, AppProtocol.Minor);
             Assert.Equal(0x01E0, AppProtocol.EntityModelType);
             Assert.Equal(0x01E1, AppProtocol.EntityTextureType);
             Assert.Equal(0x01E2, AppProtocol.EntityStatesType);
