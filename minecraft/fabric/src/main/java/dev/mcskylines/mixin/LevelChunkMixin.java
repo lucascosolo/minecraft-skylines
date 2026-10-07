@@ -22,7 +22,7 @@ abstract class LevelChunkMixin {
 	@Inject(method = "setBlockState", at = @At("RETURN"))
 	private void mcskylines$recordChange(BlockPos pos, BlockState state, int flags, CallbackInfoReturnable<BlockState> cir) {
 		if (cir.getReturnValue() != null) {
-			CityEdits.blockChanged(level, pos, state);
+			CityEdits.blockChanged(level, pos, cir.getReturnValue(), state);
 		}
 	}
 }

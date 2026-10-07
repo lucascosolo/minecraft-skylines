@@ -22,6 +22,7 @@ import dev.mcskylines.protocol.TreeGrown;
 import dev.mcskylines.shadow.ShadowMaterials;
 import dev.mcskylines.shadow.ShadowWorld;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.io.IOException;
@@ -95,6 +96,7 @@ public final class CityEdits {
 	private final Map<String, Optional<BlockState>> parsed = new HashMap<>();
 	private final EditRecorder<BlockState> recorder = new EditRecorder<>();
 	private boolean applying;
+	private final LongArrayList toCaveAir = new LongArrayList(); // emptied shadow ground still plain air
 	private final Long2IntOpenHashMap lamps = new Long2IntOpenHashMap(); // our light blocks: position to level
 	private final ShadowWorld shadow = new ShadowWorld();
 	private final Growth growth = new Growth();
@@ -440,6 +442,9 @@ public final class CityEdits {
 		if (s != server) {
 			return;
 		}
+		if (!toCaveAir.isEmpty()) {
+			fillCaveAir();
+		}
 		// The city's player data waits for the player; JOIN can fire before the player is in the player list
 		// (owner's run 2026-10-06: stuck on "waiting for Minecraft to load this city's blocks", no "city player
 		// applied" after the join), so retry every tick until it is applied and the open is ready.
@@ -618,14 +623,14 @@ public final class CityEdits {
 	}
 
 	/** LevelChunkMixin: a block state in a loaded chunk changed (any level, any side). */
-	public static void blockChanged(Level l, BlockPos pos, BlockState state) {
+	public static void blockChanged(Level l, BlockPos pos, BlockState old, BlockState state) {
 		CityEdits r = recording;
 		if (r != null) {
-			r.record(l, pos, state);
+			r.record(l, pos, old, state);
 		}
 	}
 
-	private synchronized void record(Level l, BlockPos pos, BlockState state) {
+	private synchronized void record(Level l, BlockPos pos, BlockState old, BlockState state) {
 		if (l != level || applying || recording != this || !BlockKey.fits(pos.getX(), pos.getY(), pos.getZ())) {
 			return;
 		}
@@ -637,6 +642,12 @@ public final class CityEdits {
 		boolean filled = shadow.wouldFill(key);
 		boolean treeLog = filled && shadow.treeOfLog(key) >= 0;
 		recorder.record(key, filled && state.isAir() && !treeLog ? Blocks.CAVE_AIR.defaultBlockState() : state);
+		// The world holds that cave air too (as after a reload): SectionExporter draws the cavity's walls and floor as
+		// shadow faces toward cave air, so dug ground left as plain air showed a hole into the sky (owner, 2026-10-06).
+		// Only ground (full blocks): a broken grass plant stays plain air, so the ground under it grows no top face.
+		if (filled && !treeLog && state.is(Blocks.AIR) && old.isSolidRender()) {
+			toCaveAir.add(key);
+		}
 		int felled = filled ? shadow.playerChanged(key, state.isAir()) : -1;
 		if (felled != -1 && appMinor >= 12 && open != null && open.ready) {
 			LOG.info(PREFIX + "tree {} felled", Integer.toUnsignedString(felled));
@@ -827,6 +838,23 @@ public final class CityEdits {
 				return Optional.empty();
 			}
 		});
+	}
+
+	private void fillCaveAir() {
+		applying = true;
+		try {
+			BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+			for (int i = 0; i < toCaveAir.size(); i++) {
+				long k = toCaveAir.getLong(i);
+				pos.set(BlockKey.x(k), BlockKey.y(k), BlockKey.z(k));
+				if (open != null && recording == this && shadow.wouldFill(k) && level.getBlockState(pos).is(Blocks.AIR)) {
+					level.setBlock(pos, Blocks.CAVE_AIR.defaultBlockState(), APPLY_FLAGS);
+				}
+			}
+		} finally {
+			applying = false;
+			toCaveAir.clear();
+		}
 	}
 
 	private void flushRecorded() {

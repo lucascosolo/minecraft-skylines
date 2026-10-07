@@ -212,7 +212,8 @@ public final class SectionExporter {
 						// shadow blocks' faces toward dug (cave air) cells (docs/plans/survival.md).
 						boolean shadow = dev.mcskylines.shadow.ShadowCells.INSTANCE.contains(pos.getX(), pos.getY(), pos.getZ());
 						if (shadow) {
-							int faces = caveFaces(level, pos);
+							// Only ground (full blocks) bounds a cavity; a grass plant next to cave air stays hidden.
+							int faces = state.isSolidRender() ? caveFaces(level, pos) : 0;
 							if (faces == 0) {
 								continue;
 							}

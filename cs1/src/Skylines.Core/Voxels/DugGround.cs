@@ -50,6 +50,13 @@ namespace Skylines.Core.Voxels
             _surface = surfaceAtColumnCentre;
         }
 
+        /// <summary>
+        /// <see cref="TopOf"/> lowers the surface by this much first: the host samples in float, the shadow world in double,
+        /// and where they straddle a cell centre the host must take the lower top, so a broken grass plant's cave air at the
+        /// guest's solid top + 1 never reads as dug ground (a void hole over solid shadow ground).
+        /// </summary>
+        public const float SurfaceTolerance = 0.001f;
+
         /// <summary>Highest cell whose centre lies strictly below <paramref name="surface"/>: ceil(surface - 0.5) - 1.</summary>
         public static int SolidTop(float surface)
         {
@@ -115,12 +122,12 @@ namespace Skylines.Core.Voxels
             _tops.Clear();
         }
 
-        /// <summary>The column's solid top (cached).</summary>
+        /// <summary>The column's solid top (cached), from the surface lowered by <see cref="SurfaceTolerance"/>.</summary>
         public int TopOf(int x, int z)
         {
             long k = Key(x, z);
             int top;
-            if (!_tops.TryGetValue(k, out top)) _tops[k] = top = SolidTop(_surface(x, z));
+            if (!_tops.TryGetValue(k, out top)) _tops[k] = top = SolidTop(_surface(x, z) - SurfaceTolerance);
             return top;
         }
 
