@@ -193,12 +193,14 @@ namespace MinecraftSkylines.Mod.Terrain
             }
             _quads.Clear();
             _ground.Skirts(int.MinValue, int.MinValue, int.MaxValue, int.MaxValue, (x, z) => _terrain.Height(x, -z), _quads);
+            // Skirts are the exposed earth between the block grid and the surface, inside the hole: drawn as bare ground, not
+            // grass (owner, 2026-10-06: grass "extend[ing] ... into an empty space I made").
             foreach (DugQuad q in _quads)
             {
-                Flush(mb, 4, _meshes);
+                Flush(bareMb, 4, _bareMeshes);
                 // Minecraft A, B, C, D counter-clockwise from the open side; mirrored z makes it A, D, C, B in Unity.
-                mb.Quad(new Vector3(q.Ax, q.Ay, -q.Az), new Vector3(q.Dx, q.Dy, -q.Dz), new Vector3(q.Cx, q.Cy, -q.Cz),
-                    new Vector3(q.Bx, q.By, -q.Bz), tiling, false);
+                bareMb.Quad(new Vector3(q.Ax, q.Ay, -q.Az), new Vector3(q.Dx, q.Dy, -q.Dz), new Vector3(q.Cx, q.Cy, -q.Cz),
+                    new Vector3(q.Bx, q.By, -q.Bz), bareTiling, false);
             }
             Flush(mb, MaxMeshVertices, _meshes);
             Flush(bareMb, MaxMeshVertices, _bareMeshes);
