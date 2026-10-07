@@ -178,13 +178,14 @@ class ShadowWorldTest {
     }
 
     @Test
-    void bushHasNoLogsAndNeverReturnsATreeId() {
+    void bushIsOneLogAndFellingItReturnsItsTreeId() {
         ShadowWorld.acceptTrees(new Trees(epoch, 0, 0, List.of(new Trees.Tree(9, 8.5f, 10.3f, 8.5f, 2f, 1.5f, 6))));
         build();
-        assertTrue(world.values().stream().noneMatch(b -> b.contains("_log")));
-        for (long key : new ArrayList<>(world.keySet())) {
-            assertEquals(-1, sw.playerChanged(key, true));
-        }
+        List<Long> logs = world.entrySet().stream().filter(e -> e.getValue().contains("_log")).map(Map.Entry::getKey).toList();
+        assertEquals(1, logs.size());
+        assertTrue(world.values().stream().noneMatch(b -> b.contains("_leaves")));
+        assertEquals(9, sw.treeOfLog(logs.get(0)));
+        assertEquals(9, sw.playerChanged(logs.get(0), true));
     }
 
     @Test
