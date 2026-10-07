@@ -261,6 +261,12 @@ public final class ShadowWorld {
 		};
 		if (!tris.isEmpty()) {
 			List<SkyTri> column = new ArrayList<>();
+			List<SkyTri> obstacles = new ArrayList<>();
+			for (SkyTri t : tris) {
+				if ((t.flags & (SkyTri.VEGETATION | SkyTri.PROP)) != 0) {
+					obstacles.add(t);
+				}
+			}
 			for (int dz = 0; dz < 16; dz++) {
 				for (int dx = 0; dx < 16; dx++) {
 					double px = x0 + dx + 0.5, pz = z0 + dz + 0.5;
@@ -278,7 +284,11 @@ public final class ShadowWorld {
 					}
 					int top = Double.isNaN(s.terrain()) ? 0 : ShadowColumn.solidTop(s.terrain());
 					boolean water = HostWater.active() && HostWater.anyIn(x0 + dx - 2, top - 1, z0 + dz - 2, x0 + dx + 2, top + 2, z0 + dz + 2);
-					ShadowPlanner.column(seed, s, x0 + dx, z0 + dz, water, c.floor[i], sink);
+					// Props and bushes block path finding, except over a column the player dug or built on.
+					double obstacle = obstacles.isEmpty() || !BlockKey.fits(x0 + dx, top, z0 + dz)
+						|| host.playerOwns(BlockKey.pack(x0 + dx, top, z0 + dz)) || host.playerOwns(BlockKey.pack(x0 + dx, top + 1, z0 + dz))
+						? Double.NaN : ShadowObstacles.top(obstacles, x0 + dx, z0 + dz, s.terrain());
+					ShadowPlanner.column(seed, s, x0 + dx, z0 + dz, water, c.floor[i], obstacle, sink);
 				}
 			}
 		}
@@ -290,7 +300,7 @@ public final class ShadowWorld {
 						if (BlockKey.fits(x, y, z) && (x >> 4) == cx && (z >> 4) == cz) {
 							long k = BlockKey.pack(x, y, z);
 							String old = want.get(k);
-							if (old == null || old.endsWith("grass") || old.startsWith("minecraft:tall_grass")) {
+							if (old == null || old.endsWith("grass") || old.startsWith("minecraft:tall_grass") || old.equals(ShadowPlanner.SOLID)) {
 								want.put(k, block);
 								if (block.contains("_log")) {
 									logs.put(k, t.id());

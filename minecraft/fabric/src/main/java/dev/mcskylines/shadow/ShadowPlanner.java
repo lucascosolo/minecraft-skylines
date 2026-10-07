@@ -41,6 +41,12 @@ public final class ShadowPlanner {
 	}
 
 	public static void column(long seed, ShadowColumn.Sample s, int x, int z, boolean waterNear, int floorY, CellSink sink) {
+		column(seed, s, x, z, waterNear, floorY, Double.NaN, sink);
+	}
+
+	/** As above, with the top of a CS1 prop or bush over the column ({@link ShadowObstacles#top}), or NaN. */
+	public static void column(long seed, ShadowColumn.Sample s, int x, int z, boolean waterNear, int floorY, double obstacleTop,
+			CellSink sink) {
 		if (Double.isNaN(s.terrain())) {
 			return;
 		}
@@ -71,7 +77,11 @@ public final class ShadowPlanner {
 				sink.accept(x, y, z, SOLID);
 			}
 		}
-		if (top == ShadowMaterials.Top.GRASS && !road && !building) {
+		int obstacle = road || building ? 0 : ShadowObstacles.cells(s.terrain(), obstacleTop);
+		for (int y = tTop + 1; y <= tTop + obstacle; y++) {
+			sink.accept(x, y, z, SOLID);
+		}
+		if (top == ShadowMaterials.Top.GRASS && !road && !building && obstacle == 0) {
 			String plant = ShadowMaterials.plant(seed, x, z);
 			if ("minecraft:tall_grass".equals(plant)) {
 				sink.accept(x, tTop + 1, z, "minecraft:tall_grass[half=lower]");

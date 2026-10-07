@@ -14,6 +14,10 @@ public final class SkyTri {
 	public static final int ROAD_SURFACE = 2;
 	public static final int BRIDGE_DECK = 4;
 	public static final int BUILDING = 8;
+	/** A tree's or bush's box (host ObstacleGeometry.VegetationFlag). */
+	public static final int VEGETATION = 64;
+	/** A prop's box: hedges, fences, benches, bins (host ObstacleGeometry.PropFlag). */
+	public static final int PROP = 128;
 	/** Terrain the host cut away over dug columns, kept so the shadow world sees the original ground; never solid. */
 	public static final int DUG_SURFACE = 512;
 

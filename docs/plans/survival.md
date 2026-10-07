@@ -68,6 +68,9 @@ stand. CS1 never draws these and they are never saved: only the player's changes
 city's edit set. The player keeps the smooth triangle collision; mobs, fluids, spawning and pathfinding use the blocks.
 CS1's lit lamps (light blocks, protocol 1.8) keep lit streets free of hostile spawns. Built chunk by chunk around the
 player on the guest. Approximation: 1 m steps against CS1's smooth ground (slabs/stairs later).
+CS1 props and bushes (hedges, fences, benches, bins: collision boxes flagged prop/vegetation) at least 0.6 m tall add
+invisible barrier cells over the columns they cover (one cell up to 1.2 m, two above, so mobs never path through or jump
+them), never on roads, buildings or columns the player dug or built on (ShadowObstacles).
 Order change: trees come as part of this (real logs/leaves), before mining's hole drawing.
 
 ## Material rules for mining
