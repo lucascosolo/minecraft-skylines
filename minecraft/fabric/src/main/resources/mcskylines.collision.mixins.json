@@ -13,6 +13,7 @@
     "BuriedDropsMixin",
     "ShadowSuffocationMixin",
     "EntityTriCollideMixin",
+    "ExperienceOrbShadowMixin",
     "FarmlandWaterMixin",
     "GrowthSkyMixin",
     "GrowthTickMixin",
