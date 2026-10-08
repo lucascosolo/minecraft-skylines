@@ -94,7 +94,7 @@ public final class EntityExporter {
 			if (out.size() >= EntityStates.MAX_ENTITIES) {
 				break;
 			}
-			if (e == mc.player) {
+			if (e == mc.player || dev.mcskylines.world.CitizenProxies.isProxy(e)) {
 				continue;
 			}
 			double dx = e.getX() - p.x, dz = e.getZ() - p.z;

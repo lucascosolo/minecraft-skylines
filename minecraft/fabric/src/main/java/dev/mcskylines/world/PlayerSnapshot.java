@@ -29,15 +29,20 @@ final class PlayerSnapshot {
 	private static final String GAME_TYPE = "playerGameType";
 	private static final String PREVIOUS_GAME_TYPE = "previousPlayerGameType";
 	private static final String GROWTH = "mcskylines:growth";
+	private static final String RULES = "mcskylines:rules"; // CitizenRules (protocol 1.19)
 
 	private PlayerSnapshot() {
 	}
 
 	/** {@code growth}: the city's growth clocks (chunkKey, tick pairs), kept in the blob so the city's save holds them. */
-	static byte[] capture(ServerPlayer p, long[] growth) throws IOException {
+	static byte[] capture(ServerPlayer p, long[] growth, CitizenRules rules) throws IOException {
 		ByteArrayOutputStream bytes = new ByteArrayOutputStream();
 		CompoundTag tag = tagOf(p);
 		tag.putLongArray(GROWTH, growth);
+		CompoundTag r = new CompoundTag();
+		r.putBoolean("citizens", rules.citizens());
+		r.putBoolean("conversion", rules.conversion());
+		tag.put(RULES, r);
 		NbtIo.writeCompressed(tag, bytes);
 		return bytes.toByteArray();
 	}
@@ -57,6 +62,7 @@ final class PlayerSnapshot {
 		if (tag != null) {
 			growth = tag.getLongArray(GROWTH).orElse(growth);
 			tag.remove(GROWTH);
+			tag.remove(RULES);
 			CompoundTag own = tagOf(p);
 			for (String key : KEPT) {
 				Tag v = own.get(key);
@@ -82,6 +88,15 @@ final class PlayerSnapshot {
 		p.onUpdateAbilities();
 		p.level().getServer().getPlayerList().sendActivePlayerEffects(p);
 		return growth;
+	}
+
+	/** The city's citizen rules the data carries; the defaults when it has none. */
+	static CitizenRules rules(byte[] data) throws IOException {
+		if (data.length == 0) {
+			return CitizenRules.DEFAULT;
+		}
+		CompoundTag r = NbtIo.readCompressed(new ByteArrayInputStream(data), NbtAccounter.unlimitedHeap()).getCompoundOrEmpty(RULES);
+		return new CitizenRules(r.getBooleanOr("citizens", true), r.getBooleanOr("conversion", true));
 	}
 
 	/** Everything a city's player owns back to a new survival player's values, so nothing leaks from the previous city. */

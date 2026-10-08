@@ -24,7 +24,10 @@
     "ClockInstanceAccess",
     "CityClockMixin",
     "TimeCommandMixin",
-    "CitySleepMixin"
+    "CitySleepMixin",
+    "ProxyPickMixin",
+    "ProxyTargetMixin",
+    "ZombieConversionMixin"
   ],
   "client": [
     "EntityCollideMixin",

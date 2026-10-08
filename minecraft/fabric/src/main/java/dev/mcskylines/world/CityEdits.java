@@ -100,6 +100,7 @@ public final class CityEdits {
 	private final Long2IntOpenHashMap lamps = new Long2IntOpenHashMap(); // our light blocks: position to level
 	private final ShadowWorld shadow = new ShadowWorld();
 	private final Growth growth = new Growth();
+	private volatile CitizenRules rules = CitizenRules.DEFAULT; // the open city's, from its player data
 	private long[] savedClocks = new long[0]; // the growth clocks the applied player data carried
 	private long citySeed;
 	private int growthTicks;
@@ -532,6 +533,7 @@ public final class CityEdits {
 		}
 		try {
 			savedClocks = PlayerSnapshot.apply(p, open.playerData);
+			rules = PlayerSnapshot.rules(open.playerData);
 			LOG.info(PREFIX + "city player applied ({})", open.playerData.length == 0 ? "fresh survival player" : open.playerData.length + " bytes");
 		} catch (Exception e) {
 			open.playerBroken = true;
@@ -552,7 +554,7 @@ public final class CityEdits {
 		}
 		byte[] data;
 		try {
-			data = PlayerSnapshot.capture(p, growth.clockPairs());
+			data = PlayerSnapshot.capture(p, growth.clockPairs(), rules);
 		} catch (Exception e) {
 			LOG.error(PREFIX + "could not capture the player's data", e);
 			return;
@@ -909,6 +911,31 @@ public final class CityEdits {
 		} catch (IOException e) {
 			LOG.error(PREFIX + "could not write {}: {}", touchedFile, e.toString());
 		}
+	}
+
+	/** The open city's citizen rules. */
+	public CitizenRules rules() {
+		return rules;
+	}
+
+	/** /skylines rules (any thread): saved with the city's player data at the next check. */
+	public void setRules(CitizenRules r) {
+		rules = r;
+	}
+
+	/** Server thread: the open city's sequence when it is ready and the host speaks minor 19, else -1. */
+	public synchronized long citizenOpenSeq() {
+		return open != null && open.ready && rules.proxiesWanted(true, appMinor) ? Integer.toUnsignedLong(open.seq()) : -1;
+	}
+
+	/** Server thread: the city's world, or null. */
+	public synchronized ServerLevel cityLevel() {
+		return level;
+	}
+
+	/** CITIZEN_EVENTS to the host. */
+	public void sendCitizenEvents(dev.mcskylines.protocol.CitizenEvents m) {
+		send(AppProtocol.CITIZEN_EVENTS, m.encode());
 	}
 
 	private void send(int type, byte[] payload) {
