@@ -344,6 +344,13 @@ Assembly-CSharp:
 - The calendar (`m_timeOffsetTicks`) is not moved. `m_isNightTime` is left to the simulation thread's next frame
   (its night-count achievement dispatch then runs as it would for natural time).
 
+## City-view focus (CITY_FOCUS, minor 18; verified against the decompile 2026-10-07, compiles against the real assemblies; not seen in game)
+
+- `CameraController.m_currentPosition` (public `Vector3`, CameraController.cs:85) is the orbit point the city camera looks at.
+  `LateUpdate` (:733) runs `UpdateCurrentPosition` (:1013; eases it toward `m_targetPosition` at :1081) and `UpdateTransform`
+  (:1089), which places the camera at `m_currentPosition` plus the orbit offset (:1095). It moves only while the controller
+  is enabled, i.e. in the city view; `CameraTakeover` disables it in player mode. The controller is found as
+  `Camera.main.GetComponent<CameraController>()`, as in `CameraTakeover` (:65). CS1 z maps to Minecraft z as `-cs.z`.
 
 ## Citizens as villagers (2026-10-07, verified against the decompile; compiles against the real assemblies; not seen in game)
 

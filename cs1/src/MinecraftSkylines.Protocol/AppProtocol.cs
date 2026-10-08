@@ -90,8 +90,12 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Message type of <see cref="TreeGrown"/> TREE_GROWN (guest to host, minor 15).</summary>
         public const ushort TreeGrownType = 0x01C2;
 
+        /// <summary>Message type of <see cref="CityEntities"/> CITY_ENTITIES (both directions, minor 18).</summary>
+        public const ushort CityEntitiesType = 0x01D0;
+        /// <summary>Message type of <see cref="CityFocus"/> CITY_FOCUS (host to guest, minor 18).</summary>
+        public const ushort CityFocusType = 0x01D1;
         /// <summary>Message type of <see cref="CitizenEvents"/> CITIZEN_EVENTS (guest to host, minor 19).</summary>
-        public const ushort CitizenEventsType = 0x01D0;
+        public const ushort CitizenEventsType = 0x01D2;
 
         // ---- minor 14: entities (13 is reserved for another branch)
         /// <summary>Message type of <see cref="EntityModel"/> ENTITY_MODEL (guest to host, minor 14).</summary>

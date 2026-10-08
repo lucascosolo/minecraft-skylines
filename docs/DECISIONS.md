@@ -277,8 +277,30 @@ store keyed by id, wrong for the first 50 ms and across id reuse, while the host
 real clock); a wire field per slice as f32 (4x larger for no visible gain); rotating the player's view with the vehicle
 (the host owns the camera yaw in player mode; the feet still turn round the vehicle's centre).
 
+## 2026-10-07: entities belong to the city save; the city view's area is simulated (protocol 1.18)
 
-## 2026-10-07: citizens are villagers to mobs (protocol 1.19 CITIZEN_EVENTS)
+Owner (2026-10-06): "Minecraft mobs need to exist in the CS1 world even when the player leaves Minecraft mode, just
+like the blocks". Every non-player entity is saved in the city save as its own blob, `CITY_ENTITIES` 0x01D0 (same
+shape, limits and host storage as `PLAYER_DATA`: BlobRecord with version and CRC under
+`MinecraftSkylines.CityEntities`, an unreadable record kept aside). The guest tags each entity with a per-open
+generation and discards anything else the world loads (another city's mobs, stale disk copies); the city's entities
+are restored from the blob once their chunk is loaded and its shadow ground built, and those unloaded to disk are
+parked so a capture holds the whole city. Blob: gzip NBT `{version: 1, DataVersion, entities}`, at most 1024 entities,
+persistent mobs first, trimmed to 4 MiB; older data is upgraded with `DataFixTypes.ENTITY_CHUNK`. Rejected: riding
+inside `PLAYER_DATA` (the player's inventory and a growing mob population would share one 4 MiB budget, so an
+overflow could cost the inventory, and a fresh-player reset would wipe the city's animals).
+
+City view: `CITY_FOCUS` 0x01D1 carries `CameraController.m_currentPosition` (moved 8 m, at most 4/s). The guest holds
+a vanilla `DRAGON` ticket (loading + simulation, no timeout, not persisted; a registered type needs a main entrypoint
+this client-only mod lacks) of radius 4: entities tick in the 5 x 5 chunks (80 m) around the focus, two frozen rings
+around them so mobs never walk off the ground the host streams there (64 m, which covers the 25 chunks). About 25
+ticking chunks on top of the player's, so the hidden server stays cheap. Mobs in that area skip `Mob.checkDespawn`
+(not in Peaceful); items and arrows keep their age-based despawn. The exporter adds server-side entities of the area
+(the client tracks only those near the player), posed by the same renderers. Pausing CS1 is unchanged: mobs in Minecraft
+still move while the city is paused, as they did near the player. Rejected: a fake player at the camera (a second
+connection and chunk-tracking view), and moving the hidden player there (breaks the player's own state).
+
+## 2026-10-07: citizens are villagers to mobs (protocol 1.19 CITIZEN_EVENTS 0x01D2)
 
 Owner: "CS1 npcs will be villagers to the Minecraft mobs and they will be triggered to panic when targeted by mobs, and
 they will be capable of actually being killed by them too"; "Zombie apocalypse would be a great side effect of this mod".
@@ -288,7 +310,7 @@ every server tick; CS1 owns the movement. Zombies hunt them with vanilla AI. The
 invisible: vanilla scales a target's detection range by 0.07 for an invisible entity, so zombies would only notice a
 citizen within about 2.5 m. Instead the host never draws it (`EntityExporter` skips proxies), it sits on a scoreboard
 team with collision rule `NEVER` (vanilla's own way to stop player pushing), and it is never pickable, so the crosshair
-and mining pass straight through it. A proxy found in a loaded chunk is stale and discarded; proxies are never kept.
+and mining pass straight through it. A proxy found in a loaded chunk is stale and discarded; proxies are never kept. Proxies are never adopted into the city's saved entities (1.18 `CITY_ENTITIES`).
 
 - **Only a hostile mob can hurt a proxy** (Fabric `ALLOW_DAMAGE`: the damage's entity must be an `Enemy`). Fall,
   suffocation in shadow blocks, fire, drowning and the player do nothing, because a proxy death is a permanent city

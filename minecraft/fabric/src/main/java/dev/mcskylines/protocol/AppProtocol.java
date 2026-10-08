@@ -41,11 +41,13 @@ public final class AppProtocol {
 	public static final int TREES = 0x01C0; // minor 12: the trees the host draws in a collision region (host to guest)
 	public static final int TREE_FELLED = 0x01C1; // minor 12: the player felled the tree placed for an id (guest to host)
 	public static final int TREE_GROWN = 0x01C2; // minor 15: a sapling grew into a tree (guest to host)
-	public static final int CITIZEN_EVENTS = 0x01D0; // minor 19: mobs panicked, killed or converted citizens (guest to host)
+	public static final int CITIZEN_EVENTS = 0x01D2; // minor 19: mobs panicked, killed or converted citizens (guest to host)
 	// minor 14: entities (13 is reserved for another branch)
 	public static final int ENTITY_MODEL = 0x01E0; // a model of textured box parts (guest to host)
 	public static final int ENTITY_TEXTURE = 0x01E1; // a PNG texture (guest to host)
 	public static final int ENTITY_STATES = 0x01E2; // the complete set of entities and their pose (guest to host)
+	public static final int CITY_ENTITIES = 0x01D0; // minor 18: the city's entities (both directions)
+	public static final int CITY_FOCUS = 0x01D1; // minor 18: where the city view's camera looks (host to guest)
 	public static final int DEBUG_COMMAND = 0x01F0;
 
 	private AppProtocol() {

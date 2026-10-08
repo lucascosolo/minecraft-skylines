@@ -188,6 +188,14 @@ namespace MinecraftSkylines.Mod
             _enterRequested = true;
         }
 
+        /// <summary>Minor 18, player mode off: streams collision and trees around the city view's focus (CS1 position), as around the feet in player mode.</summary>
+        public void StreamAround(BridgeHost host, Vector3 csFocus)
+        {
+            if (_state != State.Off) return;
+            try { _streamer.Tick(csFocus, host, StreamBudgetMs); }
+            catch (Exception e) { _log.Error("city view streaming", e); }
+        }
+
         /// <summary>Per frame from the pump's Update, after bridge events were handled.</summary>
         public void Update(BridgeHost host, bool cityReady)
         {

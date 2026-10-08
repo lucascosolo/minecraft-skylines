@@ -7,7 +7,7 @@ import dev.mcskylines.bridge.ProtocolException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 0x01D0 CITIZEN_EVENTS (guest to host), minor 19: mobs panicked, killed or converted citizens' villager proxies. */
+/** 0x01D2 CITIZEN_EVENTS (guest to host), minor 19: mobs panicked, killed or converted citizens' villager proxies. */
 public record CitizenEvents(int openSeq, List<Event> events) {
 	public static final int PANIC = 1;
 	public static final int KILLED = 2;

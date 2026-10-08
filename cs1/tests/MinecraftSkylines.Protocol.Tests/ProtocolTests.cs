@@ -386,6 +386,21 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(Hex(f.GetProperty("dataHex").GetString()), m.Data);
                         return m.Encode();
                     }
+                case AppProtocol.CityEntitiesType:
+                    {
+                        CityEntities m = CityEntities.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(Hex(f.GetProperty("dataHex").GetString()), m.Data);
+                        return m.Encode();
+                    }
+                case AppProtocol.CityFocusType:
+                    {
+                        CityFocus m = CityFocus.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("x").GetSingle(), m.X);
+                        Assert.Equal(f.GetProperty("z").GetSingle(), m.Z);
+                        Assert.Equal(f.GetProperty("flags").GetByte(), m.Flags);
+                        return m.Encode();
+                    }
                 case AppProtocol.RespawnRequestType:
                     {
                         RespawnRequest m = RespawnRequest.Decode(frame.Payload);

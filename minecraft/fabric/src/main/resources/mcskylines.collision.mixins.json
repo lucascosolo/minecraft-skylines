@@ -25,6 +25,7 @@
     "CityClockMixin",
     "TimeCommandMixin",
     "CitySleepMixin",
+    "CityViewDespawnMixin",
     "ProxyPickMixin",
     "ProxyTargetMixin",
     "ZombieConversionMixin"

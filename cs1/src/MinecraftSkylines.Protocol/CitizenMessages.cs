@@ -13,7 +13,7 @@ namespace MinecraftSkylines.Protocol
         public float X, Y, Z;
     }
 
-    /// <summary>0x01D0 CITIZEN_EVENTS (guest to host, minor 19): mobs panicked, killed or converted citizens' proxies.</summary>
+    /// <summary>0x01D2 CITIZEN_EVENTS (guest to host, minor 19): mobs panicked, killed or converted citizens' proxies.</summary>
     public sealed class CitizenEvents
     {
         /// <summary>A mob targeted or hit the proxy.</summary>

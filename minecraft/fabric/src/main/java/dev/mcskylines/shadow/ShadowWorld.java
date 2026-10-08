@@ -125,6 +125,11 @@ public final class ShadowWorld {
 		ShadowCells.INSTANCE.clear();
 	}
 
+	/** Whether the chunk's shadow blocks are built and current (restored entities wait for their ground). */
+	public boolean built(long chunkKey) {
+		return chunks.containsKey(chunkKey) && !dirty.contains(chunkKey);
+	}
+
 	/** Whether the shadow plan fills the cell: a player emptying it must be saved as an explicit (cave air) edit. */
 	public boolean wouldFill(long key) {
 		Chunk c = chunks.get(BlockKey.chunkKey(key));

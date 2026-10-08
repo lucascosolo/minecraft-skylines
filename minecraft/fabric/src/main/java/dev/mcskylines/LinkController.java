@@ -14,6 +14,7 @@ import dev.mcskylines.collision.CollisionStore;
 import dev.mcskylines.collision.DynamicObstacleStore;
 import dev.mcskylines.entity.EntityExporter;
 import dev.mcskylines.protocol.AppProtocol;
+import dev.mcskylines.protocol.CityFocus;
 import dev.mcskylines.protocol.CollisionRegion;
 import dev.mcskylines.protocol.CollisionReset;
 import dev.mcskylines.protocol.DynamicObstacles;
@@ -282,10 +283,24 @@ final class LinkController {
 					}
 				} else if (m.type() == AppProtocol.CITY_OPEN || m.type() == AppProtocol.BLOCK_EDITS
 						|| m.type() == AppProtocol.CITY_CLOSE || m.type() == AppProtocol.EDIT_SYNC
-						|| m.type() == AppProtocol.LIGHT_SOURCES || m.type() == AppProtocol.PLAYER_DATA) {
-					int needs = m.type() == AppProtocol.LIGHT_SOURCES ? 8 : m.type() == AppProtocol.PLAYER_DATA ? 11 : 5;
+						|| m.type() == AppProtocol.LIGHT_SOURCES || m.type() == AppProtocol.PLAYER_DATA
+						|| m.type() == AppProtocol.CITY_ENTITIES) {
+					int needs = switch (m.type()) {
+						case AppProtocol.LIGHT_SOURCES -> 8;
+						case AppProtocol.PLAYER_DATA -> 11;
+						case AppProtocol.CITY_ENTITIES -> 18;
+						default -> 5;
+					};
 					if (peer != null && peer.appMinor() >= needs) {
 						city.deliver(m.type(), m.payload());
+					}
+				} else if (m.type() == AppProtocol.CITY_FOCUS) {
+					try {
+						if (peer != null && peer.appMinor() >= 18) {
+							dev.mcskylines.world.CityView.accept(CityFocus.decode(m.payload()));
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed CITY_FOCUS: {}", e.getMessage());
 					}
 				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES || m.type() == AppProtocol.SHAPED_OBSTACLES) {
 					boolean shaped = m.type() == AppProtocol.SHAPED_OBSTACLES;

@@ -5,6 +5,7 @@ conformance.py, and as a stand-in host or guest during development. The spec win
 """
 from __future__ import annotations
 
+import math
 import socket
 import struct
 import time
@@ -915,6 +916,54 @@ class PlayerData:
         return PlayerData(seq, r._take(n))
 
 
+# ---- minecraft-skylines app protocol 1.18: the city's entities and the city view's area --------
+CITY_ENTITIES = 0x01D0
+CITY_FOCUS = 0x01D1
+CITY_ENTITIES_MAX = 4 * 1024 * 1024
+CITY_FOCUS_ACTIVE = 1
+
+
+@dataclass
+class CityEntities:
+    """The city's entities as the guest serializes them; opaque to the host. Empty: no entities."""
+    open_seq: int
+    data: bytes
+
+    def encode(self) -> bytes:
+        if len(self.data) > CITY_ENTITIES_MAX:
+            raise ValueError("city entities too long")
+        return Writer().u32(self.open_seq).u32(len(self.data)).bytes() + self.data
+
+    @staticmethod
+    def decode(p: bytes) -> "CityEntities":
+        r = Reader(p)
+        seq, n = r.u32(), r.u32()
+        if n > CITY_ENTITIES_MAX:
+            raise ProtocolError(f"city entities length {n} above {CITY_ENTITIES_MAX}")
+        return CityEntities(seq, r._take(n))
+
+
+@dataclass
+class CityFocus:
+    """Where the city view's camera looks (Minecraft frame); flags bit 0 ACTIVE, clear: no city-view area."""
+    x: float
+    z: float
+    flags: int
+
+    def encode(self) -> bytes:
+        return Writer().f32(self.x).f32(self.z).u8(self.flags).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CityFocus":
+        if len(p) != 9:
+            raise ProtocolError(f"city focus payload is {len(p)} bytes, not 9")
+        r = Reader(p)
+        f = CityFocus(r.f32(), r.f32(), r.u8())
+        if f.flags & CITY_FOCUS_ACTIVE and not (math.isfinite(f.x) and math.isfinite(f.z)):
+            raise ProtocolError("active city focus is not finite")
+        return f
+
+
 @dataclass
 class RespawnRequest:
     """The player respawned without a spawn block of its own; the host teleports it to the city's entry spot."""
@@ -1013,7 +1062,7 @@ class TreeGrown:
 
 
 # ---- minecraft-skylines app protocol 1.19: citizens as villagers ------------------------------
-CITIZEN_EVENTS = 0x01D0
+CITIZEN_EVENTS = 0x01D2
 CITIZEN_EVENTS_MAX = 1024
 CITIZEN_PANIC = 1
 CITIZEN_KILLED = 2

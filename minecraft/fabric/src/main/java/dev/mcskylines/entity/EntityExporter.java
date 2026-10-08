@@ -45,7 +45,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Minor 14: every client tick, the complete set of entities within 96 m (horizontally) of the player, posed by
+ * Minor 14: every client tick, the complete set of entities within 96 m (horizontally) of the player (and, minor 18,
+ * the server's entities in the city view's area, CityView), posed by
  * Minecraft's own renderers (captured through {@link EntityCapture}), as ENTITY_STATES; each model and texture is sent
  * once per connection before its first use. Client thread only.
  */
@@ -109,6 +110,29 @@ public final class EntityExporter {
 			} catch (RuntimeException ex) {
 				if (errors++ < 5) {
 					LOG.warn("[MinecraftSkylines] entity capture failed for {}", e.getType(), ex);
+				}
+			}
+		}
+		// Minor 18: the city view's simulated area, from the server (the client only tracks entities near the player).
+		java.util.Set<Integer> ids = new java.util.HashSet<>();
+		for (EntityStates.Entity s : out) {
+			ids.add(s.entityId());
+		}
+		for (Entity e : dev.mcskylines.world.CityView.entities()) {
+			if (out.size() >= EntityStates.MAX_ENTITIES) {
+				break;
+			}
+			if (e.isRemoved() || !ids.add(e.getId())) {
+				continue;
+			}
+			try {
+				EntityStates.Entity s = capture(mc, dispatcher, camera, e);
+				if (s != null) {
+					out.add(s);
+				}
+			} catch (RuntimeException ex) {
+				if (errors++ < 5) {
+					LOG.warn("[MinecraftSkylines] city-view entity capture failed for {}", e.getType(), ex);
 				}
 			}
 		}

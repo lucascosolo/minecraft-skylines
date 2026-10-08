@@ -27,6 +27,8 @@ material available including some ores buried in the ground. we need trees to ge
    drawn in CS1 from any camera: each entity type's model (cuboids and texture) sent once like the block atlas, then
    per entity ~20 Hz position, orientation and part rotations, animated and drawn by CS1 in its own scene (no image
    streaming, no lag). Dropped items, arrows, minecarts the same way.
+   Status 2026-10-07: (a) and (b) implemented, built and sandbox-tested (protocol 1.18, `CITY_ENTITIES` and
+   `CITY_FOCUS`; see DECISIONS.md); not yet verified in game.
 4a. **Farming and animals readily available** (owner, 2026-10-06: "farming and natural animal spawning needs to be
    readily available"). Farming is vanilla on the shadow ground (hoe → farmland, seeds from grass, CS1 water hydrates,
    crops/saplings/cane grow at Minecraft's pace); tilled and planted cells are player edits, so CS1 draws and saves
@@ -56,8 +58,8 @@ material available including some ores buried in the ground. we need trees to ge
    own rule (Easy never, Normal half the time, Hard always), on by default so an outbreak can spread through the city
    (owner: "Zombie apocalypse would be a great side effect of this mod"); can be switched off. Difficulty becomes a
    per-city setting (the dev world is Peaceful today, which has no hostile mobs). Behind its own setting, only in Minecraft-enabled (backed-up) cities; deaths are permanent city changes.
-   **Status (2026-10-07): implemented, built, sandbox-tested; not verified in game.** Protocol 1.19 `CITIZEN_EVENTS`;
-   proxies only in player mode within the 48 m obstacle radius (city view waits for step 4b's chunk tickets); rules via
+   **Status (2026-10-07): implemented, built, sandbox-tested; not verified in game.** Protocol 1.19 `CITIZEN_EVENTS` (0x01D2);
+   proxies only in player mode within the 48 m obstacle radius (the city view's simulated area, 1.18, gets no proxies yet: the host streams citizens only in player mode); rules via
    `/skylines rules`; decisions in `docs/DECISIONS.md` (2026-10-07).
 5. **City-survival links** (trade with shops, city problems as dangers, resource depletion), then the Ender Dragon.
 

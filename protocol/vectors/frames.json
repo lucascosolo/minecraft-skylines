@@ -920,6 +920,44 @@
       "hex": "04000000b101000003000000"
     },
     {
+      "name": "city_entities",
+      "type": 464,
+      "fields": {
+        "openSeq": 3,
+        "dataHex": "1f8b08000000000000ff007f"
+      },
+      "hex": "14000000d0010000030000000c0000001f8b08000000000000ff007f"
+    },
+    {
+      "name": "city_entities_empty",
+      "type": 464,
+      "fields": {
+        "openSeq": 4294967295,
+        "dataHex": ""
+      },
+      "hex": "08000000d0010000ffffffff00000000"
+    },
+    {
+      "name": "city_focus_active",
+      "type": 465,
+      "fields": {
+        "x": -1520.5,
+        "z": 8191.25,
+        "flags": 1
+      },
+      "hex": "09000000d10100000010bec400faff4501"
+    },
+    {
+      "name": "city_focus_off",
+      "type": 465,
+      "fields": {
+        "x": 0.0,
+        "z": 0.0,
+        "flags": 0
+      },
+      "hex": "09000000d1010000000000000000000000"
+    },
+    {
       "name": "trees_empty",
       "type": 448,
       "fields": {
@@ -1005,16 +1043,16 @@
     },
     {
       "name": "citizen_events_empty",
-      "type": 464,
+      "type": 466,
       "fields": {
         "openSeq": 9,
         "events": []
       },
-      "hex": "06000000d0010000090000000000"
+      "hex": "06000000d2010000090000000000"
     },
     {
       "name": "citizen_events_three",
-      "type": 464,
+      "type": 466,
       "fields": {
         "openSeq": 9,
         "events": [
@@ -1041,7 +1079,7 @@
           }
         ]
       },
-      "hex": "39000000d001000009000000030001d20400000000c94200008042004048c302ffff0000000060c0008023420000404103070000000000000000008d4200000000"
+      "hex": "39000000d201000009000000030001d20400000000c94200008042004048c302ffff0000000060c0008023420000404103070000000000000000008d4200000000"
     },
     {
       "name": "entity_model_two_parts",
@@ -1350,6 +1388,31 @@
       "why": "data length past payload end"
     },
     {
+      "name": "city_entities_too_long",
+      "hex": "08000000d00100000100000001004000",
+      "why": "city entities length > 4 MiB (checked before the bytes)"
+    },
+    {
+      "name": "city_entities_overruns",
+      "hex": "0a000000d001000001000000030000000102",
+      "why": "data length past payload end"
+    },
+    {
+      "name": "city_focus_short",
+      "hex": "08000000d10100000000803f00000040",
+      "why": "payload is not exactly 9 bytes"
+    },
+    {
+      "name": "city_focus_long",
+      "hex": "0a000000d10100000000803f000000400100",
+      "why": "payload is not exactly 9 bytes"
+    },
+    {
+      "name": "city_focus_active_nan",
+      "hex": "09000000d10100000000c07f0000004001",
+      "why": "active focus with a non-finite coordinate"
+    },
+    {
       "name": "trees_too_many",
       "hex": "0e000000c00100000100000000000000000000000110",
       "why": "tree count > 4096 (checked before the trees)"
@@ -1396,22 +1459,22 @@
     },
     {
       "name": "citizen_events_too_many",
-      "hex": "06000000d0010000010000000104",
+      "hex": "06000000d2010000010000000104",
       "why": "event count > 1024 (checked before the events)"
     },
     {
       "name": "citizen_events_bad_kind",
-      "hex": "17000000d00100000100000001000401000000000000000000000000000000",
+      "hex": "17000000d20100000100000001000401000000000000000000000000000000",
       "why": "kind outside 1..3"
     },
     {
       "name": "citizen_events_truncated",
-      "hex": "0f000000d0010000010000000100010500000000000000",
+      "hex": "0f000000d2010000010000000100010500000000000000",
       "why": "payload ends inside an event"
     },
     {
       "name": "citizen_events_trailing_bytes",
-      "hex": "07000000d001000001000000000000",
+      "hex": "07000000d201000001000000000000",
       "why": "payload longer than its count says"
     },
     {
