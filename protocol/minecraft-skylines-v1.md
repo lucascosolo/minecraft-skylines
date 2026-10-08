@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.19
+# `minecraft-skylines` application protocol, version 1.21
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 19`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 21`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). 1.18: the city's entities belong to its save (`CITY_ENTITIES`); the city view's camera area is simulated (`CITY_FOCUS`). 1.19: citizens as villagers to Minecraft's mobs (`CITIZEN_EVENTS`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). 1.18: the city's entities belong to its save (`CITY_ENTITIES`); the city view's camera area is simulated (`CITY_FOCUS`). 1.19: citizens as villagers to Minecraft's mobs (`CITIZEN_EVENTS`). 1.20: (reserved for the concurrent minor 20, ids 0x0200-0x020F). 1.21: the city's conditions around the simulated area and ore mined in Minecraft (`CITY_CONDITIONS`, `ORE_MINED`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -837,3 +837,53 @@ The host acts only on an id that is still a walking citizen within 8 m horizonta
 city's own death path (CS1: see `docs/CS1-API-NOTES.md`), a permanent change to the city. The guest sends `PANIC` for
 an id at most once every 5 s.
 
+
+
+## Minor 21: the city's problems and resources in Minecraft
+
+Owner (2026-10-06): "the state of your city affects your minecraft survival experience and vice versa". Both messages
+belong to an open city (`CITY_OPEN`, a Minecraft-enabled, backed-up city) and are sent only when the negotiated minor is
+21 or more. Cells are CS1's natural resource grid: 512 x 512 cells of 33.75 m, cell
+`cx = floor(cs.x / 33.75 + 256)`, `cz = floor(cs.z / 33.75 + 256)`, each clamped to 0..511 (with `cs.z = -mc.z`).
+
+### `0x0210 CITY_CONDITIONS` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the open this belongs to; the guest drops any other |
+| u16 | `cellCount` | at most 256; checked before the cells |
+| per cell: u16 | `cx`, `cz` | each 0..511; anything above is malformed |
+| u8 × 5 | `ore`, `oil`, `fertility`, `forest`, `pollution` | CS1's `NaturalResourceManager.ResourceCell` bytes |
+| u8 | `flags` | bit 0 `WORKED`: the city has extracted or changed resources in this cell (CS1 `m_modified` bit 0); other bits ignored |
+| u8 | `crime` | the crime rate (0..100 in CS1) of the district at the cell's centre; the whole city's when it is in no district |
+| u8 | `dead` | buildings in the cell whose dead wait for a hearse (CS1 `Notification.Problem1.Death`), clamped to 255 |
+| u16 | `fireCount` | at most 256; checked before the fires |
+| per fire: f32 × 3 | `x`, `y`, `z` | a burning building's position, Minecraft frame; all finite |
+| f32 | `radius` | half the building's footprint diagonal, m; finite and at least 0 |
+| u8 | `intensity` | its fire intensity (CS1 `Building.m_fireIntensity`), 1..255; 0 is malformed |
+
+The payload is exactly `8 + 12 × cellCount + 17 × fireCount` bytes. Sent at most once a second while the city is open
+and `CITY_STATE` ready: the 7 x 7 cells around the player's feet in player mode, else around the city view's focus
+(`CITY_FOCUS`), and the buildings on fire within 96 m of it. A cell the guest never received counts as all zero.
+
+The guest applies, only inside its simulated area: ground pollution poisons a player standing in the cell and slows or
+stops crops and saplings there; fertility makes the shadow ground's dirt deeper and crops faster; forest makes broken
+grass drop saplings; ore and oil make the cell's shadow ores richer (oil: coal), and a `WORKED` cell with little left
+holds fewer; a fire sets entities near the building alight and lights fire blocks around it in Minecraft (fire in
+Minecraft never spreads to the city); crime raises hostile spawns at night and `dead` raises zombie spawns. The guest's
+rules and numbers are in `docs/DECISIONS.md` (2026-10-07). Lamps of buildings without electricity are left out of
+`LIGHT_SOURCES`, so their light is gone for growth and spawning without any message here.
+
+### `0x0211 ORE_MINED` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the `CITY_OPEN` this belongs to; the host ignores any other |
+| u16 | `count` | at most 256; checked before the entries |
+| per entry: u8 | `resource` | 1 `ORE` (metal ores), 2 `OIL` (coal); other values are malformed |
+| u16 | `cx`, `cz` | the resource cell, each 0..511 |
+| u16 | `blocks` | ore blocks of that resource the player broke in the cell, at least 1 |
+
+The payload is exactly `6 + 7 × count` bytes. Sent at most once a second, only for ore cells of the shadow world the
+player broke (never a block the player placed). The host takes 4 units of the cell's `ore` (or `oil`) per block, never
+below 0, through the city's own resource map (CS1: see `docs/CS1-API-NOTES.md`), a permanent change to the city.

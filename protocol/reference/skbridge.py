@@ -1107,6 +1107,128 @@ class CitizenEvents:
         return CitizenEvents(seq, events)
 
 
+# ---- minecraft-skylines app protocol 1.21: the city's problems and resources ----------------
+CITY_CONDITIONS = 0x0210
+ORE_MINED = 0x0211
+CONDITION_CELLS_MAX = 256
+CONDITION_FIRES_MAX = 256
+CONDITION_WORKED = 1
+ORE_MINED_MAX = 256
+ORE_RESOURCE = 1
+OIL_RESOURCE = 2
+RESOURCE_GRID_MAX = 511
+
+
+@dataclass
+class ConditionCell:
+    """One CS1 natural resource cell (33.75 m) around the simulated area."""
+    cx: int
+    cz: int
+    ore: int
+    oil: int
+    fertility: int
+    forest: int
+    pollution: int
+    flags: int
+    crime: int
+    dead: int
+
+
+@dataclass
+class Fire:
+    """A burning CS1 building: position (Minecraft frame), footprint half-diagonal and fire intensity 1..255."""
+    x: float
+    y: float
+    z: float
+    radius: float
+    intensity: int
+
+
+@dataclass
+class CityConditions:
+    open_seq: int
+    cells: list
+    fires: list
+
+    def encode(self) -> bytes:
+        w = Writer().u32(self.open_seq).u16(len(self.cells))
+        for c in self.cells:
+            w.u16(c.cx).u16(c.cz).u8(c.ore).u8(c.oil).u8(c.fertility).u8(c.forest).u8(c.pollution).u8(c.flags)
+            w.u8(c.crime).u8(c.dead)
+        w.u16(len(self.fires))
+        for f in self.fires:
+            w.f32(f.x).f32(f.y).f32(f.z).f32(f.radius).u8(f.intensity)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CityConditions":
+        r = Reader(p)
+        seq, n = r.u32(), r.u16()
+        if n > CONDITION_CELLS_MAX:
+            raise ProtocolError(f"condition cell count {n} above {CONDITION_CELLS_MAX}")
+        cells = []
+        for _ in range(n):
+            c = ConditionCell(r.u16(), r.u16(), r.u8(), r.u8(), r.u8(), r.u8(), r.u8(), r.u8(), r.u8(), r.u8())
+            if c.cx > RESOURCE_GRID_MAX or c.cz > RESOURCE_GRID_MAX:
+                raise ProtocolError(f"condition cell {c.cx},{c.cz} outside 0..511")
+            cells.append(c)
+        m = r.u16()
+        if m > CONDITION_FIRES_MAX:
+            raise ProtocolError(f"fire count {m} above {CONDITION_FIRES_MAX}")
+        fires = []
+        for _ in range(m):
+            f = Fire(r.f32(), r.f32(), r.f32(), r.f32(), r.u8())
+            if not all(math.isfinite(v) for v in (f.x, f.y, f.z, f.radius)) or f.radius < 0:
+                raise ProtocolError("fire position or radius not finite, or radius below 0")
+            if f.intensity == 0:
+                raise ProtocolError("fire intensity 0")
+            fires.append(f)
+        if r.pos != len(p):
+            raise ProtocolError("city conditions payload longer than its counts say")
+        return CityConditions(seq, cells, fires)
+
+
+@dataclass
+class OreCell:
+    """Ore blocks of one resource (1 ore, 2 oil) the player broke in one resource cell."""
+    resource: int
+    cx: int
+    cz: int
+    blocks: int
+
+
+@dataclass
+class OreMined:
+    open_seq: int
+    entries: list
+
+    def encode(self) -> bytes:
+        w = Writer().u32(self.open_seq).u16(len(self.entries))
+        for e in self.entries:
+            w.u8(e.resource).u16(e.cx).u16(e.cz).u16(e.blocks)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "OreMined":
+        r = Reader(p)
+        seq, n = r.u32(), r.u16()
+        if n > ORE_MINED_MAX:
+            raise ProtocolError(f"ore entry count {n} above {ORE_MINED_MAX}")
+        entries = []
+        for _ in range(n):
+            e = OreCell(r.u8(), r.u16(), r.u16(), r.u16())
+            if e.resource not in (ORE_RESOURCE, OIL_RESOURCE):
+                raise ProtocolError(f"ore resource {e.resource} outside 1..2")
+            if e.cx > RESOURCE_GRID_MAX or e.cz > RESOURCE_GRID_MAX:
+                raise ProtocolError(f"ore cell {e.cx},{e.cz} outside 0..511")
+            if e.blocks == 0:
+                raise ProtocolError("ore entry with 0 blocks")
+            entries.append(e)
+        if r.pos != len(p):
+            raise ProtocolError("ore mined payload longer than its count says")
+        return OreMined(seq, entries)
+
+
 # ---- minecraft-skylines app protocol 1.14: entities --------------------------------------------
 ENTITY_MODEL = 0x01E0
 ENTITY_TEXTURE = 0x01E1
