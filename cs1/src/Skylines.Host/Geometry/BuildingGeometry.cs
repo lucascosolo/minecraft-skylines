@@ -38,6 +38,8 @@ namespace Skylines.Host.Geometry
         public int LastBoxCount { get; private set; }
         /// <summary>Triangles the last <see cref="Emit"/> dropped to stay within <see cref="RegionBudget"/>.</summary>
         public int LastDropped { get; private set; }
+        /// <summary>Optional: flag bits OR-ed onto every triangle of a building, by building id (main thread).</summary>
+        public Func<ushort, ushort> ExtraFlags;
 
         /// <summary>Appends every solid building's triangles inside the rectangle to <paramref name="into"/>.</summary>
         public void Emit(TerrainSampler terrain, float minX, float minZ, float maxX, float maxZ, TriangleBuffer into)
@@ -63,8 +65,11 @@ namespace Skylines.Host.Geometry
                         if (IsSolid(ref buildings[id]))
                         {
                             Shape s = ShapeOf(id, ref buildings[id], terrain);
+                            int first = into.Count;
                             if (s.Clip(x0, z0, x1, z1, into) > 0)
                             {
+                                ushort extra = ExtraFlags == null ? (ushort)0 : ExtraFlags(id);
+                                for (int k = first; extra != 0 && k < into.Count; k++) into.Flags[k] |= extra;
                                 LastBuildingCount++;
                                 if (s.IsBox) LastBoxCount++;
                             }

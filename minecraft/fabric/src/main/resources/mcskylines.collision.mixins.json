@@ -32,7 +32,8 @@
   ],
   "client": [
     "EntityCollideMixin",
-    "EntityPickMixin"
+    "EntityPickMixin",
+    "ShopUseMixin"
   ],
   "injectors": { "defaultRequire": 1 }
 }

@@ -20,6 +20,8 @@ public final class SkyTri {
 	public static final int PROP = 128;
 	/** Terrain the host cut away over dug columns, kept so the shadow world sees the original ground; never solid. */
 	public static final int DUG_SURFACE = 512;
+	/** A building that trades (protocol minor 20, flag bit 10). */
+	public static final int TRADER = 1 << 10;
 
 	public final double ax, ay, az, bx, by, bz, cx, cy, cz;
 	public final double nx, ny, nz; // unit normal (winding is not trusted; use |ny|)

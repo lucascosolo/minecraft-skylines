@@ -36,6 +36,7 @@ namespace MinecraftSkylines.Mod.City
         private readonly SaveIdentity _saveId;
         private readonly PlayerMode _player;
         private readonly CityBackup _backup = new CityBackup();
+        private readonly CityShops _shops;
         private readonly EditSyncBarrier _barrier = new EditSyncBarrier();
         private readonly object _sync = new object();
 
@@ -65,6 +66,7 @@ namespace MinecraftSkylines.Mod.City
             _log = log;
             _saveId = saveId;
             _player = player;
+            _shops = new CityShops(log);
         }
 
         public bool Paired { get { return _saveId.Id != Guid.Empty; } }
@@ -354,6 +356,20 @@ namespace MinecraftSkylines.Mod.City
                 GrowTree(g);
                 return true;
             }
+            if (type == AppProtocol.ShopOpenType || type == AppProtocol.ShopTradeType)
+            {
+                ShopOpen o = type == AppProtocol.ShopOpenType ? ShopOpen.Decode(payload) : null;
+                ShopTrade t = o == null ? ShopTrade.Decode(payload) : null;
+                BridgeHost shopHost;
+                lock (_sync)
+                {
+                    if (!_open || (o != null ? o.OpenSeq : t.OpenSeq) != _openSeq) return true;
+                    shopHost = _host;
+                }
+                if (o != null) _shops.Open(o, shopHost);
+                else _shops.Trade(t);
+                return true;
+            }
             if (type == AppProtocol.CitizenEventsType)
             {
                 CitizenEvents c = CitizenEvents.Decode(payload);
@@ -573,6 +589,7 @@ namespace MinecraftSkylines.Mod.City
                 _open = true;
                 _ready = false;
             }
+            _shops.Reset();
             string city = CityState.Capture().CityName ?? "";
             bool ok = host.Send(AppProtocol.CityOpenType, new CityOpen { OpenSeq = seq, SaveId = _saveId.Id, CityName = city, EditCount = (uint)edits.Count }.Encode());
             if (ok && host.NegotiatedAppMinor >= 11)

@@ -302,7 +302,20 @@ final class LinkController {
 					} catch (ProtocolException e) {
 						LOG.warn(PREFIX + "ignoring malformed CITY_FOCUS: {}", e.getMessage());
 					}
-				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES || m.type() == AppProtocol.SHAPED_OBSTACLES) {
+				} else if (m.type() == AppProtocol.SHOP_OFFERS) {
+					try {
+						if (peer != null && peer.appMinor() >= 20 && mc.player != null) {
+							city.shopOffers(dev.mcskylines.protocol.ShopOffers.decode(m.payload()), mc.player.getUUID(),
+								text -> mc.execute(() -> {
+									if (mc.player != null) {
+										mc.player.sendOverlayMessage(Component.literal(text));
+									}
+								}));
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed SHOP_OFFERS: {}", e.getMessage());
+					}
+				} else if (m.type() == AppProtocol.DYNAMIC_OBSTACLES ||m.type() == AppProtocol.SHAPED_OBSTACLES) {
 					boolean shaped = m.type() == AppProtocol.SHAPED_OBSTACLES;
 					try {
 						if (peer != null && peer.appMinor() >= (shaped ? 17 : 7)) {

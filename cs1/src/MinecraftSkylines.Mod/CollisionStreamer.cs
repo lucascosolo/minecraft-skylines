@@ -319,6 +319,7 @@ namespace MinecraftSkylines.Mod
                 float minX, minZ, maxX, maxZ;
                 RegionRectCs(rx, rz, out minX, out minZ, out maxX, out maxZ);
                 _obstacles.TreeSamples = _treeSamples;
+                _buildings.ExtraFlags = host.NegotiatedAppMinor >= 20 ? City.CityShops.TraderFlags : null;
                 Exception roads;
                 try { roads = BuildCs(_terrain, _net, _buildings, _obstacles, minX, minZ, maxX, maxZ, _buffer); }
                 finally { _obstacles.TreeSamples = null; }

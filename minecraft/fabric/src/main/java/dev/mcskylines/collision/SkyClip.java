@@ -71,7 +71,7 @@ public final class SkyClip {
 			return new BlockHitResult(at, face, behind, false);
 		}
 		return new HostHitResult(new Vec3(loc[0], loc[1], loc[2]), face, new BlockPos(place[0], place[1], place[2]),
-			new BlockPos(place[0], place[1], place[2]));
+			new BlockPos(place[0], place[1], place[2]), hit.tri().flags);
 	}
 
 	private static BlockPos trunkLog(BlockGetter level, BlockPos behind, double hx, double hz) {
@@ -106,9 +106,13 @@ public final class SkyClip {
 	public static final class HostHitResult extends BlockHitResult {
 		public final BlockPos outlinePos;
 
-		HostHitResult(Vec3 location, Direction face, BlockPos placePos, BlockPos outlinePos) {
+		/** The hit triangle's COLLISION_REGION flags. */
+		public final int flags;
+
+		HostHitResult(Vec3 location, Direction face, BlockPos placePos, BlockPos outlinePos, int flags) {
 			super(location, face, placePos, false);
 			this.outlinePos = outlinePos;
+			this.flags = flags;
 		}
 	}
 }

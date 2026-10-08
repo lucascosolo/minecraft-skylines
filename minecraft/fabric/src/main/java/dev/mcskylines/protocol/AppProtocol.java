@@ -4,7 +4,7 @@ package dev.mcskylines.protocol;
 public final class AppProtocol {
 	public static final String NAME = "minecraft-skylines";
 	public static final int MAJOR = 1;
-	public static final int MINOR = 19;
+	public static final int MINOR = 20;
 	public static final int HOST_STATUS = 0x0100;
 	public static final int GUEST_STATUS = 0x0101;
 	public static final int ENTER_PLAYER_MODE = 0x0110;
@@ -48,6 +48,9 @@ public final class AppProtocol {
 	public static final int ENTITY_STATES = 0x01E2; // the complete set of entities and their pose (guest to host)
 	public static final int CITY_ENTITIES = 0x01D0; // minor 18: the city's entities (both directions)
 	public static final int CITY_FOCUS = 0x01D1; // minor 18: where the city view's camera looks (host to guest)
+	public static final int SHOP_OPEN = 0x0200; // minor 20: the player used a trading building (guest to host)
+	public static final int SHOP_OFFERS = 0x0201; // minor 20: what the building trades (host to guest)
+	public static final int SHOP_TRADE = 0x0202; // minor 20: trades completed (guest to host)
 	public static final int DEBUG_COMMAND = 0x01F0;
 
 	private AppProtocol() {

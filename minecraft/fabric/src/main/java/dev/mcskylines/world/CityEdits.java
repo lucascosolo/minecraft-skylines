@@ -1046,6 +1046,78 @@ public final class CityEdits {
 		send(AppProtocol.CITIZEN_EVENTS, m.encode());
 	}
 
+	private int shopRequestId;
+	private Vec3 shopHit = Vec3.ZERO;
+
+	/**
+	 * Client thread, use on a targeted surface: when it is a trading building (and the use is not a sneaking one) sends
+	 * SHOP_OPEN and returns true so the use places nothing.
+	 */
+	public static boolean shopUse(net.minecraft.world.entity.player.Player player, BlockHitResult hit) {
+		CityEdits r = recording;
+		if (r == null || !(hit instanceof dev.mcskylines.collision.SkyClip.HostHitResult host)
+			|| (host.flags & SkyTri.BUILDING) == 0 || (host.flags & SkyTri.TRADER) == 0 || player.isSecondaryUseActive()) {
+			return false;
+		}
+		return r.sendShopOpen(player.getEyePosition(), host.getLocation());
+	}
+
+	private synchronized boolean sendShopOpen(Vec3 eye, Vec3 at) {
+		if (open == null || !open.ready || appMinor < 20) {
+			return false;
+		}
+		shopHit = at;
+		send(AppProtocol.SHOP_OPEN, new dev.mcskylines.protocol.ShopOpen(open.seq(), ++shopRequestId,
+			(float) eye.x, (float) eye.y, (float) eye.z, (float) at.x, (float) at.y, (float) at.z).encode());
+		return true;
+	}
+
+	/** Client thread: SHOP_OFFERS. {@code toast} shows an action-bar message; {@code playerId} is the local player. */
+	public void shopOffers(dev.mcskylines.protocol.ShopOffers m, UUID playerId, java.util.function.Consumer<String> toast) {
+		Vec3 at;
+		synchronized (this) {
+			if (open == null || !open.ready || appMinor < 20 || m.openSeq() != open.seq() || m.requestId() != shopRequestId) {
+				return;
+			}
+			at = shopHit;
+		}
+		switch (m.status()) {
+			case dev.mcskylines.protocol.ShopOffers.CLOSED -> toast.accept("This building is closed");
+			case dev.mcskylines.protocol.ShopOffers.OPEN -> {
+				MinecraftServer s = serverRef;
+				if (s == null) {
+					return;
+				}
+				s.execute(() -> {
+					ServerPlayer p = s.getPlayerList().getPlayer(playerId);
+					CityShop shop = new CityShop(this, m.openSeq(), m.building(), at, m.offers());
+					if (p == null || !shopOpen(m.openSeq())) {
+						return;
+					}
+					if (shop.hasOffers()) {
+						shop.open(p, m.name(), m.level());
+					} else {
+						toast.accept("Nothing to trade here right now");
+					}
+				});
+			}
+			default -> {
+			}
+		}
+	}
+
+	/** Any thread: the same city is still open and ready. */
+	public synchronized boolean shopOpen(int openSeq) {
+		return open != null && open.ready && open.seq() == openSeq && appMinor >= 20;
+	}
+
+	/** Server thread: one completed trade of {@code slot} to the host. */
+	public synchronized void sendShopTrade(int openSeq, int building, int slot) {
+		if (shopOpen(openSeq)) {
+			send(AppProtocol.SHOP_TRADE, new dev.mcskylines.protocol.ShopTrade(openSeq, building, slot, 1).encode());
+		}
+	}
+
 	private void send(int type, byte[] payload) {
 		guest.send(type, payload);
 	}

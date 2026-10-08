@@ -528,6 +528,28 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("events").GetArrayLength(), m.Events.Length);
                         return m.Encode();
                     }
+                case AppProtocol.ShopOpenType:
+                    {
+                        ShopOpen m = ShopOpen.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("requestId").GetUInt32(), m.RequestId);
+                        return m.Encode();
+                    }
+                case AppProtocol.ShopOffersType:
+                    {
+                        ShopOffers m = ShopOffers.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("name").GetString(), m.Name);
+                        Assert.Equal(f.GetProperty("offers").GetArrayLength(), m.Offers.Length);
+                        return m.Encode();
+                    }
+                case AppProtocol.ShopTradeType:
+                    {
+                        ShopTrade m = ShopTrade.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("times").GetUInt16(), m.Times);
+                        return m.Encode();
+                    }
                 case AppProtocol.TimeSetType:
                     {
                         TimeSet m = TimeSet.Decode(frame.Payload);

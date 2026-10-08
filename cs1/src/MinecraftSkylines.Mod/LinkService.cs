@@ -515,7 +515,8 @@ namespace MinecraftSkylines.Mod
                         || ((e.MessageType == AppProtocol.PlayerDataType || e.MessageType == AppProtocol.RespawnRequestType) && s_host.NegotiatedAppMinor >= 11)
                         || (e.MessageType == AppProtocol.TreeFelledType && s_host.NegotiatedAppMinor >= 12)
                         || (e.MessageType == AppProtocol.TreeGrownType && s_host.NegotiatedAppMinor >= 15)
-                        || (e.MessageType == AppProtocol.CitizenEventsType && s_host.NegotiatedAppMinor >= 19))
+                        || (e.MessageType == AppProtocol.CitizenEventsType && s_host.NegotiatedAppMinor >= 19)
+                        || ((e.MessageType == AppProtocol.ShopOpenType || e.MessageType == AppProtocol.ShopTradeType) && s_host.NegotiatedAppMinor >= 20))
                     {
                         try
                         {

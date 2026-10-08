@@ -8,7 +8,7 @@ namespace MinecraftSkylines.Protocol
         /// <summary>Application major version.</summary>
         public const ushort Major = 1;
         /// <summary>Application minor version.</summary>
-        public const ushort Minor = 19;
+        public const ushort Minor = 20;
         /// <summary>Message type of <see cref="HostStatus"/> (host to guest).</summary>
         public const ushort HostStatusType = 0x0100;
         /// <summary>Message type of <see cref="GuestStatus"/> (guest to host).</summary>
@@ -96,6 +96,12 @@ namespace MinecraftSkylines.Protocol
         public const ushort CityFocusType = 0x01D1;
         /// <summary>Message type of <see cref="CitizenEvents"/> CITIZEN_EVENTS (guest to host, minor 19).</summary>
         public const ushort CitizenEventsType = 0x01D2;
+        /// <summary>Message type of <see cref="ShopOpen"/> SHOP_OPEN (guest to host, minor 20).</summary>
+        public const ushort ShopOpenType = 0x0200;
+        /// <summary>Message type of <see cref="ShopOffers"/> SHOP_OFFERS (host to guest, minor 20).</summary>
+        public const ushort ShopOffersType = 0x0201;
+        /// <summary>Message type of <see cref="ShopTrade"/> SHOP_TRADE (guest to host, minor 20).</summary>
+        public const ushort ShopTradeType = 0x0202;
 
         // ---- minor 14: entities (13 is reserved for another branch)
         /// <summary>Message type of <see cref="EntityModel"/> ENTITY_MODEL (guest to host, minor 14).</summary>
