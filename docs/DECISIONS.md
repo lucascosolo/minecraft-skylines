@@ -337,3 +337,35 @@ and mining pass straight through it. A proxy found in a loaded chunk is stale an
   switches them in Minecraft's chat: `/skylines rules` (show), `/skylines rules citizens on|off`,
   `/skylines rules conversion on|off`. The CS1 mod has no settings UI; Minecraft commands already set city state
   (`/time`). Difficulty stays as `DevWorld` sets it (Normal) for now.
+
+## 2026-10-07: Trade with the city's shops (survival step 5, part 1; protocol 1.20)
+
+- **The guest knows which buildings trade before asking**, through `COLLISION_REGION` flag bit 10 (`TRADER`) on the
+  building's triangles (by class, whatever its state). Right-click (not sneaking) on such a surface sends `SHOP_OPEN`
+  and places nothing, the way a chest is used before placement in vanilla; sneaking places against it as before, and
+  buildings that do not trade behave as before. Rejected: asking the host on every right-click on any building (the
+  answer is asynchronous, so placement against houses would break or lag); building ids on every collision triangle
+  (a layout change, a major bump).
+- **The host finds the building the way CS1 picks one under the mouse**, `BuildingManager.RayCast` along the
+  eye-to-hit ray, and owns the offers: tables, per-building choice, stock and the city effect live in one place
+  (`ShopCatalog` in `MinecraftSkylines.Protocol`, pure and unit-tested). The guest only builds vanilla
+  `MerchantOffer`s from item ids. Rejected: offer tables on the guest (the host would then need to interpret trades it
+  did not offer).
+- **Offers**: commercial low/high/leisure/tourism/organic sell food, tools, everyday or luxury goods for emeralds;
+  forestry, farming, ore, oil (extractors and processors) and generic industry (by its CS1 input: lumber, food,
+  petrol/coal) buy the matching Minecraft raw materials for emeralds. A building offers 2 + level entries of its class's
+  pool, chosen by a shuffle seeded by building id and class, so a shop keeps its personality and a level-up only adds.
+- **Restock on the city clock**: each offer has a daily allowance (12 trades; 3 for prices of 5+ emeralds; 16 for
+  purchases), reset when `SimulationManager.m_currentGameTime` crosses midnight. The ledger is not saved; a reloaded
+  city starts the day fresh.
+- **The city feels it**, through the same calls CS1's own agents make. One emerald of trade moves 100 material units
+  (a shopping citizen's visit). A purchase calls `ModifyMaterialBuffer(Shopping, -units)` as `ResidentAI` does: goods
+  leave `m_customBuffer2` and the cash buffer fills, so it is the shop's sale; a shop with no goods offers nothing
+  (uses 0). Raw material sold to a processor goes in through `ModifyMaterialBuffer(<its input>, +units)` as a truck
+  delivery does, capped by its input capacity; an extractor has no input, so it goes into its production storage
+  (`m_customBuffer1`, capped at `ProduceGoods`' limit), as if it had extracted it. Minecraft is authoritative for the
+  player's items; the host clamps the city side to what the building still allows.
+- **Closed** (no trade, the guest says so): not completed, abandoned, collapsed/burned down, burning
+  (`m_fireIntensity`), or the Electricity problem shown. Only an open (Minecraft-enabled) city answers. Industries DLC
+  buildings and offices do not trade yet.
+

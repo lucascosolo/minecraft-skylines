@@ -62,6 +62,10 @@ material available including some ores buried in the ground. we need trees to ge
    proxies only in player mode within the 48 m obstacle radius (the city view's simulated area, 1.18, gets no proxies yet: the host streams citizens only in player mode); rules via
    `/skylines rules`; decisions in `docs/DECISIONS.md` (2026-10-07).
 5. **City-survival links** (trade with shops, city problems as dangers, resource depletion), then the Ender Dragon.
+   **Trade with shops, status (2026-10-07): implemented, built, sandbox-tested; not verified in game.** Protocol 1.20
+   (`SHOP_OPEN`/`SHOP_OFFERS`/`SHOP_TRADE`, collision bit 10 `TRADER`); right-click a commercial or industrial building
+   (not sneaking) for vanilla's merchant screen; decisions in `docs/DECISIONS.md` (2026-10-07). Next: city problems as
+   dangers, resource depletion.
 
 ## The shadow world (foundation for trees, mining and mobs)
 
