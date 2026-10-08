@@ -27,6 +27,8 @@ material available including some ores buried in the ground. we need trees to ge
    drawn in CS1 from any camera: each entity type's model (cuboids and texture) sent once like the block atlas, then
    per entity ~20 Hz position, orientation and part rotations, animated and drawn by CS1 in its own scene (no image
    streaming, no lag). Dropped items, arrows, minecarts the same way.
+   Status 2026-10-07: (a) and (b) implemented, built and sandbox-tested (protocol 1.18, `CITY_ENTITIES` and
+   `CITY_FOCUS`; see DECISIONS.md); not yet verified in game.
 4a. **Farming and animals readily available** (owner, 2026-10-06: "farming and natural animal spawning needs to be
    readily available"). Farming is vanilla on the shadow ground (hoe → farmland, seeds from grass, CS1 water hydrates,
    crops/saplings/cane grow at Minecraft's pace); tilled and planted cells are player edits, so CS1 draws and saves
