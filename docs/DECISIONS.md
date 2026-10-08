@@ -276,3 +276,42 @@ the vehicle's motion and turn for each tick. Rejected: guest-derived turn rates 
 store keyed by id, wrong for the first 50 ms and across id reuse, while the host already tracks per-id velocity on its
 real clock); a wire field per slice as f32 (4x larger for no visible gain); rotating the player's view with the vehicle
 (the host owns the camera yaw in player mode; the feet still turn round the vehicle's centre).
+
+
+## 2026-10-07: citizens are villagers to mobs (protocol 1.19 CITIZEN_EVENTS)
+
+Owner: "CS1 npcs will be villagers to the Minecraft mobs and they will be triggered to panic when targeted by mobs, and
+they will be capable of actually being killed by them too"; "Zombie apocalypse would be a great side effect of this mod".
+The guest gives each citizen in the obstacle set (kind 2, already streamed at 20 Hz within 48 m in player mode) a
+villager proxy (up to 128, nearest first) with no AI, no gravity and no sound, snapped to the citizen's feet and heading
+every server tick; CS1 owns the movement. Zombies hunt them with vanilla AI. The proxy is deliberately **not** made
+invisible: vanilla scales a target's detection range by 0.07 for an invisible entity, so zombies would only notice a
+citizen within about 2.5 m. Instead the host never draws it (`EntityExporter` skips proxies), it sits on a scoreboard
+team with collision rule `NEVER` (vanilla's own way to stop player pushing), and it is never pickable, so the crosshair
+and mining pass straight through it. A proxy found in a loaded chunk is stale and discarded; proxies are never kept.
+
+- **Only a hostile mob can hurt a proxy** (Fabric `ALLOW_DAMAGE`: the damage's entity must be an `Enemy`). Fall,
+  suffocation in shadow blocks, fire, drowning and the player do nothing, because a proxy death is a permanent city
+  change. **The player cannot hit proxies** (not pickable, and player damage is refused). Rejected: letting the player
+  kill citizens (an easy way to wreck a city by accident; can be a later switch).
+- **Panic** (`PANIC`, at most once per citizen per 5 s): a mob's `setTarget` on a proxy, or a mob's hit. The host sets
+  `CitizenInstance.Flags.Panicking` and sends a resident with a home there through its own AI (`CitizenAI.SetTarget`).
+  CS1 has no flee behaviour of its own: `Panicking` is what a citizen whose target building burns gets, and CS1 only
+  animates it when the citizen stops at its target. Rejected: steering citizens away from the mob (needs pathing hooks
+  we do not have without Harmony).
+- **Death** (`KILLED` / `CONVERTED`): a resident with a home dies through `ResidentAI.Die` (private, called by
+  reflection; it sets `Dead`, clears `Sick`, releases the parked car and counts the death in the district), its location
+  becomes Home and its instance is released, so `ResidentAI`'s Home branch calls a hearse there and the city mourns and
+  loses the citizen as for any death. Anyone else (tourists, homeless, other AIs) is released with
+  `CitizenManager.ReleaseCitizen`, which is what CS1 itself does with a dead walking citizen that has no vehicle.
+  Rejected: setting `Citizen.Dead` on the walking citizen and leaving it (CS1 then releases it with no hearse and no
+  death statistics) and disaster-style `RemovePeople` (releases without a death). The host acts only on an id that is
+  still a walking citizen within 8 m of where the proxy died (instance ids are reused) and only for the current open.
+- **Zombie conversion** follows vanilla's rule, verified in the 26.3 `Zombie.killedEntity` bytecode (Normal on the
+  zombie's coin, Hard always, never on Easy/Peaceful), behind the city's switch; the zombie villager stays in Minecraft
+  as an ordinary mob (removed from the proxies' team first, with its AI back on) and is drawn in CS1 like any entity.
+- **The rules live in the city's save**, in the player blob's NBT (`mcskylines:rules`: `citizens`, `conversion`,
+  both on by default), as the growth clocks do; only an open (backed-up, Minecraft-enabled) city has proxies. The player
+  switches them in Minecraft's chat: `/skylines rules` (show), `/skylines rules citizens on|off`,
+  `/skylines rules conversion on|off`. The CS1 mod has no settings UI; Minecraft commands already set city state
+  (`/time`). Difficulty stays as `DevWorld` sets it (Normal) for now.

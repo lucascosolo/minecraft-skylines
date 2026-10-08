@@ -56,6 +56,9 @@ material available including some ores buried in the ground. we need trees to ge
    own rule (Easy never, Normal half the time, Hard always), on by default so an outbreak can spread through the city
    (owner: "Zombie apocalypse would be a great side effect of this mod"); can be switched off. Difficulty becomes a
    per-city setting (the dev world is Peaceful today, which has no hostile mobs). Behind its own setting, only in Minecraft-enabled (backed-up) cities; deaths are permanent city changes.
+   **Status (2026-10-07): implemented, built, sandbox-tested; not verified in game.** Protocol 1.19 `CITIZEN_EVENTS`;
+   proxies only in player mode within the 48 m obstacle radius (city view waits for step 4b's chunk tickets); rules via
+   `/skylines rules`; decisions in `docs/DECISIONS.md` (2026-10-07).
 5. **City-survival links** (trade with shops, city problems as dangers, resource depletion), then the Ender Dragon.
 
 ## The shadow world (foundation for trees, mining and mobs)

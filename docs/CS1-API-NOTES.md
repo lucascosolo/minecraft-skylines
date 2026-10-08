@@ -343,3 +343,20 @@ Assembly-CSharp:
   each frame when false, :924-927, so the host ignores TIME_SET then). A single `uint` write is atomic.
 - The calendar (`m_timeOffsetTicks`) is not moved. `m_isNightTime` is left to the simulation thread's next frame
   (its night-count achievement dispatch then runs as it would for natural time).
+
+
+## Citizens as villagers (2026-10-07, verified against the decompile; compiles against the real assemblies; not seen in game)
+
+`Skylines.Host.Citizens.CitizenFate` (CITIZEN_EVENTS, protocol 1.19), simulation thread only:
+- Walking citizen: `CitizenManager.m_instances.m_buffer[id]` with `CitizenInstance.Flags.Created | Character` and not
+  `Deleted`, `Info != null`, `m_citizen != 0`; position `CitizenInstance.GetLastFramePosition()` (CitizenInstance.cs:441).
+- Panic: `CitizenInstance.Flags.Panicking` (0x4000, CitizenInstance.cs:26), set by `HumanAI` when the target building
+  burns (HumanAI.cs:1232) and cleared with `TargetFlags` on the next building target; drawn as
+  `AnimationState.Panic` only when `AtTarget` (ResidentAI.cs:93). Heading home:
+  `CitizenAI.SetTarget(ushort, ref CitizenInstance, ushort)` (CitizenAI.cs:190) to `Citizen.m_homeBuilding`.
+- Death: `ResidentAI.Die(uint, ref Citizen)` (private, ResidentAI.cs:712; by reflection, `ref Citizen` copied back
+  into `m_citizens.m_buffer`), then `Citizen.CurrentLocation = Location.Home` (Citizen.cs:466) and
+  `CitizenManager.ReleaseCitizenInstance(ushort)` (CitizenManager.cs:1408: clears the citizen's `m_instance` and
+  vehicle). `ResidentAI.SimulationStep` Home branch with `Dead` (ResidentAI.cs:1654-1672) then calls
+  `FindHospital(.., TransferReason.Dead)`: a hearse. Without a home, or for a tourist, `CitizenManager.ReleaseCitizen`
+  (CitizenManager.cs:1326), as the Moving branch does for a dead citizen without a vehicle (ResidentAI.cs:1982-1988).
