@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.17
+# `minecraft-skylines` application protocol, version 1.19
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 17`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 19`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). 1.19: citizens as villagers to Minecraft's mobs (`CITIZEN_EVENTS`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -758,3 +758,30 @@ The guest extrapolates `yaw` by `yawRate × age` as it does the centre by the ve
 height along its length (CS1: the highest point of the vehicle mesh in each 0.25 m slice, see `docs/CS1-API-NOTES.md`);
 a single slice of 255 is a plain box (CS1: a tractor or trailer whose mesh geometry is unavailable). Without a profile
 the guest may shape a car-sized vehicle by its own rule. Every byte value is valid.
+
+
+## Minor 19: citizens as villagers
+
+The guest gives every citizen (`DYNAMIC_OBSTACLES` / `SHAPED_OBSTACLES` kind 2) an invisible-to-the-host villager proxy
+that follows the citizen's position and never moves on its own, so Minecraft's hostile mobs hunt citizens with their
+own AI. Only while a city is open (a Minecraft-enabled, backed-up city) and the city's citizens rule is on; the rules
+live in the city's `PLAYER_DATA` blob (see `docs/DECISIONS.md`). The player cannot hurt a proxy, and only damage
+from a hostile mob counts.
+
+### `0x01D0 CITIZEN_EVENTS` (guest → host)
+
+Sent at most once per Minecraft tick, only when something happened, and only when the negotiated minor is 19 or more.
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the `CITY_OPEN` this belongs to; the host ignores any other |
+| u16 | `count` | at most 1024 |
+| per event: u8 | `kind` | 1 `PANIC` (a mob targeted or hit the proxy), 2 `KILLED` (a mob killed it), 3 `CONVERTED` (a zombie killed it and it became a zombie villager, which stays in Minecraft); other values are malformed |
+| u32 | `id` | the citizen's id as sent in the obstacle set (CS1: index into `CitizenManager.m_instances`) |
+| f32 × 3 | `x`, `y`, `z` | the proxy's feet when it happened, Minecraft coordinates |
+
+The host acts only on an id that is still a walking citizen within 8 m horizontally of `x, z` (ids are reused):
+`PANIC` makes the citizen panic and head home the city's own way; `KILLED` and `CONVERTED` kill the citizen through the
+city's own death path (CS1: see `docs/CS1-API-NOTES.md`), a permanent change to the city. The guest sends `PANIC` for
+an id at most once every 5 s.
+

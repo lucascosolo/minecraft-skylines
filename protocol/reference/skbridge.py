@@ -1012,6 +1012,52 @@ class TreeGrown:
         return m
 
 
+# ---- minecraft-skylines app protocol 1.19: citizens as villagers ------------------------------
+CITIZEN_EVENTS = 0x01D0
+CITIZEN_EVENTS_MAX = 1024
+CITIZEN_PANIC = 1
+CITIZEN_KILLED = 2
+CITIZEN_CONVERTED = 3
+
+
+@dataclass
+class CitizenEvent:
+    """What happened to a citizen's villager proxy: kind 1 panic, 2 killed, 3 converted; id as in DYNAMIC_OBSTACLES."""
+    kind: int
+    id: int
+    x: float
+    y: float
+    z: float
+
+
+@dataclass
+class CitizenEvents:
+    open_seq: int
+    events: list
+
+    def encode(self) -> bytes:
+        w = Writer().u32(self.open_seq).u16(len(self.events))
+        for e in self.events:
+            w.u8(e.kind).u32(e.id).f32(e.x).f32(e.y).f32(e.z)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "CitizenEvents":
+        r = Reader(p)
+        seq, n = r.u32(), r.u16()
+        if n > CITIZEN_EVENTS_MAX:
+            raise ProtocolError(f"citizen event count {n} above {CITIZEN_EVENTS_MAX}")
+        events = []
+        for _ in range(n):
+            e = CitizenEvent(r.u8(), r.u32(), r.f32(), r.f32(), r.f32())
+            if not CITIZEN_PANIC <= e.kind <= CITIZEN_CONVERTED:
+                raise ProtocolError(f"citizen event kind {e.kind} outside 1..3")
+            events.append(e)
+        if r.pos != len(p):
+            raise ProtocolError("citizen events payload longer than its count says")
+        return CitizenEvents(seq, events)
+
+
 # ---- minecraft-skylines app protocol 1.14: entities --------------------------------------------
 ENTITY_MODEL = 0x01E0
 ENTITY_TEXTURE = 0x01E1

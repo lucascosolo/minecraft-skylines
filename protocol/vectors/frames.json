@@ -1004,6 +1004,46 @@
       "hex": "15000000c2010000040000000000c94200008042008048c30215cd5b07"
     },
     {
+      "name": "citizen_events_empty",
+      "type": 464,
+      "fields": {
+        "openSeq": 9,
+        "events": []
+      },
+      "hex": "06000000d0010000090000000000"
+    },
+    {
+      "name": "citizen_events_three",
+      "type": 464,
+      "fields": {
+        "openSeq": 9,
+        "events": [
+          {
+            "kind": 1,
+            "id": 1234,
+            "x": 100.5,
+            "y": 64.0,
+            "z": -200.25
+          },
+          {
+            "kind": 2,
+            "id": 65535,
+            "x": -3.5,
+            "y": 40.875,
+            "z": 12.0
+          },
+          {
+            "kind": 3,
+            "id": 7,
+            "x": 0.0,
+            "y": 70.5,
+            "z": 0.0
+          }
+        ]
+      },
+      "hex": "39000000d001000009000000030001d20400000000c94200008042004048c302ffff0000000060c0008023420000404103070000000000000000008d4200000000"
+    },
+    {
       "name": "entity_model_two_parts",
       "type": 480,
       "fields": {
@@ -1353,6 +1393,26 @@
       "name": "shaped_obstacles_truncated",
       "hex": "360000007101000001000101000000000000000000000000000000000000000000803f0000403f00000040000000000000000000000000000000000364c8",
       "why": "payload ends inside the profile"
+    },
+    {
+      "name": "citizen_events_too_many",
+      "hex": "06000000d0010000010000000104",
+      "why": "event count > 1024 (checked before the events)"
+    },
+    {
+      "name": "citizen_events_bad_kind",
+      "hex": "17000000d00100000100000001000401000000000000000000000000000000",
+      "why": "kind outside 1..3"
+    },
+    {
+      "name": "citizen_events_truncated",
+      "hex": "0f000000d0010000010000000100010500000000000000",
+      "why": "payload ends inside an event"
+    },
+    {
+      "name": "citizen_events_trailing_bytes",
+      "hex": "07000000d001000001000000000000",
+      "why": "payload longer than its count says"
     },
     {
       "name": "entity_model_too_many_parts",

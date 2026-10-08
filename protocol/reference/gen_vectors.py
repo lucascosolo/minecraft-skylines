@@ -244,6 +244,14 @@ def frames() -> list[dict]:
     add("tree_grown", sb.TREE_GROWN, {"openSeq": 4, "x": 100.5, "y": 64.0, "z": -200.5, "kind": 2, "seed": 123456789},
         sb.TreeGrown(4, 100.5, 64.0, -200.5, 2, 123456789).encode())
 
+    # ---- 1.19 (citizens as villagers)
+    evs = [sb.CitizenEvent(sb.CITIZEN_PANIC, 1234, 100.5, 64.0, -200.25),
+           sb.CitizenEvent(sb.CITIZEN_KILLED, 65535, -3.5, 40.875, 12.0),
+           sb.CitizenEvent(sb.CITIZEN_CONVERTED, 7, 0.0, 70.5, 0.0)]
+    for name, es in (("citizen_events_empty", []), ("citizen_events_three", evs)):
+        add(name, sb.CITIZEN_EVENTS, {"openSeq": 9, "events": [
+            {"kind": e.kind, "id": e.id, "x": e.x, "y": e.y, "z": e.z} for e in es]}, sb.CitizenEvents(9, es).encode())
+
     # ---- 1.14 (entities)
     quad = [0.0, 0.0, 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.25, 0.0, 8.0, 12.0, 0.0, 0.25, 0.5, 0.0, 12.0, 0.0, 0.0, 0.5,
             0.0, 0.0, -1.0]
@@ -313,6 +321,11 @@ def invalid_frames() -> list[dict]:
         bad("shaped_obstacles_truncated", sb.frame(sb.SHAPED_OBSTACLES, sb.DynamicObstacles([sb.Obstacle(
             1, 1, 0.0, 0.0, 0.0, 0.0, 1.0, 0.75, 2.0, 0.0, 0.0, 0.0, 0.0, bytes([100, 200, 100]))]).encode_shaped()[:-1]),
             "payload ends inside the profile"),
+        # ---- 1.19 (citizens as villagers)
+        bad("citizen_events_too_many", sb.frame(sb.CITIZEN_EVENTS, sb.Writer().u32(1).u16(sb.CITIZEN_EVENTS_MAX + 1).bytes()), "event count > 1024 (checked before the events)"),
+        bad("citizen_events_bad_kind", sb.frame(sb.CITIZEN_EVENTS, sb.CitizenEvents(1, [sb.CitizenEvent(4, 1, 0.0, 0.0, 0.0)]).encode()), "kind outside 1..3"),
+        bad("citizen_events_truncated", sb.frame(sb.CITIZEN_EVENTS, sb.Writer().u32(1).u16(1).u8(1).u32(5).f32(0.0).bytes()), "payload ends inside an event"),
+        bad("citizen_events_trailing_bytes", sb.frame(sb.CITIZEN_EVENTS, sb.CitizenEvents(1, []).encode() + b"\x00"), "payload longer than its count says"),
         # ---- 1.14 (entities)
         bad("entity_model_too_many_parts", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(sb.ENTITY_MODEL_MAX_PARTS + 1).bytes()), "part count > 1024 (checked before the parts)"),
         bad("entity_model_parent_not_before", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(0).u16(0).bytes()), "parent index at or above the part's own"),
