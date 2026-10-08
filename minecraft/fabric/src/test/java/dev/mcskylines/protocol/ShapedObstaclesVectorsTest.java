@@ -32,7 +32,7 @@ class ShapedObstaclesVectorsTest {
 
     @Test
     void constants() {
-        assertEquals(17, AppProtocol.MINOR);
+        assertEquals(18, AppProtocol.MINOR);
         assertEquals(0x0171, AppProtocol.SHAPED_OBSTACLES);
     }
 

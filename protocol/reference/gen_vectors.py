@@ -234,6 +234,13 @@ def frames() -> list[dict]:
         sb.PlayerData(0xFFFFFFFF, b"").encode())
     add("respawn_request", sb.RESPAWN_REQUEST, {"openSeq": 3}, sb.RespawnRequest(3).encode())
 
+    # ---- 1.18 (the city's entities, the city view's area)
+    add("city_entities", sb.CITY_ENTITIES, {"openSeq": 3, "dataHex": blob.hex()}, sb.CityEntities(3, blob).encode())
+    add("city_entities_empty", sb.CITY_ENTITIES, {"openSeq": 4294967295, "dataHex": ""},
+        sb.CityEntities(0xFFFFFFFF, b"").encode())
+    add("city_focus_active", sb.CITY_FOCUS, {"x": -1520.5, "z": 8191.25, "flags": 1}, sb.CityFocus(-1520.5, 8191.25, 1).encode())
+    add("city_focus_off", sb.CITY_FOCUS, {"x": 0.0, "z": 0.0, "flags": 0}, sb.CityFocus(0.0, 0.0, 0).encode())
+
     # ---- 1.12 (trees)
     trees = [sb.Tree(70000, 120.5, 64.0, -2048.25, 9.5, 2.25, 0), sb.Tree(4294967295, -3.5, 40.875, 12.0, 1.5, 0.75, 6)]
     for name, ts in (("trees_empty", []), ("trees_one", trees[:1]), ("trees_two", trees)):
@@ -300,6 +307,11 @@ def invalid_frames() -> list[dict]:
         bad("water_surface_size_129", sb.frame(sb.WATER_SURFACE, sb.Writer().i32(0).i32(0).u16(129).bytes()), "water grid size > 128 (checked before the columns)"),
         bad("player_data_too_long", sb.frame(sb.PLAYER_DATA, sb.Writer().u32(1).u32(sb.PLAYER_DATA_MAX + 1).bytes()), "player data length > 4 MiB (checked before the bytes)"),
         bad("player_data_overruns", sb.frame(sb.PLAYER_DATA, sb.Writer().u32(1).u32(3).bytes() + b"\x01\x02"), "data length past payload end"),
+        bad("city_entities_too_long", sb.frame(sb.CITY_ENTITIES, sb.Writer().u32(1).u32(sb.CITY_ENTITIES_MAX + 1).bytes()), "city entities length > 4 MiB (checked before the bytes)"),
+        bad("city_entities_overruns", sb.frame(sb.CITY_ENTITIES, sb.Writer().u32(1).u32(3).bytes() + b"\x01\x02"), "data length past payload end"),
+        bad("city_focus_short", sb.frame(sb.CITY_FOCUS, sb.Writer().f32(1.0).f32(2.0).bytes()), "payload is not exactly 9 bytes"),
+        bad("city_focus_long", sb.frame(sb.CITY_FOCUS, sb.Writer().f32(1.0).f32(2.0).u8(1).u8(0).bytes()), "payload is not exactly 9 bytes"),
+        bad("city_focus_active_nan", sb.frame(sb.CITY_FOCUS, sb.Writer().f32(float("nan")).f32(2.0).u8(1).bytes()), "active focus with a non-finite coordinate"),
         bad("trees_too_many", sb.frame(sb.TREES, sb.Writer().u32(1).i32(0).i32(0).u16(sb.TREES_MAX + 1).bytes()), "tree count > 4096 (checked before the trees)"),
         bad("trees_truncated", sb.frame(sb.TREES, sb.Writer().u32(1).i32(0).i32(0).u16(1).u32(5).bytes()), "payload ends inside a tree"),
         bad("trees_trailing_bytes", sb.frame(sb.TREES, sb.Trees(1, 0, 0, []).encode() + b"\x00"), "payload longer than its count says"),

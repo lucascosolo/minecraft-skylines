@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -63,6 +64,8 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		ServerLifecycleEvents.AFTER_SAVE.register((server, flush, force) -> city.afterSave(server, flush));
 		ServerChunkEvents.CHUNK_UNLOAD.register((level, chunk) -> city.chunkUnloading(level));
 		ServerTickEvents.END_SERVER_TICK.register(city::serverTick);
+		ServerEntityEvents.ENTITY_LOAD.register(CityEdits::entityLoaded);
+		ServerEntityEvents.ENTITY_UNLOAD.register(CityEdits::entityUnloaded);
 		ServerTickEvents.END_SERVER_TICK.register(dev.mcskylines.world.AnimalSpawner::tick);
 		PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, be) -> !CityEdits.refusesBreak(level, pos));
 		// The city's player (survival unless its own data says otherwise; creative only via DEBUG_COMMAND /gamemode).

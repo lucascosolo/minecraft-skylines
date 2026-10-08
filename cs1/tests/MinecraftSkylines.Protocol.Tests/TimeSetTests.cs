@@ -10,7 +10,7 @@ namespace MinecraftSkylines.Protocol.Tests
         public void Constants()
         {
             Assert.Equal(0x0161, AppProtocol.TimeSetType);
-            Assert.Equal(17, AppProtocol.Minor);
+            Assert.Equal(18, AppProtocol.Minor);
         }
 
         [Theory]

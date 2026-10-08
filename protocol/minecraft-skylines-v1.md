@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.17
+# `minecraft-skylines` application protocol, version 1.18
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 17`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 18`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). 1.18: the city's entities belong to its save (`CITY_ENTITIES`); the city view's camera area is simulated (`CITY_FOCUS`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -707,7 +707,7 @@ until the link is lost (a repeated id replaces the earlier one).
 The complete set of entities the guest draws, in the order of the model's parts (Minecraft's pose after
 `EntityModel.setupAnim`); the latest message replaces the previous one, so an entity missing from it is gone and an
 empty message clears all. Sent about 20 times a second while a world is loaded (newest only: an unsent older message
-is dropped), for every entity within 96 m (horizontally) of the player except the player itself; a draw whose model or
+is dropped), for every entity within 96 m (horizontally) of the player except the player itself, and (minor 18) every entity in the city-view area (`CITY_FOCUS`), each once; a draw whose model or
 texture the host does not have, or whose `partCount` differs from the model's, is skipped. The host interpolates each
 entity's position, matrix (element-wise) and part transforms (angles the short way) between the last two messages,
 draws them lit in its own scene within a distance it chooses, and drops everything when the link is lost or the city
@@ -758,3 +758,56 @@ The guest extrapolates `yaw` by `yawRate × age` as it does the centre by the ve
 height along its length (CS1: the highest point of the vehicle mesh in each 0.25 m slice, see `docs/CS1-API-NOTES.md`);
 a single slice of 255 is a plain box (CS1: a tractor or trailer whose mesh geometry is unavailable). Without a profile
 the guest may shape a car-sized vehicle by its own rule. Every byte value is valid.
+
+## Minor 18: the city's entities and the city view's area
+
+Owner (2026-10-06): "Minecraft mobs need to exist in the CS1 world even when the player leaves Minecraft mode, just
+like the blocks."
+
+### `0x01D0 CITY_ENTITIES` (both directions)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | as in minor 5; another open's data is stale and dropped |
+| u32 | `length` | at most 4 MiB (4194304); anything above is a protocol error, checked before the bytes |
+| u8 × `length` | `data` | opaque to the host. Empty means the city has no entities |
+
+Every entity in the open city's world other than players (animals, monsters, dropped items, arrows, minecarts, boats)
+belongs to the city exactly like its blocks and its player: the host keeps the newest blob for the current open and
+writes it into the city's save under its own key (a CS1 host: a versioned, checksummed record as for `PLAYER_DATA`; an
+unreadable stored record is kept unchanged under a second key and the city opens with no entities); the guest's world
+only caches them.
+
+Host → guest: sent when the negotiated minor is at least 18, right after `PLAYER_DATA` (before the first `BLOCK_EDITS`
+batch) on every open: the stored entities, the newest the guest sent for this city since, or empty. The guest removes
+every non-player entity its world holds, loaded or stored on its disk, that it did not restore for this open, and
+restores these entities where they were, each once its chunk is loaded and built. `CITY_STATE` ready does not wait for
+them.
+
+Guest → host: after `CITY_STATE` ready only (never a previous city's entities): before every `EDIT_SYNC_ACK` (so the
+save barrier covers it) and whenever it changed, at most every 10 s. Empty is valid (no entities). A guest that could
+not read the host's data sends nothing for that open (the host keeps its own).
+
+Fabric guest: `data` is gzip-compressed NBT `{version: 1, DataVersion, entities: [...]}`, each element as
+`Entity.saveAsPassenger` writes it (riders inside their vehicle); at most 1024 entities, persistent mobs first, then
+other mobs, then everything else, trimmed further until the blob fits. A guest refuses a `version` other than 1.
+
+### `0x01D1 CITY_FOCUS` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| f32 | `x` | Minecraft frame: where the city view's camera looks (CS1 `CameraController.m_currentPosition`) |
+| f32 | `z` | Minecraft frame (`-cs.z`) |
+| u8 | `flags` | bit 0 `ACTIVE`: the city view is in use; clear: no city-view area. Other bits are ignored |
+
+The payload is exactly 9 bytes, and an `ACTIVE` focus with a non-finite coordinate is a protocol error. Sent when the
+negotiated minor is at least 18, while a city is open (`CITY_OPEN` sent) and not in player mode: when the focus moved
+at least 8 m since the last one sent, or `ACTIVE` changed, at most 4 times a second; with `ACTIVE` clear on entering
+player mode. A new open, `CITY_CLOSE` and link loss clear it too.
+
+While `ACTIVE`, the guest keeps the chunks around the focus loaded and simulated as if a player stood there: entities
+tick within 2 chunks (Chebyshev) of the focus's chunk (25 chunks, 80 m square), and the two rings around them are
+loaded but frozen, so nothing walks off the simulated ground. The host streams `COLLISION_REGION` (and `TREES`) within
+64 m of the focus, which covers those 25 chunks, so the guest builds its shadow world there. Mobs in that area are not
+despawned for being far from the player. Everything there is in `ENTITY_STATES`.
+

@@ -25,6 +25,8 @@ namespace MinecraftSkylines.Mod.City
         public const string UnreadableKey = "MinecraftSkylines.CityEdits.unreadable";
         public const string PlayerKey = "MinecraftSkylines.PlayerData";
         public const string PlayerUnreadableKey = "MinecraftSkylines.PlayerData.unreadable";
+        public const string EntitiesKey = "MinecraftSkylines.CityEntities";
+        public const string EntitiesUnreadableKey = "MinecraftSkylines.CityEntities.unreadable";
         private const string BackupLabel = "before Minecraft";
         private const int BarrierTimeoutMs = 2000;
 
@@ -42,6 +44,8 @@ namespace MinecraftSkylines.Mod.City
         private byte[] _unreadable;
         private byte[] _playerData;
         private byte[] _playerUnreadable;
+        private byte[] _entities;
+        private byte[] _entitiesUnreadable;
         private uint _openSeq;
         private bool _open;
         private bool _ready;
@@ -54,6 +58,7 @@ namespace MinecraftSkylines.Mod.City
         private string _note = "";
         private long _staleBatches;
         private long _stalePlayer;
+        private long _staleEntities;
 
         public CityLink(HostLog log, SaveIdentity saveId, PlayerMode player)
         {
@@ -71,6 +76,9 @@ namespace MinecraftSkylines.Mod.City
 
         /// <summary>The guest reported CITY_STATE ready for the current open.</summary>
         public bool Ready { get { lock (_sync) return _open && _ready; } }
+
+        /// <summary>CITY_OPEN was sent and the open has not ended.</summary>
+        public bool IsOpen { get { lock (_sync) return _open; } }
 
         public int EditCount { get { lock (_sync) return _edits.Count; } }
 
@@ -131,12 +139,33 @@ namespace MinecraftSkylines.Mod.City
                     what += "; UNREADABLE player record (" + e.Message + ", " + playerRaw.Length + " bytes): loaded as a fresh player, kept unchanged under " + PlayerUnreadableKey;
                 }
             }
+            byte[] entitiesRaw = data.LoadData(EntitiesKey);
+            byte[] entitiesKeptBefore = data.LoadData(EntitiesUnreadableKey);
+            byte[] entities = null;
+            byte[] entitiesUnreadable = entitiesKeptBefore;
+            if (entitiesRaw == null) what += "; no entities record";
+            else
+            {
+                try
+                {
+                    entities = BlobRecord.Decode(entitiesRaw);
+                    what += "; entities " + entities.Length + " bytes";
+                }
+                catch (FormatException e)
+                {
+                    if (entitiesKeptBefore != null) _log.Warn("entities: dropping an older kept unreadable record (" + entitiesKeptBefore.Length + " bytes) for the newer one");
+                    entitiesUnreadable = entitiesRaw;
+                    what += "; UNREADABLE entities record (" + e.Message + ", " + entitiesRaw.Length + " bytes): loaded as none, kept unchanged under " + EntitiesUnreadableKey;
+                }
+            }
             lock (_sync)
             {
                 _edits = edits;
                 _unreadable = unreadable;
                 _playerData = player;
                 _playerUnreadable = playerUnreadable;
+                _entities = entities;
+                _entitiesUnreadable = entitiesUnreadable;
                 _open = false;
                 _ready = false;
             }
@@ -170,7 +199,7 @@ namespace MinecraftSkylines.Mod.City
             {
                 _log.Info("save data: no city open in Minecraft; saving the edit set as it is");
             }
-            byte[] record, unreadable, player, playerUnreadable;
+            byte[] record, unreadable, player, playerUnreadable, entities, entitiesUnreadable;
             int count;
             lock (_sync)
             {
@@ -179,6 +208,8 @@ namespace MinecraftSkylines.Mod.City
                 unreadable = _unreadable;
                 player = _playerData;
                 playerUnreadable = _playerUnreadable;
+                entities = _entities;
+                entitiesUnreadable = _entitiesUnreadable;
             }
             data.SaveData(EditsKey, record);
             if (unreadable != null) data.SaveData(UnreadableKey, unreadable);
@@ -188,6 +219,12 @@ namespace MinecraftSkylines.Mod.City
                 _log.Info("save data: wrote player data (" + player.Length + " bytes)");
             }
             if (playerUnreadable != null) data.SaveData(PlayerUnreadableKey, playerUnreadable);
+            if (entities != null)
+            {
+                data.SaveData(EntitiesKey, BlobRecord.Encode(entities));
+                _log.Info("save data: wrote city entities (" + entities.Length + " bytes)");
+            }
+            if (entitiesUnreadable != null) data.SaveData(EntitiesUnreadableKey, entitiesUnreadable);
             _log.Info("save data: wrote " + count + " block edits (" + record.Length + " bytes)" + (unreadable != null ? " and the kept unreadable record" : ""));
         }
 
@@ -212,6 +249,8 @@ namespace MinecraftSkylines.Mod.City
                 _unreadable = null;
                 _playerData = null;
                 _playerUnreadable = null;
+                _entities = null;
+                _entitiesUnreadable = null;
             }
             _barrier.Cancel();
             if (wasOpen && host != null && host.State == BridgeState.Connected)
@@ -275,6 +314,16 @@ namespace MinecraftSkylines.Mod.City
                 {
                     if (!_open || d.OpenSeq != _openSeq) _stalePlayer++;
                     else if (d.Data.Length > 0) _playerData = d.Data;
+                }
+                return true;
+            }
+            if (type == AppProtocol.CityEntitiesType)
+            {
+                CityEntities d = CityEntities.Decode(payload);
+                lock (_sync)
+                {
+                    if (!_open || d.OpenSeq != _openSeq) _staleEntities++;
+                    else _entities = d.Data;
                 }
                 return true;
             }
@@ -397,7 +446,10 @@ namespace MinecraftSkylines.Mod.City
                     if (_unreadable != null) sb.Append("; unreadable record kept (").Append(_unreadable.Length).Append(" bytes)");
                     sb.Append(_playerData != null ? "; player " + _playerData.Length + " bytes" : "; fresh player");
                     if (_playerUnreadable != null) sb.Append("; unreadable player data kept");
+                    sb.Append(_entities != null ? "; entities " + _entities.Length + " bytes" : "; no entities");
+                    if (_entitiesUnreadable != null) sb.Append("; unreadable entities data kept");
                 }
+                if (_staleEntities > 0) sb.Append("; ").Append(_staleEntities).Append(" stale entity blobs dropped");
                 if (_staleBatches > 0) sb.Append("; ").Append(_staleBatches).Append(" stale batches dropped");
             }
             if (_note.Length > 0) sb.Append("  (").Append(_note).Append(')');
@@ -466,10 +518,11 @@ namespace MinecraftSkylines.Mod.City
         {
             uint seq;
             List<VoxelEdit> edits;
-            byte[] player;
+            byte[] player, entities;
             lock (_sync)
             {
                 player = _playerData;
+                entities = _entities;
                 seq = ++_openSeq;
                 edits = _edits.Sorted();
                 _open = true;
@@ -479,6 +532,8 @@ namespace MinecraftSkylines.Mod.City
             bool ok = host.Send(AppProtocol.CityOpenType, new CityOpen { OpenSeq = seq, SaveId = _saveId.Id, CityName = city, EditCount = (uint)edits.Count }.Encode());
             if (ok && host.NegotiatedAppMinor >= 11)
                 ok = host.Send(AppProtocol.PlayerDataType, new PlayerData { OpenSeq = seq, Data = player ?? new byte[0] }.Encode());
+            if (ok && host.NegotiatedAppMinor >= 18)
+                ok = host.Send(AppProtocol.CityEntitiesType, new CityEntities { OpenSeq = seq, Data = entities ?? new byte[0] }.Encode());
             List<VoxelBatch> batches = VoxelEditSet.Batches(edits, VoxelEditSet.MaxBatchEdits);
             if (batches.Count == 0) batches.Add(new VoxelBatch());
             for (int i = 0; ok && i < batches.Count; i++)

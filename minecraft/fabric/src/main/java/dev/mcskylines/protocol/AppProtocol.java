@@ -4,7 +4,7 @@ package dev.mcskylines.protocol;
 public final class AppProtocol {
 	public static final String NAME = "minecraft-skylines";
 	public static final int MAJOR = 1;
-	public static final int MINOR = 17;
+	public static final int MINOR = 18;
 	public static final int HOST_STATUS = 0x0100;
 	public static final int GUEST_STATUS = 0x0101;
 	public static final int ENTER_PLAYER_MODE = 0x0110;
@@ -45,6 +45,8 @@ public final class AppProtocol {
 	public static final int ENTITY_MODEL = 0x01E0; // a model of textured box parts (guest to host)
 	public static final int ENTITY_TEXTURE = 0x01E1; // a PNG texture (guest to host)
 	public static final int ENTITY_STATES = 0x01E2; // the complete set of entities and their pose (guest to host)
+	public static final int CITY_ENTITIES = 0x01D0; // minor 18: the city's entities (both directions)
+	public static final int CITY_FOCUS = 0x01D1; // minor 18: where the city view's camera looks (host to guest)
 	public static final int DEBUG_COMMAND = 0x01F0;
 
 	private AppProtocol() {

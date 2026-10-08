@@ -10,6 +10,7 @@ import dev.mcskylines.player.RespawnChoice;
 import dev.mcskylines.protocol.AppProtocol;
 import dev.mcskylines.protocol.BlockEdits;
 import dev.mcskylines.protocol.CityClose;
+import dev.mcskylines.protocol.CityEntities;
 import dev.mcskylines.protocol.CityOpen;
 import dev.mcskylines.protocol.CityState;
 import dev.mcskylines.protocol.EditSync;
@@ -43,6 +44,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -76,6 +78,7 @@ public final class CityEdits {
 	private static final int GROWTH_TICKS = 20; // growth catch-up round, once a second
 	private static final int PLAYER_CHECK_TICKS = 200; // PLAYER_DATA when changed, at most every 10 s
 	private static volatile CityEdits recording;
+	private static volatile CityEdits attached;
 
 	private final BridgeGuest guest;
 	private final ConcurrentLinkedQueue<Object> inbox = new ConcurrentLinkedQueue<>();
@@ -83,6 +86,8 @@ public final class CityEdits {
 	private volatile UUID pairedSaveId = GuestStatus.NO_SAVE;
 	private volatile int appMinor;
 	private final PlayerDataSync playerSync = new PlayerDataSync();
+	private final PlayerDataSync entitySync = new PlayerDataSync();
+	private final CityEntityStore entities = new CityEntityStore();
 	private int playerCheckTicks;
 
 	private Open open;
@@ -149,10 +154,16 @@ public final class CityEdits {
 		byte[] playerData;
 		boolean playerApplied;
 		boolean playerBroken;
+		// Minor 18: the city's entities, as playerData; loaded into the store once a world is attached.
+		final boolean entitiesExpected;
+		byte[] entityData;
+		boolean entitiesLoaded;
+		boolean entitiesBroken;
 
-		Open(CityOpen msg, boolean playerExpected) {
+		Open(CityOpen msg, boolean playerExpected, boolean entitiesExpected) {
 			this.msg = msg;
 			this.playerExpected = playerExpected;
+			this.entitiesExpected = entitiesExpected;
 		}
 
 		int seq() {
@@ -184,6 +195,7 @@ public final class CityEdits {
 				case AppProtocol.EDIT_SYNC -> EditSync.decode(payload);
 				case AppProtocol.LIGHT_SOURCES -> LightSources.decode(payload);
 				case AppProtocol.PLAYER_DATA -> PlayerData.decode(payload);
+				case AppProtocol.CITY_ENTITIES -> CityEntities.decode(payload);
 				default -> throw new IllegalArgumentException("not a city message: 0x" + Integer.toHexString(type));
 			});
 		} catch (ProtocolException e) {
@@ -229,6 +241,7 @@ public final class CityEdits {
 				case EditSync s -> onSync(s);
 				case LightSources l -> onLights(l);
 				case PlayerData d -> onPlayerData(d);
+				case CityEntities d -> onEntities(d);
 				default -> {
 					if (m == PLAYER_JOINED) {
 						applyPlayer();
@@ -248,8 +261,11 @@ public final class CityEdits {
 		shadow.reset();
 		flushRecorded();
 		stopRecording();
-		open = new Open(o, appMinor >= 11);
+		open = new Open(o, appMinor >= 11, appMinor >= 18);
 		playerSync.reset();
+		entitySync.reset();
+		entities.begin(null);
+		CityView.clear();
 		pairedSaveId = o.saveId();
 		LOG.info(PREFIX + "CITY_OPEN {} '{}' ({} edits)", Integer.toUnsignedString(o.openSeq()), o.cityName(),
 			Integer.toUnsignedLong(o.editCount()));
@@ -299,6 +315,8 @@ public final class CityEdits {
 		lamps.clear();
 		growth.clear();
 		shadow.reset();
+		entities.begin(null);
+		CityView.clear();
 		LOG.info(PREFIX + "CITY_CLOSE {}; reverting the city world to empty", Integer.toUnsignedString(c.openSeq()));
 		open = null;
 		pairedSaveId = GuestStatus.NO_SAVE;
@@ -354,6 +372,7 @@ public final class CityEdits {
 		if (open != null && open.ready && s.openSeq() == open.seq()) {
 			flushRecorded();
 			sendPlayer();
+			sendEntities();
 		}
 		send(AppProtocol.EDIT_SYNC_ACK, s.encode());
 	}
@@ -364,6 +383,8 @@ public final class CityEdits {
 		shadow.reset();
 		stopRecording();
 		recorder.clear();
+		entities.begin(null);
+		CityView.clear();
 		open = null;
 		pairedSaveId = GuestStatus.NO_SAVE;
 	}
@@ -379,6 +400,8 @@ public final class CityEdits {
 			lamps.clear();
 			touchedFile = s.getWorldPath(LevelResource.ROOT).resolve("mcskylines").resolve("touched.bin");
 			touched = new TouchedSet(TouchedFile.read(touchedFile));
+			entities.begin(null); // whatever the world kept on disk is stale; the open's blob restores the city's
+			attached = this;
 			LOG.info(PREFIX + "city world attached; {} touched positions", touched.live().size());
 			targetApplied = false;
 			applyTarget();
@@ -394,11 +417,20 @@ public final class CityEdits {
 		}
 		flushRecorded();
 		sendPlayer();
+		sendEntities();
 		stopRecording();
 		writeTouched();
+		CityView.release();
 		if (open != null) {
 			open.playerApplied = false;
+			// The world's copies go stale with it; the newest blob restores the city's entities on the next attach.
+			if (entities.authority() != null) {
+				open.entityData = entities.authority();
+			}
+			open.entitiesLoaded = false;
 		}
+		entities.begin(null);
+		attached = null;
 		if (open != null && open.ready) {
 			open.ready = false;
 			send(AppProtocol.CITY_STATE, new CityState(open.seq(), CityState.APPLYING, 0).encode());
@@ -485,9 +517,13 @@ public final class CityEdits {
 				applying = false;
 			}
 		}
+		boolean ready = open != null && open.ready;
+		entities.tick(level, ready ? shadow::built : ck -> false);
+		CityView.tick(level, ready);
 		if (++playerCheckTicks >= PLAYER_CHECK_TICKS) {
 			playerCheckTicks = 0;
 			sendPlayer();
+			sendEntities();
 		}
 	}
 
@@ -519,6 +555,77 @@ public final class CityEdits {
 			d.data().length == 0 ? "fresh player" : d.data().length + " bytes");
 		applyPlayer();
 		maybeReady();
+	}
+
+	private void onEntities(CityEntities d) {
+		if (open == null || d.openSeq() != open.seq() || !open.entitiesExpected || open.entityData != null) {
+			LOG.debug(PREFIX + "dropping stale CITY_ENTITIES for open {}", Integer.toUnsignedString(d.openSeq()));
+			return;
+		}
+		open.entityData = d.data();
+		LOG.info(PREFIX + "CITY_ENTITIES for open {}: {} bytes", Integer.toUnsignedString(d.openSeq()), d.data().length);
+		loadEntities();
+	}
+
+	/** The open's entity blob into the store (restored as chunks become ready), once a world is attached. */
+	private void loadEntities() {
+		if (open == null || open.entityData == null || open.entitiesLoaded || open.entitiesBroken || level == null) {
+			return;
+		}
+		try {
+			entities.load(open.entityData, level);
+		} catch (Exception e) {
+			open.entitiesBroken = true;
+			LOG.error(PREFIX + "could not read the city's entities ({} bytes); the host keeps them, nothing is sent back for this open",
+				open.entityData.length, e);
+		}
+		open.entitiesLoaded = true;
+	}
+
+	/** CITY_ENTITIES to the host when it changed since the last one sent (after ready, and only once the host's arrived). */
+	private void sendEntities() {
+		if (open == null || !open.ready || !open.entitiesLoaded || open.entitiesBroken || level == null) {
+			return;
+		}
+		byte[] data;
+		try {
+			data = entities.capture(level);
+		} catch (Exception e) {
+			LOG.error(PREFIX + "could not capture the city's entities", e);
+			return;
+		}
+		if (data.length > CityEntities.MAX_LENGTH) {
+			LOG.error(PREFIX + "city entities {} bytes is above {}; not sent", data.length, CityEntities.MAX_LENGTH);
+			return;
+		}
+		if (entitySync.shouldSend(data)) {
+			send(AppProtocol.CITY_ENTITIES, new CityEntities(open.seq(), data).encode());
+			entitySync.sent(data);
+		}
+	}
+
+	/** ENTITY_LOAD (server thread): another city's or a stale entity is discarded, a new one joins the open city. */
+	public static void entityLoaded(Entity e, ServerLevel l) {
+		CityEdits c = attached;
+		if (c != null) {
+			synchronized (c) {
+				if (l == c.level) {
+					c.entities.joined(e, c.open != null && c.open.ready);
+				}
+			}
+		}
+	}
+
+	/** ENTITY_UNLOAD (server thread). */
+	public static void entityUnloaded(Entity e, ServerLevel l) {
+		CityEdits c = attached;
+		if (c != null) {
+			synchronized (c) {
+				if (l == c.level) {
+					c.entities.left(e, l);
+				}
+			}
+		}
 	}
 
 	/** The open's player data onto the (single) player, once it is in the city world. */
@@ -582,6 +689,7 @@ public final class CityEdits {
 		}
 		open.ready = true;
 		recording = this;
+		loadEntities();
 		citySeed = ShadowMaterials.seed(open.msg.saveId());
 		buildGrowth();
 		shadow.start(citySeed);

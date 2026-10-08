@@ -24,7 +24,8 @@
     "ClockInstanceAccess",
     "CityClockMixin",
     "TimeCommandMixin",
-    "CitySleepMixin"
+    "CitySleepMixin",
+    "CityViewDespawnMixin"
   ],
   "client": [
     "EntityCollideMixin",
