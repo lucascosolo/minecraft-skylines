@@ -259,6 +259,19 @@ def frames() -> list[dict]:
         add(name, sb.CITIZEN_EVENTS, {"openSeq": 9, "events": [
             {"kind": e.kind, "id": e.id, "x": e.x, "y": e.y, "z": e.z} for e in es]}, sb.CitizenEvents(9, es).encode())
 
+    # ---- 1.20 (trade with the city's shops)
+    add("shop_open", sb.SHOP_OPEN, {"openSeq": 5, "requestId": 77, "eye": [100.5, 65.625, -200.25], "hit": [103.0, 66.0, -201.5]},
+        sb.ShopOpen(5, 77, (100.5, 65.625, -200.25), (103.0, 66.0, -201.5)).encode())
+    offers = [sb.ShopOffer(0, "minecraft:emerald", 1, "minecraft:bread", 6, 12),
+              sb.ShopOffer(7, "minecraft:oak_log", 16, "minecraft:emerald", 1, 0)]
+    for name, m in (("shop_offers_open", sb.ShopOffers(5, 77, 4242, sb.SHOP_OPEN_STATUS, "Corner Bakery", 2, offers)),
+                    ("shop_offers_closed", sb.ShopOffers(5, 78, 65535, sb.SHOP_CLOSED, "", 0, [])),
+                    ("shop_offers_not_a_shop", sb.ShopOffers(5, 79, 0, sb.SHOP_NOT_A_SHOP, "", 0, []))):
+        add(name, sb.SHOP_OFFERS, {"openSeq": m.open_seq, "requestId": m.request_id, "building": m.building, "status": m.status,
+            "name": m.name, "level": m.level, "offers": [{"slot": o.slot, "costItem": o.cost_item, "costCount": o.cost_count,
+            "resultItem": o.result_item, "resultCount": o.result_count, "uses": o.uses} for o in m.offers]}, m.encode())
+    add("shop_trade", sb.SHOP_TRADE, {"openSeq": 5, "building": 4242, "slot": 7, "times": 3}, sb.ShopTrade(5, 4242, 7, 3).encode())
+
     # ---- 1.14 (entities)
     quad = [0.0, 0.0, 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.25, 0.0, 8.0, 12.0, 0.0, 0.25, 0.5, 0.0, 12.0, 0.0, 0.0, 0.5,
             0.0, 0.0, -1.0]
@@ -338,6 +351,19 @@ def invalid_frames() -> list[dict]:
         bad("citizen_events_bad_kind", sb.frame(sb.CITIZEN_EVENTS, sb.CitizenEvents(1, [sb.CitizenEvent(4, 1, 0.0, 0.0, 0.0)]).encode()), "kind outside 1..3"),
         bad("citizen_events_truncated", sb.frame(sb.CITIZEN_EVENTS, sb.Writer().u32(1).u16(1).u8(1).u32(5).f32(0.0).bytes()), "payload ends inside an event"),
         bad("citizen_events_trailing_bytes", sb.frame(sb.CITIZEN_EVENTS, sb.CitizenEvents(1, []).encode() + b"\x00"), "payload longer than its count says"),
+        # ---- 1.20 (trade with the city's shops)
+        bad("shop_open_short", sb.frame(sb.SHOP_OPEN, sb.ShopOpen(1, 1, (0.0, 0.0, 0.0), (1.0, 1.0, 1.0)).encode()[:-1]), "payload not 32 bytes"),
+        bad("shop_open_not_finite", sb.frame(sb.SHOP_OPEN, sb.ShopOpen(1, 1, (0.0, 0.0, 0.0), (math.nan, 1.0, 1.0)).encode()), "position not finite"),
+        bad("shop_offers_bad_status", sb.frame(sb.SHOP_OFFERS, sb.ShopOffers(1, 1, 0, 3, "", 0, []).encode()), "status above 2"),
+        bad("shop_offers_too_many", sb.frame(sb.SHOP_OFFERS, sb.Writer().u32(1).u32(1).u16(9).u8(0).string("s").u8(1).u16(sb.SHOP_OFFERS_MAX + 1).bytes()), "offer count > 32 (checked before the offers)"),
+        bad("shop_offers_closed_with_offers", sb.frame(sb.SHOP_OFFERS, sb.ShopOffers(1, 1, 9, sb.SHOP_CLOSED, "", 0, [sb.ShopOffer(0, "minecraft:emerald", 1, "minecraft:bread", 6, 1)]).encode()), "offers on a shop that is not open"),
+        bad("shop_offers_zero_count", sb.frame(sb.SHOP_OFFERS, sb.ShopOffers(1, 1, 9, 0, "s", 1, [sb.ShopOffer(0, "minecraft:emerald", 0, "minecraft:bread", 6, 1)]).encode()), "item count outside 1..64"),
+        bad("shop_offers_count_65", sb.frame(sb.SHOP_OFFERS, sb.ShopOffers(1, 1, 9, 0, "s", 1, [sb.ShopOffer(0, "minecraft:emerald", 1, "minecraft:bread", 65, 1)]).encode()), "item count outside 1..64"),
+        bad("shop_offers_truncated", sb.frame(sb.SHOP_OFFERS, sb.ShopOffers(1, 1, 9, 0, "s", 1, [sb.ShopOffer(0, "minecraft:emerald", 1, "minecraft:bread", 6, 1)]).encode()[:-1]), "payload ends inside an offer"),
+        bad("shop_offers_trailing_bytes", sb.frame(sb.SHOP_OFFERS, sb.ShopOffers(1, 1, 0, 1, "", 0, []).encode() + b"\x00"), "payload longer than its count says"),
+        bad("shop_trade_short", sb.frame(sb.SHOP_TRADE, sb.ShopTrade(1, 9, 0, 1).encode()[:-1]), "payload not 9 bytes"),
+        bad("shop_trade_zero_times", sb.frame(sb.SHOP_TRADE, sb.ShopTrade(1, 9, 0, 0).encode()), "zero times"),
+        bad("shop_trade_building_zero", sb.frame(sb.SHOP_TRADE, sb.ShopTrade(1, 0, 0, 1).encode()), "building 0"),
         # ---- 1.14 (entities)
         bad("entity_model_too_many_parts", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(sb.ENTITY_MODEL_MAX_PARTS + 1).bytes()), "part count > 1024 (checked before the parts)"),
         bad("entity_model_parent_not_before", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(0).u16(0).bytes()), "parent index at or above the part's own"),

@@ -1082,6 +1082,95 @@
       "hex": "39000000d201000009000000030001d20400000000c94200008042004048c302ffff0000000060c0008023420000404103070000000000000000008d4200000000"
     },
     {
+      "name": "shop_open",
+      "type": 512,
+      "fields": {
+        "openSeq": 5,
+        "requestId": 77,
+        "eye": [
+          100.5,
+          65.625,
+          -200.25
+        ],
+        "hit": [
+          103.0,
+          66.0,
+          -201.5
+        ]
+      },
+      "hex": "2000000000020000050000004d0000000000c94200408342004048c30000ce4200008442008049c3"
+    },
+    {
+      "name": "shop_offers_open",
+      "type": 513,
+      "fields": {
+        "openSeq": 5,
+        "requestId": 77,
+        "building": 4242,
+        "status": 0,
+        "name": "Corner Bakery",
+        "level": 2,
+        "offers": [
+          {
+            "slot": 0,
+            "costItem": "minecraft:emerald",
+            "costCount": 1,
+            "resultItem": "minecraft:bread",
+            "resultCount": 6,
+            "uses": 12
+          },
+          {
+            "slot": 7,
+            "costItem": "minecraft:oak_log",
+            "costCount": 16,
+            "resultItem": "minecraft:emerald",
+            "resultCount": 1,
+            "uses": 0
+          }
+        ]
+      },
+      "hex": "7100000001020000050000004d0000009210000d00436f726e65722042616b6572790202000011006d696e6563726166743a656d6572616c64010f006d696e6563726166743a6272656164060c000711006d696e6563726166743a6f616b5f6c6f671011006d696e6563726166743a656d6572616c64010000"
+    },
+    {
+      "name": "shop_offers_closed",
+      "type": 513,
+      "fields": {
+        "openSeq": 5,
+        "requestId": 78,
+        "building": 65535,
+        "status": 2,
+        "name": "",
+        "level": 0,
+        "offers": []
+      },
+      "hex": "1000000001020000050000004e000000ffff020000000000"
+    },
+    {
+      "name": "shop_offers_not_a_shop",
+      "type": 513,
+      "fields": {
+        "openSeq": 5,
+        "requestId": 79,
+        "building": 0,
+        "status": 1,
+        "name": "",
+        "level": 0,
+        "offers": []
+      },
+      "hex": "1000000001020000050000004f0000000000010000000000"
+    },
+    {
+      "name": "shop_trade",
+      "type": 514,
+      "fields": {
+        "openSeq": 5,
+        "building": 4242,
+        "slot": 7,
+        "times": 3
+      },
+      "hex": "0900000002020000050000009210070300"
+    },
+    {
       "name": "entity_model_two_parts",
       "type": 480,
       "fields": {
@@ -1476,6 +1565,66 @@
       "name": "citizen_events_trailing_bytes",
       "hex": "07000000d201000001000000000000",
       "why": "payload longer than its count says"
+    },
+    {
+      "name": "shop_open_short",
+      "hex": "1f0000000002000001000000010000000000000000000000000000000000803f0000803f000080",
+      "why": "payload not 32 bytes"
+    },
+    {
+      "name": "shop_open_not_finite",
+      "hex": "200000000002000001000000010000000000000000000000000000000000c07f0000803f0000803f",
+      "why": "position not finite"
+    },
+    {
+      "name": "shop_offers_bad_status",
+      "hex": "100000000102000001000000010000000000030000000000",
+      "why": "status above 2"
+    },
+    {
+      "name": "shop_offers_too_many",
+      "hex": "11000000010200000100000001000000090000010073012100",
+      "why": "offer count > 32 (checked before the offers)"
+    },
+    {
+      "name": "shop_offers_closed_with_offers",
+      "hex": "3900000001020000010000000100000009000200000001000011006d696e6563726166743a656d6572616c64010f006d696e6563726166743a6272656164060100",
+      "why": "offers on a shop that is not open"
+    },
+    {
+      "name": "shop_offers_zero_count",
+      "hex": "3a0000000102000001000000010000000900000100730101000011006d696e6563726166743a656d6572616c64000f006d696e6563726166743a6272656164060100",
+      "why": "item count outside 1..64"
+    },
+    {
+      "name": "shop_offers_count_65",
+      "hex": "3a0000000102000001000000010000000900000100730101000011006d696e6563726166743a656d6572616c64010f006d696e6563726166743a6272656164410100",
+      "why": "item count outside 1..64"
+    },
+    {
+      "name": "shop_offers_truncated",
+      "hex": "390000000102000001000000010000000900000100730101000011006d696e6563726166743a656d6572616c64010f006d696e6563726166743a62726561640601",
+      "why": "payload ends inside an offer"
+    },
+    {
+      "name": "shop_offers_trailing_bytes",
+      "hex": "11000000010200000100000001000000000001000000000000",
+      "why": "payload longer than its count says"
+    },
+    {
+      "name": "shop_trade_short",
+      "hex": "08000000020200000100000009000001",
+      "why": "payload not 9 bytes"
+    },
+    {
+      "name": "shop_trade_zero_times",
+      "hex": "0900000002020000010000000900000000",
+      "why": "zero times"
+    },
+    {
+      "name": "shop_trade_building_zero",
+      "hex": "0900000002020000010000000000000100",
+      "why": "building 0"
     },
     {
       "name": "entity_model_too_many_parts",

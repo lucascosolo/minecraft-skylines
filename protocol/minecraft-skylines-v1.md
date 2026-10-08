@@ -1,11 +1,11 @@
-# `minecraft-skylines` application protocol, version 1.19
+# `minecraft-skylines` application protocol, version 1.20
 
 Runs on the SKBR bridge (`bridge-v1.md`); `appProtocol = "minecraft-skylines"`, `appMajor = 1`,
-`appMinor = 19`. Encodings are the bridge's primitives. Message types start at `0x0100`.
+`appMinor = 20`. Encodings are the bridge's primitives. Message types start at `0x0100`.
 
 1.0 (milestone 1): status exchange. 1.1 (milestone 2): player mode, input, collision, player
 state. 1.2 (milestone 3): block meshes, texture atlas, debug commands. 1.3 (milestone 3): GUI overlay
-through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). 1.18: the city's entities belong to its save (`CITY_ENTITIES`); the city view's camera area is simulated (`CITY_FOCUS`). 1.19: citizens as villagers to Minecraft's mobs (`CITIZEN_EVENTS`). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
+through shared memory, viewport, cursor input. 1.4: block selection outline. 1.5 (milestone 4): per-city block edits and the save barrier. 1.6: the city's time of day. 1.7: moving vehicles and citizens as obstacles. 1.8: the city's lit lamps as Minecraft light. 1.9: Minecraft's sky drawn by the host. 1.10: the city's water surface around the player. 1.11: the player's own state belongs to the city; death and respawn.  1.12: the trees the host draws, and felling one. 1.13: dug ground (`COLLISION_REGION` flag bit 9). 1.14: Minecraft's entities drawn by the host. 1.15: trees grown from saplings. 1.16: Minecraft's time commands set the city's clock. 1.17: moving obstacles with turn rate and height profile (`SHAPED_OBSTACLES`). 1.18: the city's entities belong to its save (`CITY_ENTITIES`); the city view's camera area is simulated (`CITY_FOCUS`). 1.19: citizens as villagers to Minecraft's mobs (`CITIZEN_EVENTS`). 1.20: trade with the city's shops (`SHOP_OPEN`, `SHOP_OFFERS`, `SHOP_TRADE`, `COLLISION_REGION` flag bit 10). Messages of a newer minor are sent only when the negotiated minor (min of both sides)
 allows them. Anything that changes an existing layout bumps the major.
 
 ## `0x0100 HOST_STATUS` (host → guest)
@@ -102,7 +102,7 @@ the guest holds for that region.
 | i32 | `regionX`, `regionZ` | `floor(x / 16)`, `floor(z / 16)` |
 | u32 | `triCount` | 0 = the region is known to be empty |
 | per triangle: f32 × 9 | `ax ay az bx by bz cx cy cz` | absolute coordinates; counter-clockwise seen from the solid side's outward normal, i.e. `(b-a)×(c-a)` points out of the solid (up for ground) |
-| u16 | `flags` | bit 0 terrain, bit 1 road surface, bit 2 bridge deck, bit 3 building (the building's LOD mesh, the one the game raycasts, clipped to the region; an oriented box when no LOD data exists), bit 4 railing, bit 5 tunnel wall or ceiling, bit 6 vegetation (a tree's trunk box, or a bush's full box), bit 7 prop (an oriented box from the prop's mesh bounds: standalone, building and road-lane props; a tall prop whose pivot is off its bounds' centre, such as a street light, is only its post) bit 8 boundary (an invisible wall at the edge of the land the player owns; minor 5 hosts send it, older guests treat it as solid like any other), (bits 1-8 informational; the guest treats every triangle as solid and does not let the crosshair target bit-8 walls), bit 9 dug surface (minor 13, below), bits 10-15 reserved. Terrain triangles are omitted where the game clipped its terrain surface (tunnel portals, clip-terrain buildings and roads), so the guest can walk into tunnel portals |
+| u16 | `flags` | bit 0 terrain, bit 1 road surface, bit 2 bridge deck, bit 3 building (the building's LOD mesh, the one the game raycasts, clipped to the region; an oriented box when no LOD data exists), bit 4 railing, bit 5 tunnel wall or ceiling, bit 6 vegetation (a tree's trunk box, or a bush's full box), bit 7 prop (an oriented box from the prop's mesh bounds: standalone, building and road-lane props; a tall prop whose pivot is off its bounds' centre, such as a street light, is only its post) bit 8 boundary (an invisible wall at the edge of the land the player owns; minor 5 hosts send it, older guests treat it as solid like any other), (bits 1-8 informational; the guest treats every triangle as solid and does not let the crosshair target bit-8 walls), bit 9 dug surface (minor 13, below), bit 10 trader (minor 20, see Minor 20: set on the building triangles of a building that trades), bits 11-15 reserved. Terrain triangles are omitted where the game clipped its terrain surface (tunnel portals, clip-terrain buildings and roads), so the guest can walk into tunnel portals |
 
 A triangle may extend past its region's bounds; the guest files it under the region it arrived in.
 
@@ -837,3 +837,68 @@ The host acts only on an id that is still a walking citizen within 8 m horizonta
 city's own death path (CS1: see `docs/CS1-API-NOTES.md`), a permanent change to the city. The guest sends `PANIC` for
 an id at most once every 5 s.
 
+
+## Minor 20: trade with the city's shops
+
+A building *trades* by its class: commercial (low, high, leisure, tourism, organic) sells to the player, industry
+(generic, forestry, farming, oil, ore; extractors and processors) buys raw materials from the player. Emeralds are the
+currency. When the negotiated minor is at least 20 the host sets `COLLISION_REGION` flag **bit 10** (`TRADER`) on the
+bit-3 triangles of every building that trades, whatever its current state; hosts never send bit 10 to an older guest.
+
+The guest uses (right-click, not sneaking) a bit-10 surface the crosshair targets as it would use a villager: it sends
+`SHOP_OPEN` and places nothing; sneaking uses the surface as before (placing against it). The host answers every
+`SHOP_OPEN` of the current open with `SHOP_OFFERS`; the guest opens Minecraft's merchant screen for an `OPEN` answer
+that still matches its newest request, and shows a short message otherwise. Each completed trade is a `SHOP_TRADE`.
+Only while a city is open (a Minecraft-enabled city); everything is ignored for any other `openSeq`.
+
+### `0x0200 SHOP_OPEN` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the `CITY_OPEN` this belongs to |
+| u32 | `requestId` | echoed in `SHOP_OFFERS`; the guest increments it per request |
+| f32 × 3 | `eyeX`, `eyeY`, `eyeZ` | the player's eye, Minecraft coordinates |
+| f32 × 3 | `hitX`, `hitY`, `hitZ` | the targeted point on the building, Minecraft coordinates |
+
+The payload is exactly 32 bytes; a non-finite coordinate is a protocol error. The host finds the building the way the
+city picks one under the mouse (CS1: `BuildingManager.RayCast` along the eye-to-hit ray, extended 1 m past the hit).
+
+### `0x0201 SHOP_OFFERS` (host → guest)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | as in the request |
+| u32 | `requestId` | the request answered |
+| u16 | `building` | the city's building id (CS1: index into `BuildingManager.m_buildings`); 0 when none was found |
+| u8 | `status` | 0 `OPEN`, 1 `NOT_A_SHOP` (nothing found, or a building that does not trade), 2 `CLOSED` (abandoned, burning, collapsed, unfinished or without power); other values are malformed |
+| string | `name` | the building's name as the city shows it; empty unless `OPEN` |
+| u8 | `level` | the building's level (1-5); 0 unless `OPEN` |
+| u16 | `count` | at most 32; 0 unless `OPEN` (an `OPEN` shop may have nothing to trade right now) |
+| per offer: u8 | `slot` | the offer's stable id within this building, echoed in `SHOP_TRADE` |
+| string | `costItem` | a namespaced item id the player gives, e.g. `minecraft:emerald` |
+| u8 | `costCount` | 1-64 |
+| string | `resultItem` | the item id the player gets |
+| u8 | `resultCount` | 1-64 |
+| u16 | `uses` | trades left now (0: shown sold out) |
+
+A count above 32, offers with a status other than `OPEN`, or an item count outside 1-64 is malformed. A guest drops an
+offer whose item it does not know. Offers are chosen by the building's class and level, stable per building (seeded by
+its id), so a shop keeps its personality; `uses` is the smaller of the offer's daily allowance left (restocked each
+city day, by the city's clock) and what the building can supply: a shop sells only goods it has in stock (CS1: its
+goods buffer), an industry buys only what fits its input (or, for an extractor, its output) buffer.
+
+### `0x0202 SHOP_TRADE` (guest → host)
+
+| Type | Field | Notes |
+|---|---|---|
+| u32 | `openSeq` | the current open |
+| u16 | `building` | from `SHOP_OFFERS`; 0 is malformed |
+| u8 | `slot` | the offer traded |
+| u16 | `times` | trades completed (at least 1) |
+
+The payload is exactly 9 bytes. Minecraft is authoritative for the player's items; the host applies the city side as
+far as the building still allows (stock may have changed since the offers): a sale draws the shop's goods and counts as
+the shop's sale, the way a shopping citizen does (CS1: `ModifyMaterialBuffer(Shopping)`, which also fills its cash
+buffer); raw material sold to industry is delivered into its buffer the way a delivery truck (processors) or its own
+extraction (extractors) does. It counts against the offer's daily allowance. The host ignores a slot the building does
+not offer.

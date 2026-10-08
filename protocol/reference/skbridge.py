@@ -1107,6 +1107,115 @@ class CitizenEvents:
         return CitizenEvents(seq, events)
 
 
+# ---- minecraft-skylines app protocol 1.20: trade with the city's shops ------------------------
+SHOP_OPEN = 0x0200
+SHOP_OFFERS = 0x0201
+SHOP_TRADE = 0x0202
+SHOP_OPEN_STATUS = 0
+SHOP_NOT_A_SHOP = 1
+SHOP_CLOSED = 2
+SHOP_OFFERS_MAX = 32
+SHOP_ITEM_MAX = 64
+COLLISION_TRADER = 1 << 10
+
+
+@dataclass
+class ShopOpen:
+    """The player used a trader building: eye and hit point, Minecraft coordinates."""
+    open_seq: int
+    request_id: int
+    eye: tuple
+    hit: tuple
+
+    def encode(self) -> bytes:
+        w = Writer().u32(self.open_seq).u32(self.request_id)
+        for v in (*self.eye, *self.hit):
+            w.f32(v)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "ShopOpen":
+        if len(p) != 32:
+            raise ProtocolError(f"shop open payload is {len(p)} bytes, not 32")
+        r = Reader(p)
+        seq, req = r.u32(), r.u32()
+        v = [r.f32() for _ in range(6)]
+        if not all(math.isfinite(x) for x in v):
+            raise ProtocolError("shop open position is not finite")
+        return ShopOpen(seq, req, tuple(v[:3]), tuple(v[3:]))
+
+
+@dataclass
+class ShopOffer:
+    """One trade: give cost_count of cost_item, get result_count of result_item; uses = trades left now."""
+    slot: int
+    cost_item: str
+    cost_count: int
+    result_item: str
+    result_count: int
+    uses: int
+
+
+@dataclass
+class ShopOffers:
+    open_seq: int
+    request_id: int
+    building: int
+    status: int
+    name: str
+    level: int
+    offers: list
+
+    def encode(self) -> bytes:
+        w = Writer().u32(self.open_seq).u32(self.request_id).u16(self.building).u8(self.status).string(self.name)
+        w.u8(self.level).u16(len(self.offers))
+        for o in self.offers:
+            w.u8(o.slot).string(o.cost_item).u8(o.cost_count).string(o.result_item).u8(o.result_count).u16(o.uses)
+        return w.bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "ShopOffers":
+        r = Reader(p)
+        seq, req, building, status, name, level, n = r.u32(), r.u32(), r.u16(), r.u8(), r.string(), r.u8(), r.u16()
+        if status > SHOP_CLOSED:
+            raise ProtocolError(f"shop status {status} above {SHOP_CLOSED}")
+        if n > SHOP_OFFERS_MAX:
+            raise ProtocolError(f"shop offer count {n} above {SHOP_OFFERS_MAX}")
+        if n and status != SHOP_OPEN_STATUS:
+            raise ProtocolError("offers on a shop that is not open")
+        offers = []
+        for _ in range(n):
+            o = ShopOffer(r.u8(), r.string(), r.u8(), r.string(), r.u8(), r.u16())
+            if not (1 <= o.cost_count <= SHOP_ITEM_MAX and 1 <= o.result_count <= SHOP_ITEM_MAX):
+                raise ProtocolError("shop offer item count outside 1..64")
+            offers.append(o)
+        if r.pos != len(p):
+            raise ProtocolError("shop offers payload longer than its count says")
+        return ShopOffers(seq, req, building, status, name, level, offers)
+
+
+@dataclass
+class ShopTrade:
+    """The player made `times` trades of offer `slot` at `building`."""
+    open_seq: int
+    building: int
+    slot: int
+    times: int
+
+    def encode(self) -> bytes:
+        return Writer().u32(self.open_seq).u16(self.building).u8(self.slot).u16(self.times).bytes()
+
+    @staticmethod
+    def decode(p: bytes) -> "ShopTrade":
+        if len(p) != 9:
+            raise ProtocolError(f"shop trade payload is {len(p)} bytes, not 9")
+        r = Reader(p)
+        m = ShopTrade(r.u32(), r.u16(), r.u8(), r.u16())
+        if m.building == 0 or m.times == 0:
+            raise ProtocolError("shop trade with building 0 or zero times")
+        return m
+
+
 # ---- minecraft-skylines app protocol 1.14: entities --------------------------------------------
 ENTITY_MODEL = 0x01E0
 ENTITY_TEXTURE = 0x01E1
