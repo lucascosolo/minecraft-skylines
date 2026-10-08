@@ -528,6 +528,21 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("events").GetArrayLength(), m.Events.Length);
                         return m.Encode();
                     }
+                case AppProtocol.CityConditionsType:
+                    {
+                        CityConditions m = CityConditions.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("cells").GetArrayLength(), m.Cells.Length);
+                        Assert.Equal(f.GetProperty("fires").GetArrayLength(), m.Fires.Length);
+                        return m.Encode();
+                    }
+                case AppProtocol.OreMinedType:
+                    {
+                        OreMined m = OreMined.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("entries").GetArrayLength(), m.Entries.Length);
+                        return m.Encode();
+                    }
                 case AppProtocol.TimeSetType:
                     {
                         TimeSet m = TimeSet.Decode(frame.Payload);
