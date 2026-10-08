@@ -364,6 +364,16 @@ namespace MinecraftSkylines.Mod.City
                 ApplyCitizenEvents(c);
                 return true;
             }
+            if (type == AppProtocol.OreMinedType)
+            {
+                OreMined o = OreMined.Decode(payload);
+                lock (_sync)
+                {
+                    if (!_open || o.OpenSeq != _openSeq) return true;
+                }
+                ApplyOreMined(o);
+                return true;
+            }
             if (type == AppProtocol.EditSyncAckType)
             {
                 _barrier.Acknowledge(EditSync.Decode(payload).Token);
@@ -555,6 +565,43 @@ namespace MinecraftSkylines.Mod.City
                     {
                         _log.Warn("citizens: event " + e.Kind + " for #" + id + " failed: " + ex.Message);
                     }
+                }
+            });
+        }
+
+        // ORE_MINED: ore the player broke in the shadow world is taken from the city's own resource map, a permanent change.
+        private void ApplyOreMined(OreMined m)
+        {
+            Singleton<SimulationManager>.instance.AddAction(delegate
+            {
+                try
+                {
+                    NaturalResourceManager nrm = Singleton<NaturalResourceManager>.instance;
+                    int ore = 0, oil = 0;
+                    foreach (OreCell e in m.Entries)
+                    {
+                        int idx = e.Cz * 512 + e.Cx;
+                        NaturalResourceManager.ResourceCell cell = nrm.m_naturalResources[idx];
+                        int units = e.Blocks * OreMined.UnitsPerBlock;
+                        if (e.Resource == OreMined.Ore)
+                        {
+                            cell.m_ore = Skylines.Core.Resources.ResourceGrid.Deplete(cell.m_ore, units);
+                            ore += e.Blocks;
+                        }
+                        else
+                        {
+                            cell.m_oil = Skylines.Core.Resources.ResourceGrid.Deplete(cell.m_oil, units);
+                            oil += e.Blocks;
+                        }
+                        cell.m_modified |= 1;
+                        nrm.m_naturalResources[idx] = cell;
+                        nrm.AreaModified(e.Cx, e.Cz, e.Cx, e.Cz);
+                    }
+                    _log.Info("resources: ORE_MINED " + m.Entries.Length + " cells, " + ore + " ore blocks and " + oil + " coal blocks taken");
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn("resources: ORE_MINED failed: " + ex.Message);
                 }
             });
         }

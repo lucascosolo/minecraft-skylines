@@ -367,6 +367,8 @@ namespace Skylines.Host.Geometry
             if ((b.m_flags & Building.Flags.Created) == 0 || (b.m_flags & off) != 0) return;
             BuildingInfo info = b.Info;
             if (info == null || info.m_props == null) return;
+            // No power (Notification.Problem1.Electricity): the building's lamps are dark, so they leave LIGHT_SOURCES.
+            if (_lights != null && (b.m_problems.m_Problems1 & Notification.Problem1.Electricity) != 0) return;
             if (!Near(b.m_position, (b.Width + b.Length) * 4f + Reach)) return;
             Vector3 meshPosition;
             Quaternion rotation;
