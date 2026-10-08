@@ -506,6 +506,13 @@ namespace MinecraftSkylines.Protocol.Tests
                         Assert.Equal(f.GetProperty("seed").GetUInt32(), m.Seed);
                         return m.Encode();
                     }
+                case AppProtocol.CitizenEventsType:
+                    {
+                        CitizenEvents m = CitizenEvents.Decode(frame.Payload);
+                        Assert.Equal(f.GetProperty("openSeq").GetUInt32(), m.OpenSeq);
+                        Assert.Equal(f.GetProperty("events").GetArrayLength(), m.Events.Length);
+                        return m.Encode();
+                    }
                 case AppProtocol.TimeSetType:
                     {
                         TimeSet m = TimeSet.Decode(frame.Payload);
@@ -831,7 +838,7 @@ namespace MinecraftSkylines.Protocol.Tests
         {
             Assert.Equal("minecraft-skylines", AppProtocol.Name);
             Assert.Equal(1, AppProtocol.Major);
-            Assert.Equal(17, AppProtocol.Minor);
+            Assert.Equal(19, AppProtocol.Minor);
             Assert.Equal(0x01E0, AppProtocol.EntityModelType);
             Assert.Equal(0x01E1, AppProtocol.EntityTextureType);
             Assert.Equal(0x01E2, AppProtocol.EntityStatesType);

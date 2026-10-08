@@ -31,7 +31,7 @@ class PlayerVectorsTest {
 
     @Test
     void constants() {
-        assertEquals(17, AppProtocol.MINOR);
+        assertEquals(19, AppProtocol.MINOR);
         assertEquals(0x01B0, AppProtocol.PLAYER_DATA);
         assertEquals(0x01B1, AppProtocol.RESPAWN_REQUEST);
         assertEquals(4194304, PlayerData.MAX_LENGTH);

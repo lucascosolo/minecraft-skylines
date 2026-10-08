@@ -305,6 +305,16 @@ namespace MinecraftSkylines.Mod.City
                 GrowTree(g);
                 return true;
             }
+            if (type == AppProtocol.CitizenEventsType)
+            {
+                CitizenEvents c = CitizenEvents.Decode(payload);
+                lock (_sync)
+                {
+                    if (!_open || c.OpenSeq != _openSeq) return true;
+                }
+                ApplyCitizenEvents(c);
+                return true;
+            }
             if (type == AppProtocol.EditSyncAckType)
             {
                 _barrier.Acknowledge(EditSync.Decode(payload).Token);
@@ -458,6 +468,41 @@ namespace MinecraftSkylines.Mod.City
                 catch (Exception ex)
                 {
                     _log.Warn("trees: TREE_GROWN failed: " + ex.Message);
+                }
+            });
+        }
+
+        // CITIZEN_EVENTS: a mob panicked or killed a citizen's villager proxy. Ids are reused, so only a walking citizen
+        // still near where the proxy was counts. Deaths are permanent city changes, always logged.
+        private void ApplyCitizenEvents(CitizenEvents m)
+        {
+            Singleton<SimulationManager>.instance.AddAction(delegate
+            {
+                foreach (CitizenEvent e in m.Events)
+                {
+                    if (e.Id == 0 || e.Id > ushort.MaxValue) continue;
+                    ushort id = (ushort)e.Id;
+                    if (!Skylines.Host.Citizens.CitizenFate.WalkingNear(id, new UnityEngine.Vector3(e.X, e.Y, -e.Z), 8f))
+                    {
+                        _log.Info("citizens: event " + e.Kind + " for #" + id + " ignored (no walking citizen there)");
+                        continue;
+                    }
+                    try
+                    {
+                        if (e.Kind == CitizenEvents.Panic)
+                        {
+                            Skylines.Host.Citizens.CitizenFate.Panic(id);
+                        }
+                        else
+                        {
+                            _log.Info("citizens: #" + id + (e.Kind == CitizenEvents.Converted ? " turned into a zombie villager: " : " killed by a mob: ")
+                                + Skylines.Host.Citizens.CitizenFate.Kill(id));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.Warn("citizens: event " + e.Kind + " for #" + id + " failed: " + ex.Message);
+                    }
                 }
             });
         }

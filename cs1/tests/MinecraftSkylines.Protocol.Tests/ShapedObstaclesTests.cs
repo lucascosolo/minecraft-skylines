@@ -43,7 +43,7 @@ namespace MinecraftSkylines.Protocol.Tests
         [Fact]
         public void Constants()
         {
-            Assert.Equal(17, AppProtocol.Minor);
+            Assert.Equal(19, AppProtocol.Minor);
             Assert.Equal(0x0171, AppProtocol.ShapedObstaclesType);
         }
 
