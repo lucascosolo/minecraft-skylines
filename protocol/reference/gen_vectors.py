@@ -271,6 +271,23 @@ def frames() -> list[dict]:
             "name": m.name, "level": m.level, "offers": [{"slot": o.slot, "costItem": o.cost_item, "costCount": o.cost_count,
             "resultItem": o.result_item, "resultCount": o.result_count, "uses": o.uses} for o in m.offers]}, m.encode())
     add("shop_trade", sb.SHOP_TRADE, {"openSeq": 5, "building": 4242, "slot": 7, "times": 3}, sb.ShopTrade(5, 4242, 7, 3).encode())
+    # ---- 1.21 (the city's problems and resources)
+    cells = [sb.ConditionCell(256, 255, 200, 0, 120, 30, 140, sb.CONDITION_WORKED, 45, 2),
+             sb.ConditionCell(0, 511, 0, 255, 0, 255, 0, 0, 0, 255)]
+    fires = [sb.Fire(100.5, 64.0, -200.25, 12.5, 180)]
+
+    def cc_fields(m):
+        return {"openSeq": m.open_seq,
+                "cells": [{"cx": c.cx, "cz": c.cz, "ore": c.ore, "oil": c.oil, "fertility": c.fertility, "forest": c.forest,
+                           "pollution": c.pollution, "flags": c.flags, "crime": c.crime, "dead": c.dead} for c in m.cells],
+                "fires": [{"x": f.x, "y": f.y, "z": f.z, "radius": f.radius, "intensity": f.intensity} for f in m.fires]}
+    for name, m in (("city_conditions_empty", sb.CityConditions(5, [], [])),
+                    ("city_conditions_full", sb.CityConditions(5, cells, fires))):
+        add(name, sb.CITY_CONDITIONS, cc_fields(m), m.encode())
+    ores = [sb.OreCell(sb.ORE_RESOURCE, 256, 255, 3), sb.OreCell(sb.OIL_RESOURCE, 0, 511, 65535)]
+    for name, es in (("ore_mined_empty", []), ("ore_mined_two", ores)):
+        add(name, sb.ORE_MINED, {"openSeq": 6, "entries": [
+            {"resource": e.resource, "cx": e.cx, "cz": e.cz, "blocks": e.blocks} for e in es]}, sb.OreMined(6, es).encode())
 
     # ---- 1.14 (entities)
     quad = [0.0, 0.0, 0.0, 0.0, 0.0, 8.0, 0.0, 0.0, 0.25, 0.0, 8.0, 12.0, 0.0, 0.25, 0.5, 0.0, 12.0, 0.0, 0.0, 0.5,
@@ -364,6 +381,20 @@ def invalid_frames() -> list[dict]:
         bad("shop_trade_short", sb.frame(sb.SHOP_TRADE, sb.ShopTrade(1, 9, 0, 1).encode()[:-1]), "payload not 9 bytes"),
         bad("shop_trade_zero_times", sb.frame(sb.SHOP_TRADE, sb.ShopTrade(1, 9, 0, 0).encode()), "zero times"),
         bad("shop_trade_building_zero", sb.frame(sb.SHOP_TRADE, sb.ShopTrade(1, 0, 0, 1).encode()), "building 0"),
+        # ---- 1.21 (the city's problems and resources)
+        bad("city_conditions_too_many_cells", sb.frame(sb.CITY_CONDITIONS, sb.Writer().u32(1).u16(sb.CONDITION_CELLS_MAX + 1).bytes()), "cell count > 256 (checked before the cells)"),
+        bad("city_conditions_cell_outside_grid", sb.frame(sb.CITY_CONDITIONS, sb.CityConditions(1, [sb.ConditionCell(512, 0, 0, 0, 0, 0, 0, 0, 0, 0)], []).encode()), "cell x above 511"),
+        bad("city_conditions_too_many_fires", sb.frame(sb.CITY_CONDITIONS, sb.Writer().u32(1).u16(0).u16(sb.CONDITION_FIRES_MAX + 1).bytes()), "fire count > 256 (checked before the fires)"),
+        bad("city_conditions_fire_intensity_zero", sb.frame(sb.CITY_CONDITIONS, sb.CityConditions(1, [], [sb.Fire(0.0, 0.0, 0.0, 1.0, 0)]).encode()), "fire intensity 0"),
+        bad("city_conditions_fire_nan", sb.frame(sb.CITY_CONDITIONS, sb.CityConditions(1, [], [sb.Fire(float("nan"), 0.0, 0.0, 1.0, 9)]).encode()), "fire position not finite"),
+        bad("city_conditions_fire_negative_radius", sb.frame(sb.CITY_CONDITIONS, sb.CityConditions(1, [], [sb.Fire(0.0, 0.0, 0.0, -1.0, 9)]).encode()), "fire radius below 0"),
+        bad("city_conditions_truncated", sb.frame(sb.CITY_CONDITIONS, sb.Writer().u32(1).u16(0).bytes()), "payload ends before the fire count"),
+        bad("city_conditions_trailing_bytes", sb.frame(sb.CITY_CONDITIONS, sb.CityConditions(1, [], []).encode() + b"\x00"), "payload longer than its counts say"),
+        bad("ore_mined_too_many", sb.frame(sb.ORE_MINED, sb.Writer().u32(1).u16(sb.ORE_MINED_MAX + 1).bytes()), "entry count > 256 (checked before the entries)"),
+        bad("ore_mined_bad_resource", sb.frame(sb.ORE_MINED, sb.OreMined(1, [sb.OreCell(3, 0, 0, 1)]).encode()), "resource outside 1..2"),
+        bad("ore_mined_cell_outside_grid", sb.frame(sb.ORE_MINED, sb.OreMined(1, [sb.OreCell(1, 0, 512, 1)]).encode()), "cell z above 511"),
+        bad("ore_mined_zero_blocks", sb.frame(sb.ORE_MINED, sb.OreMined(1, [sb.OreCell(1, 0, 0, 0)]).encode()), "0 blocks"),
+        bad("ore_mined_trailing_bytes", sb.frame(sb.ORE_MINED, sb.OreMined(1, []).encode() + b"\x00"), "payload longer than its count says"),
         # ---- 1.14 (entities)
         bad("entity_model_too_many_parts", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(sb.ENTITY_MODEL_MAX_PARTS + 1).bytes()), "part count > 1024 (checked before the parts)"),
         bad("entity_model_parent_not_before", sb.frame(sb.ENTITY_MODEL, sb.Writer().u32(1).string("m").u16(1).u16(0).u16(0).bytes()), "parent index at or above the part's own"),

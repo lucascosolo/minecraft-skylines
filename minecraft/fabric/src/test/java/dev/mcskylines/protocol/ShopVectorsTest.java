@@ -33,7 +33,7 @@ class ShopVectorsTest {
 
     @Test
     void constants() {
-        assertEquals(20, AppProtocol.MINOR);
+        assertEquals(21, AppProtocol.MINOR);
         assertEquals(0x0200, AppProtocol.SHOP_OPEN);
         assertEquals(0x0201, AppProtocol.SHOP_OFFERS);
         assertEquals(0x0202, AppProtocol.SHOP_TRADE);

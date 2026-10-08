@@ -73,6 +73,8 @@ public final class MinecraftSkylinesClient implements ClientModInitializer {
 		ServerTickEvents.END_SERVER_TICK.register(dev.mcskylines.world.AnimalSpawner::tick);
 		CitizenProxies.register(city);
 		ServerTickEvents.END_SERVER_TICK.register(CitizenProxies::tick);
+		dev.mcskylines.world.CityDangers.register(city);
+		ServerTickEvents.END_SERVER_TICK.register(dev.mcskylines.world.CityDangers::tick);
 		ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> CitizenProxies.allowDamage(entity, source));
 		ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> CitizenProxies.loaded(entity));
 		PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, be) -> !CityEdits.refusesBreak(level, pos));

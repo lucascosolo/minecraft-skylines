@@ -4,7 +4,7 @@ package dev.mcskylines.protocol;
 public final class AppProtocol {
 	public static final String NAME = "minecraft-skylines";
 	public static final int MAJOR = 1;
-	public static final int MINOR = 20;
+	public static final int MINOR = 21;
 	public static final int HOST_STATUS = 0x0100;
 	public static final int GUEST_STATUS = 0x0101;
 	public static final int ENTER_PLAYER_MODE = 0x0110;
@@ -42,6 +42,8 @@ public final class AppProtocol {
 	public static final int TREE_FELLED = 0x01C1; // minor 12: the player felled the tree placed for an id (guest to host)
 	public static final int TREE_GROWN = 0x01C2; // minor 15: a sapling grew into a tree (guest to host)
 	public static final int CITIZEN_EVENTS = 0x01D2; // minor 19: mobs panicked, killed or converted citizens (guest to host)
+	public static final int CITY_CONDITIONS = 0x0210; // minor 21: the city's problems and resources around the simulated area (host to guest)
+	public static final int ORE_MINED = 0x0211; // minor 21: ore the player broke, per resource cell (guest to host)
 	// minor 14: entities (13 is reserved for another branch)
 	public static final int ENTITY_MODEL = 0x01E0; // a model of textured box parts (guest to host)
 	public static final int ENTITY_TEXTURE = 0x01E1; // a PNG texture (guest to host)

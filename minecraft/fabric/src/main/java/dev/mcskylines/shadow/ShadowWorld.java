@@ -4,6 +4,7 @@ import dev.mcskylines.collision.CollisionStore;
 import dev.mcskylines.collision.SkyTri;
 import dev.mcskylines.protocol.Trees;
 import dev.mcskylines.world.BlockKey;
+import dev.mcskylines.world.CityConditionsStore;
 import dev.mcskylines.world.HostWater;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
@@ -68,6 +69,21 @@ public final class ShadowWorld {
 				CHANGED.add(chunkKey(rx + dx, rz + dz));
 			}
 		}
+	}
+
+	/** Any thread: the CS1 resources over this Minecraft rectangle changed; its chunks need a rebuild. */
+	public static void areaChanged(double minX, double minZ, double maxX, double maxZ) {
+		for (int cx = (int) Math.floor(minX / 16); cx <= (int) Math.floor(maxX / 16); cx++) {
+			for (int cz = (int) Math.floor(minZ / 16); cz <= (int) Math.floor(maxZ / 16); cz++) {
+				CHANGED.add(chunkKey(cx, cz));
+			}
+		}
+	}
+
+	/** Whether a generated shadow block (not one the player placed) stands at the cell now. */
+	public boolean placed(long key) {
+		Chunk c = chunks.get(BlockKey.chunkKey(key));
+		return c != null && c.cells.contains(key);
 	}
 
 	/** Client thread: TREES (minor 12) for one region. */
@@ -304,7 +320,8 @@ public final class ShadowWorld {
 					double obstacle = obstacles.isEmpty() || !BlockKey.fits(x0 + dx, top, z0 + dz)
 						|| host.playerOwns(BlockKey.pack(x0 + dx, top, z0 + dz)) || host.playerOwns(BlockKey.pack(x0 + dx, top + 1, z0 + dz))
 						? Double.NaN : ShadowObstacles.top(obstacles, x0 + dx, z0 + dz, s.terrain());
-					ShadowPlanner.column(seed, s, x0 + dx, z0 + dz, water, c.floor[i], obstacle, sink);
+					ShadowPlanner.column(seed, s, x0 + dx, z0 + dz, water, c.floor[i], obstacle,
+						CityConditionsStore.resources(x0 + dx, z0 + dz), sink);
 				}
 			}
 		}

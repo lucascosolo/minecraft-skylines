@@ -141,8 +141,17 @@ public final class Growth {
 					break;
 				}
 				skyOverride = dayNight ? GrowthMath.skyDarken(t) : 0;
+				long mixed = GrowthMath.mix(citySeed, key, t);
+				// Protocol 1.21: CS1's ground pollution slows or stops growth there, fertility speeds it up.
+				int n = CityHazards.growthTicks(CityConditionsStore.growthFactor(pos.getX(), pos.getZ()), (mixed >>> 11) * 0x1.0p-53);
 				try {
-					state.randomTick(level, pos.immutable(), RandomSource.create(GrowthMath.mix(citySeed, key, t)));
+					for (int k = 0; k < n; k++) {
+						state = level.getBlockState(pos);
+						if (!isGrowing(state)) {
+							break;
+						}
+						state.randomTick(level, pos.immutable(), RandomSource.create(mixed + k));
+					}
 				} finally {
 					skyOverride = NO_OVERRIDE;
 				}

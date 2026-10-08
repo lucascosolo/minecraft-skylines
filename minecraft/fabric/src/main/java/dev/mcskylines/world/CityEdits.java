@@ -104,6 +104,8 @@ public final class CityEdits {
 	private final LongArrayList toCaveAir = new LongArrayList(); // emptied shadow ground still plain air
 	private final Long2IntOpenHashMap lamps = new Long2IntOpenHashMap(); // our light blocks: position to level
 	private final ShadowWorld shadow = new ShadowWorld();
+	private final OreLedger ores = new OreLedger();
+	private int oreTicks;
 	private final Growth growth = new Growth();
 	private volatile CitizenRules rules = CitizenRules.DEFAULT; // the open city's, from its player data
 	private long[] savedClocks = new long[0]; // the growth clocks the applied player data carried
@@ -267,6 +269,7 @@ public final class CityEdits {
 		entitySync.reset();
 		entities.begin(null);
 		CityView.clear();
+		CityConditionsStore.clear();
 		pairedSaveId = o.saveId();
 		LOG.info(PREFIX + "CITY_OPEN {} '{}' ({} edits)", Integer.toUnsignedString(o.openSeq()), o.cityName(),
 			Integer.toUnsignedLong(o.editCount()));
@@ -318,6 +321,7 @@ public final class CityEdits {
 		shadow.reset();
 		entities.begin(null);
 		CityView.clear();
+		CityConditionsStore.clear();
 		LOG.info(PREFIX + "CITY_CLOSE {}; reverting the city world to empty", Integer.toUnsignedString(c.openSeq()));
 		open = null;
 		pairedSaveId = GuestStatus.NO_SAVE;
@@ -386,6 +390,7 @@ public final class CityEdits {
 		recorder.clear();
 		entities.begin(null);
 		CityView.clear();
+		CityConditionsStore.clear();
 		open = null;
 		pairedSaveId = GuestStatus.NO_SAVE;
 	}
@@ -521,6 +526,10 @@ public final class CityEdits {
 		boolean ready = open != null && open.ready;
 		entities.tick(level, ready ? shadow::built : ck -> false);
 		CityView.tick(level, ready);
+		if (++oreTicks >= 20) {
+			oreTicks = 0;
+			sendOres(ready);
+		}
 		if (++playerCheckTicks >= PLAYER_CHECK_TICKS) {
 			playerCheckTicks = 0;
 			sendPlayer();
@@ -768,6 +777,9 @@ public final class CityEdits {
 		// Only ground (full blocks): a broken grass plant stays plain air, so the ground under it grows no top face.
 		if (filled && !treeLog && state.is(Blocks.AIR) && old.isSolidRender()) {
 			toCaveAir.add(key);
+		}
+		if (filled && state.isAir() && shadow.placed(key)) {
+			ores.broke(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(old.getBlock()).toString(), pos.getX() + 0.5, pos.getZ() + 0.5);
 		}
 		int felled = filled ? shadow.playerChanged(key, state.isAir()) : -1;
 		if (felled != -1 && appMinor >= 12 && open != null && open.ready) {
@@ -1039,6 +1051,23 @@ public final class CityEdits {
 	/** Server thread: the city's world, or null. */
 	public synchronized ServerLevel cityLevel() {
 		return level;
+	}
+
+	// ORE_MINED once a second; ore broken while no open is ready is dropped (it belongs to no city the host keeps).
+	private void sendOres(boolean ready) {
+		if (!ready || appMinor < 21) {
+			ores.clear();
+			return;
+		}
+		dev.mcskylines.protocol.OreMined m = ores.drain(open.seq());
+		if (m != null) {
+			send(AppProtocol.ORE_MINED, m.encode());
+		}
+	}
+
+	/** Server thread: the open city's seq while it is ready and the host speaks minor 21, else -1 (CityDangers' gate). */
+	public synchronized long readySeq() {
+		return open != null && open.ready && appMinor >= 21 ? Integer.toUnsignedLong(open.seq()) : -1;
 	}
 
 	/** CITIZEN_EVENTS to the host. */

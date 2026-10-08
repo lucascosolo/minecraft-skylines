@@ -44,7 +44,7 @@ namespace MinecraftSkylines.Protocol.Tests
         [Fact]
         public void Constants()
         {
-            Assert.Equal(20, AppProtocol.Minor);
+            Assert.Equal(21, AppProtocol.Minor);
             Assert.Equal(0x0200, AppProtocol.ShopOpenType);
             Assert.Equal(0x0201, AppProtocol.ShopOffersType);
             Assert.Equal(0x0202, AppProtocol.ShopTradeType);

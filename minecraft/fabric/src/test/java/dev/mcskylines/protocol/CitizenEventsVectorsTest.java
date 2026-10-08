@@ -31,7 +31,7 @@ class CitizenEventsVectorsTest {
     @Test
     void constants() {
         assertEquals(0x01D2, AppProtocol.CITIZEN_EVENTS);
-        assertEquals(19, AppProtocol.MINOR);
+        assertEquals(21, AppProtocol.MINOR);
         assertEquals(1, CitizenEvents.PANIC);
         assertEquals(2, CitizenEvents.KILLED);
         assertEquals(3, CitizenEvents.CONVERTED);

@@ -31,7 +31,7 @@ class CityEntitiesVectorsTest {
 
     @Test
     void constants() {
-        assertEquals(19, AppProtocol.MINOR);
+        assertEquals(21, AppProtocol.MINOR);
         assertEquals(0x01D0, AppProtocol.CITY_ENTITIES);
         assertEquals(0x01D1, AppProtocol.CITY_FOCUS);
         assertEquals(4194304, CityEntities.MAX_LENGTH);

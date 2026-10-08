@@ -369,3 +369,39 @@ and mining pass straight through it. A proxy found in a loaded chunk is stale an
   (`m_fireIntensity`), or the Electricity problem shown. Only an open (Minecraft-enabled) city answers. Industries DLC
   buildings and offices do not trade yet.
 
+## 2026-10-07: the city's problems as dangers, and ores from CS1's resource map (protocol 1.21 CITY_CONDITIONS 0x0210, ORE_MINED 0x0211)
+
+Owner (2026-10-06): "the state of your city affects your minecraft survival experience and vice versa"; "there should be
+plenty of good material available including some ores buried in the ground". Minor 21, ids 0x0210-0x021F (minor 20 and
+0x0200-0x020F belong to a concurrent branch). Everything is gated on an open, `CITY_STATE`-ready city (only Minecraft-enabled,
+backed-up cities are ever opened) and on the conditions belonging to that open.
+
+- **One sampled message, 1 Hz.** The host sends the 7 x 7 CS1 natural resource cells (33.75 m, so about 236 m square)
+  around the player's feet, or around the city view's focus, with ore, oil, fertility, forest, ground pollution, a
+  `WORKED` bit (`m_modified` bit 0), the district's crime rate and the count of buildings with uncollected dead, plus the
+  burning buildings within 96 m. Rejected: one message per hazard (four throttles for one sample), or streaming the whole
+  512 x 512 map once (the dangers need fresh values; the map alone is 1.25 MB).
+- **Pollution** (CS1 byte 0..255): a player standing on ground of a cell at 128+ gets Poison I for 3 s each second, 224+
+  Poison II. Crops and saplings get `growthFactor` random ticks per vanilla one: full below 64, falling linearly to 0.25 at
+  191, none from 192; times `1 + fertility/255` (fertile land up to twice as fast). Applied in the city-clock growth
+  (Growth.simulate), which owns every planted block.
+- **Fire**: entities within the footprint half-diagonal + 2 m of a burning building catch fire for 4 s each second;
+  `ceil(intensity/64)` fire blocks a second are lit on the ground 1-4 m outside the footprint. Minecraft fire never goes
+  back to CS1. Fire blocks are ordinary world changes, so they and what they burn are recorded as edits like vanilla fire.
+- **Crime and dead**: at night (`Level.isDarkOutside`), every 5 s, per player and per city-view area: `(crime-10)/20`
+  extra attempts from crime 30 (capped 4), pillager 60 % / zombie 40 %; one zombie attempt per building with uncollected
+  dead (capped 4, a tenth of them zombie villagers). Each attempt goes through vanilla `SpawnPlacements.checkSpawnRules`
+  (light, difficulty, ground) and the monster cap within 128 m, so lit streets and Peaceful stay safe.
+- **Electricity**: a building whose `m_problems` has `Electricity` contributes no prop lights to `LIGHT_SOURCES`, so its
+  lamp light is gone for spawning and growth through the existing light path; no new message.
+- **Ores follow the resource map.** Shadow ground per column takes the cell's frozen resources: metal ores x(1 + 2 ore/255)
+  (up to 3x), coal x(1 + 3 oil/255) (up to 4x), dirt 3 + fertility/85 deep (up to 6) under grass, and a `WORKED` cell
+  with ore and oil both under 16 has half the ores. Each cell's resources are frozen at its first report in an open
+  (ores must not reshuffle around a player who is mining); CS1's own extraction shows from the next open. The shadow
+  chunks are rebuilt once when a cell first arrives; player-owned cells are never touched by a rebuild. Forest: broken
+  grass drops an oak sapling with chance `forest/255 x 8 %`.
+- **Mining depletes CS1.** Breaking a generated shadow ore block (never a player-placed one) counts 1 per block per cell
+  (coal = oil, every other ore = ore); once a second the guest sends ORE_MINED and the host takes 4 units per block
+  from the cell's byte (`ResourceGrid.Deplete`), sets `m_modified` bit 0 and calls `AreaModified` so the resource view
+  refreshes. A full ore cell (255) is emptied by about 64 blocks. Rejected: `TryFetchResource` (it spreads the delta over a
+  radius, randomises it and books the amount as the city's own industry production in the statistics).

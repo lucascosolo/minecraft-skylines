@@ -47,6 +47,12 @@ public final class ShadowPlanner {
 	/** As above, with the top of a CS1 prop or bush over the column ({@link ShadowObstacles#top}), or NaN. */
 	public static void column(long seed, ShadowColumn.Sample s, int x, int z, boolean waterNear, int floorY, double obstacleTop,
 			CellSink sink) {
+		column(seed, s, x, z, waterNear, floorY, obstacleTop, ShadowMaterials.Resources.NONE, sink);
+	}
+
+	/** As above, with the CS1 resource cell over the column (protocol 1.21). */
+	public static void column(long seed, ShadowColumn.Sample s, int x, int z, boolean waterNear, int floorY, double obstacleTop,
+			ShadowMaterials.Resources res, CellSink sink) {
 		if (Double.isNaN(s.terrain())) {
 			return;
 		}
@@ -60,7 +66,7 @@ public final class ShadowPlanner {
 		int low = Math.max(floorY, ShadowMaterials.BOTTOM_Y);
 		for (int y = low; y <= tTop; y++) {
 			if (y < pavedFrom || y > rTop) {
-				sink.accept(x, y, z, ShadowMaterials.ground(seed, x, y, z, tTop, top));
+				sink.accept(x, y, z, ShadowMaterials.ground(seed, x, y, z, tTop, top, res));
 			}
 		}
 		if (road) {

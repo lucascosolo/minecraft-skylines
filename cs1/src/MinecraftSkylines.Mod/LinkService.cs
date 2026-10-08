@@ -37,6 +37,7 @@ namespace MinecraftSkylines.Mod
         private static PlayerMode s_player;
         private static CityLink s_city;
         private static CityFocusLink s_focus;
+        private static CityConditionsLink s_conditions;
         private static ClockLink s_cityClock;
         private static ObstacleLink s_obstacles;
         private static LightLink s_lights;
@@ -94,6 +95,7 @@ namespace MinecraftSkylines.Mod
             s_player = new PlayerMode(s_log, () => s_statusDirty = true, s_launcher);
             s_city = new CityLink(s_log, s_saveId, s_player);
             s_focus = new CityFocusLink(s_city, s_player);
+            s_conditions = new CityConditionsLink(s_city, s_player);
             s_cityClock = new ClockLink(s_log);
             s_obstacles = new ObstacleLink(s_log);
             s_lights = new LightLink(s_log);
@@ -197,6 +199,7 @@ namespace MinecraftSkylines.Mod
             s_player = null;
             s_city = null;
             s_focus = null;
+            s_conditions = null;
             s_walkIn = null;
             s_blocks = null;
             s_entities = null;
@@ -361,6 +364,7 @@ namespace MinecraftSkylines.Mod
             s_cityClock.Update(s_host, city.InCity && !city.Loading, s_clock.Elapsed.TotalMilliseconds);
             s_player.Update(s_host, city.InCity && !city.Loading);
             s_focus.Update(s_host, UnityEngine.Time.realtimeSinceStartup);
+            s_conditions.Update(s_host, s_clock.Elapsed.TotalSeconds);
             s_obstacles.Update(s_host, s_player, s_clock.Elapsed.TotalSeconds);
             s_lights.Update(s_host, s_player, s_clock.Elapsed.TotalSeconds);
             s_water.Update(s_host, s_player, s_clock.Elapsed.TotalSeconds);
@@ -438,6 +442,7 @@ namespace MinecraftSkylines.Mod
                     s_guest = null;
                     s_city.OnDisconnect();
                     s_focus.Reset();
+                    s_conditions.Reset();
                     s_player.SetGuestFlags(0);
                     s_gui.OnDisconnect();
                     s_selection.Hide();

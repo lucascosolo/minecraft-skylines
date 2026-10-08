@@ -11,6 +11,14 @@ public final class ShadowMaterials {
 
 	public enum Top { GRASS, SAND, STONE }
 
+	/**
+	 * The CS1 natural resource cell over a column (protocol 1.21 CITY_CONDITIONS): ore and oil make ores richer (oil:
+	 * coal), fertility deepens the dirt, and a cell the city worked down to little ore and oil holds half the ores.
+	 */
+	public record Resources(int ore, int oil, int fertility, boolean worked) {
+		public static final Resources NONE = new Resources(0, 0, 0, false);
+	}
+
 	// Checked in this order against one uniform draw per cell: name, lowest y, highest y, chance per cell.
 	private static final String[] ORES = {"coal", "copper", "iron", "gold", "redstone", "lapis", "diamond"};
 	private static final int[][] BANDS = {{0, 256}, {-16, 112}, {BOTTOM_Y, Integer.MAX_VALUE}, {BOTTOM_Y, 32}, {BOTTOM_Y, 15},
@@ -26,7 +34,27 @@ public final class ShadowMaterials {
 		return mix(saveId.getMostSignificantBits() ^ mix(saveId.getLeastSignificantBits()));
 	}
 
+	public static double depletion(Resources r) {
+		return r.worked() && r.ore() < 16 && r.oil() < 16 ? 0.5 : 1.0;
+	}
+
+	public static double oreScale(Resources r) {
+		return depletion(r) * (1 + 2 * r.ore() / 255.0);
+	}
+
+	public static double coalScale(Resources r) {
+		return depletion(r) * (1 + 3 * r.oil() / 255.0);
+	}
+
+	public static int dirtDepth(Resources r) {
+		return 3 + r.fertility() / 85;
+	}
+
 	public static String ground(long seed, int x, int y, int z, int topY, Top top) {
+		return ground(seed, x, y, z, topY, top, Resources.NONE);
+	}
+
+	public static String ground(long seed, int x, int y, int z, int topY, Top top, Resources res) {
 		if (y <= BOTTOM_Y) {
 			return "minecraft:bedrock";
 		}
@@ -38,22 +66,22 @@ public final class ShadowMaterials {
 				case STONE -> "minecraft:stone";
 			};
 		}
-		if (depth <= 3 && top != Top.STONE) {
-			if (top == Top.GRASS) {
-				return "minecraft:dirt";
-			}
+		if (top == Top.GRASS && depth <= dirtDepth(res)) {
+			return "minecraft:dirt";
+		}
+		if (depth <= 3 && top == Top.SAND) {
 			return depth <= 2 && unit(seed, x, y, z, 7) < 0.15 ? "minecraft:clay" : "minecraft:sand";
 		}
 		double pocket = unit(seed, x >> 2, y >> 2, z >> 2, 11);
 		if (pocket < POCKET_CHANCE) {
 			return POCKETS[(int) (pocket / POCKET_CHANCE * POCKETS.length)];
 		}
-		double u = unit(seed, x, y, z, 13), acc = 0;
+		double u = unit(seed, x, y, z, 13), acc = 0, ore = oreScale(res), coal = coalScale(res);
 		for (int i = 0; i < ORES.length; i++) {
 			if (y < BANDS[i][0] || y > BANDS[i][1]) {
 				continue;
 			}
-			acc += CHANCE[i];
+			acc += CHANCE[i] * (i == 0 ? coal : ore);
 			if (u < acc) {
 				return y < 0 ? "minecraft:deepslate_" + ORES[i] + "_ore" : "minecraft:" + ORES[i] + "_ore";
 			}

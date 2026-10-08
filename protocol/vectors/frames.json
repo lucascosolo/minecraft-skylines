@@ -1171,6 +1171,90 @@
       "hex": "0900000002020000050000009210070300"
     },
     {
+      "name": "city_conditions_empty",
+      "type": 528,
+      "fields": {
+        "openSeq": 5,
+        "cells": [],
+        "fires": []
+      },
+      "hex": "08000000100200000500000000000000"
+    },
+    {
+      "name": "city_conditions_full",
+      "type": 528,
+      "fields": {
+        "openSeq": 5,
+        "cells": [
+          {
+            "cx": 256,
+            "cz": 255,
+            "ore": 200,
+            "oil": 0,
+            "fertility": 120,
+            "forest": 30,
+            "pollution": 140,
+            "flags": 1,
+            "crime": 45,
+            "dead": 2
+          },
+          {
+            "cx": 0,
+            "cz": 511,
+            "ore": 0,
+            "oil": 255,
+            "fertility": 0,
+            "forest": 255,
+            "pollution": 0,
+            "flags": 0,
+            "crime": 0,
+            "dead": 255
+          }
+        ],
+        "fires": [
+          {
+            "x": 100.5,
+            "y": 64.0,
+            "z": -200.25,
+            "radius": 12.5,
+            "intensity": 180
+          }
+        ]
+      },
+      "hex": "31000000100200000500000002000001ff00c800781e8c012d020000ff0100ff00ff000000ff01000000c94200008042004048c300004841b4"
+    },
+    {
+      "name": "ore_mined_empty",
+      "type": 529,
+      "fields": {
+        "openSeq": 6,
+        "entries": []
+      },
+      "hex": "0600000011020000060000000000"
+    },
+    {
+      "name": "ore_mined_two",
+      "type": 529,
+      "fields": {
+        "openSeq": 6,
+        "entries": [
+          {
+            "resource": 1,
+            "cx": 256,
+            "cz": 255,
+            "blocks": 3
+          },
+          {
+            "resource": 2,
+            "cx": 0,
+            "cz": 511,
+            "blocks": 65535
+          }
+        ]
+      },
+      "hex": "1400000011020000060000000200010001ff000300020000ff01ffff"
+    },
+    {
       "name": "entity_model_two_parts",
       "type": 480,
       "fields": {
@@ -1625,6 +1709,71 @@
       "name": "shop_trade_building_zero",
       "hex": "0900000002020000010000000000000100",
       "why": "building 0"
+    },
+    {
+      "name": "city_conditions_too_many_cells",
+      "hex": "0600000010020000010000000101",
+      "why": "cell count > 256 (checked before the cells)"
+    },
+    {
+      "name": "city_conditions_cell_outside_grid",
+      "hex": "14000000100200000100000001000002000000000000000000000000",
+      "why": "cell x above 511"
+    },
+    {
+      "name": "city_conditions_too_many_fires",
+      "hex": "08000000100200000100000000000101",
+      "why": "fire count > 256 (checked before the fires)"
+    },
+    {
+      "name": "city_conditions_fire_intensity_zero",
+      "hex": "190000001002000001000000000001000000000000000000000000000000803f00",
+      "why": "fire intensity 0"
+    },
+    {
+      "name": "city_conditions_fire_nan",
+      "hex": "190000001002000001000000000001000000c07f00000000000000000000803f09",
+      "why": "fire position not finite"
+    },
+    {
+      "name": "city_conditions_fire_negative_radius",
+      "hex": "19000000100200000100000000000100000000000000000000000000000080bf09",
+      "why": "fire radius below 0"
+    },
+    {
+      "name": "city_conditions_truncated",
+      "hex": "0600000010020000010000000000",
+      "why": "payload ends before the fire count"
+    },
+    {
+      "name": "city_conditions_trailing_bytes",
+      "hex": "0900000010020000010000000000000000",
+      "why": "payload longer than its counts say"
+    },
+    {
+      "name": "ore_mined_too_many",
+      "hex": "0600000011020000010000000101",
+      "why": "entry count > 256 (checked before the entries)"
+    },
+    {
+      "name": "ore_mined_bad_resource",
+      "hex": "0d0000001102000001000000010003000000000100",
+      "why": "resource outside 1..2"
+    },
+    {
+      "name": "ore_mined_cell_outside_grid",
+      "hex": "0d0000001102000001000000010001000000020100",
+      "why": "cell z above 511"
+    },
+    {
+      "name": "ore_mined_zero_blocks",
+      "hex": "0d0000001102000001000000010001000000000000",
+      "why": "0 blocks"
+    },
+    {
+      "name": "ore_mined_trailing_bytes",
+      "hex": "070000001102000001000000000000",
+      "why": "payload longer than its count says"
     },
     {
       "name": "entity_model_too_many_parts",
