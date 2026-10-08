@@ -294,6 +294,14 @@ final class LinkController {
 					if (peer != null && peer.appMinor() >= needs) {
 						city.deliver(m.type(), m.payload());
 					}
+				} else if (m.type() == AppProtocol.CITY_CONDITIONS) {
+					try {
+						if (peer != null && peer.appMinor() >= 21) {
+							dev.mcskylines.world.CityConditionsStore.accept(dev.mcskylines.protocol.CityConditions.decode(m.payload()));
+						}
+					} catch (ProtocolException e) {
+						LOG.warn(PREFIX + "ignoring malformed CITY_CONDITIONS: {}", e.getMessage());
+					}
 				} else if (m.type() == AppProtocol.CITY_FOCUS) {
 					try {
 						if (peer != null && peer.appMinor() >= 18) {

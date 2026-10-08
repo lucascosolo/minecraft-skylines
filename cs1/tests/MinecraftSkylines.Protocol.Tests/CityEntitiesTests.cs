@@ -41,7 +41,7 @@ namespace MinecraftSkylines.Protocol.Tests
         [Fact]
         public void ConstantsMatchSpec()
         {
-            Assert.Equal(19, AppProtocol.Minor);
+            Assert.Equal(21, AppProtocol.Minor);
             Assert.Equal(0x01D0, AppProtocol.CityEntitiesType);
             Assert.Equal(0x01D1, AppProtocol.CityFocusType);
             Assert.Equal(4194304, CityEntities.MaxLength);

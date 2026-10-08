@@ -33,7 +33,7 @@ class TimeSetVectorsTest {
     @Test
     void constants() {
         assertEquals(0x0161, AppProtocol.TIME_SET);
-        assertEquals(19, AppProtocol.MINOR);
+        assertEquals(21, AppProtocol.MINOR);
     }
 
     @Test

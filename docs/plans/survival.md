@@ -62,6 +62,10 @@ material available including some ores buried in the ground. we need trees to ge
    proxies only in player mode within the 48 m obstacle radius (the city view's simulated area, 1.18, gets no proxies yet: the host streams citizens only in player mode); rules via
    `/skylines rules`; decisions in `docs/DECISIONS.md` (2026-10-07).
 5. **City-survival links** (trade with shops, city problems as dangers, resource depletion), then the Ender Dragon.
+   Part 2, city problems as dangers and resource depletion: **implemented, built, sandbox-tested; not verified in game
+   (2026-10-07).** Protocol 1.21 `CITY_CONDITIONS` (0x0210) and `ORE_MINED` (0x0211): pollution poisons and slows growth,
+   burning buildings set Minecraft fire, crime and uncollected dead raise night spawns, unpowered buildings' lamps go
+   dark, shadow ores follow CS1's ore/oil map and mining them depletes it; rules and numbers in `docs/DECISIONS.md`.
 
 ## The shadow world (foundation for trees, mining and mobs)
 

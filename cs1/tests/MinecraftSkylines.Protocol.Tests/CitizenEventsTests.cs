@@ -44,7 +44,7 @@ namespace MinecraftSkylines.Protocol.Tests
         [Fact]
         public void Constants()
         {
-            Assert.Equal(19, AppProtocol.Minor);
+            Assert.Equal(21, AppProtocol.Minor);
             Assert.Equal(0x01D2, AppProtocol.CitizenEventsType);
             Assert.Equal(1, CitizenEvents.Panic);
             Assert.Equal(2, CitizenEvents.Killed);

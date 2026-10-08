@@ -74,6 +74,12 @@ public final class CityView {
 		return a != null && m.level() == heldLevel && a.ticksAt(m.getX(), m.getZ());
 	}
 
+	/** The simulated city-view area in {@code level}, or null. */
+	public static CameraArea area(ServerLevel level) {
+		CameraArea a = held;
+		return a != null && heldLevel == level ? a : null;
+	}
+
 	/** Any thread: the server's non-player entities in the city view's area, as of the last server tick. */
 	public static List<Entity> entities() {
 		return entities;
