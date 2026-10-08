@@ -387,7 +387,7 @@ backed-up cities are ever opened) and on the conditions belonging to that open.
   (Growth.simulate), which owns every planted block.
 - **Fire**: entities within the footprint half-diagonal + 2 m of a burning building catch fire for 4 s each second;
   `ceil(intensity/64)` fire blocks a second are lit on the ground 1-4 m outside the footprint. Minecraft fire never goes
-  back to CS1. Fire blocks are ordinary world changes, so they and what they burn are recorded as edits like vanilla fire.
+  back to CS1. Fire is never saved as an edit (the edit keeps what was there before it lit; a player block it burns away is recorded as gone), and to fire a shadow cell is not flammable: it does not burn out and fire does not spread next to it (`FireShadowMixin`). So a city fire cannot fell CS1 trees, strip the city's grass or leave a saved scar (2026-10-08).
 - **Crime and dead**: at night (`Level.isDarkOutside`), every 5 s, per player and per city-view area: `(crime-10)/20`
   extra attempts from crime 30 (capped 4), pillager 60 % / zombie 40 %; one zombie attempt per building with uncollected
   dead (capped 4, a tenth of them zombie villagers). Each attempt goes through vanilla `SpawnPlacements.checkSpawnRules`

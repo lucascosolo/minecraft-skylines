@@ -28,7 +28,8 @@
     "CityViewDespawnMixin",
     "ProxyPickMixin",
     "ProxyTargetMixin",
-    "ZombieConversionMixin"
+    "ZombieConversionMixin",
+    "FireShadowMixin"
   ],
   "client": [
     "EntityCollideMixin",

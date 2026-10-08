@@ -47,6 +47,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LightBlock;
@@ -764,6 +765,11 @@ public final class CityEdits {
 		if (l != level || applying || recording != this || !BlockKey.fits(pos.getX(), pos.getY(), pos.getZ())) {
 			return;
 		}
+		// Fire is never saved: the edit keeps what was there before it lit, and what it leaves (air) is recorded when it
+		// goes out. A city fire (protocol 1.21) leaves no saved scar; a player block it burns away is recorded as gone.
+		if (state.getBlock() instanceof BaseFireBlock) {
+			return;
+		}
 		long key = BlockKey.pack(pos.getX(), pos.getY(), pos.getZ());
 		touched.add(key);
 		// A shadow cell the player emptied stays empty: plain air means "no edit" to the host, so it is saved as cave air.
@@ -775,7 +781,7 @@ public final class CityEdits {
 		// The world holds that cave air too (as after a reload): SectionExporter draws the cavity's walls and floor as
 		// shadow faces toward cave air, so dug ground left as plain air showed a hole into the sky (owner, 2026-10-06).
 		// Only ground (full blocks): a broken grass plant stays plain air, so the ground under it grows no top face.
-		if (filled && !treeLog && state.is(Blocks.AIR) && old.isSolidRender()) {
+		if (filled && !treeLog && state.is(Blocks.AIR) && (old.isSolidRender() || old.getBlock() instanceof BaseFireBlock)) {
 			toCaveAir.add(key);
 		}
 		if (filled && state.isAir() && shadow.placed(key)) {
